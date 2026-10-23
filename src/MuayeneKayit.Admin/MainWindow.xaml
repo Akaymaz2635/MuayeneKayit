@@ -1,0 +1,232 @@
+<Window
+    x:Class="MuayeneKayit.Admin.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Background="#F3F5F9" RequestedTheme="Light">
+
+        <!-- ───────── PIN girişi ───────── -->
+        <Grid x:Name="LoginPanel">
+            <Border Background="White" CornerRadius="10" Padding="32" BorderBrush="#DDE2EA" BorderThickness="1"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Width="400">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="MuayeneKayit · Admin" FontSize="22" FontWeight="SemiBold" Foreground="#1A3A5C" />
+                    <TextBlock x:Name="LoginHint" TextWrapping="Wrap" Foreground="#555" />
+                    <PasswordBox x:Name="PinBox" Header="PIN" MaxLength="12" InputScope="NumericPin" KeyDown="PinBox_KeyDown" />
+                    <PasswordBox x:Name="PinRepeatBox" Header="PIN (tekrar)" MaxLength="12" InputScope="NumericPin" Visibility="Collapsed" KeyDown="PinBox_KeyDown" />
+                    <Button x:Name="LoginButton" Content="Giriş" Click="Login_Click" HorizontalAlignment="Stretch" Height="44" Style="{StaticResource AccentButtonStyle}" />
+                    <TextBlock x:Name="LoginError" Foreground="#B91C1C" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LoginRoot" Foreground="#888" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ───────── Admin paneli ───────── -->
+        <NavigationView
+            x:Name="Nav"
+            Visibility="Collapsed"
+            IsBackButtonVisible="Collapsed"
+            IsSettingsVisible="False"
+            PaneDisplayMode="Left"
+            OpenPaneLength="200"
+            SelectionChanged="Nav_SelectionChanged">
+
+            <NavigationView.Resources>
+                <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#FFFFFF" />
+                <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#FFFFFF" />
+                <SolidColorBrush x:Key="NavigationViewTopPaneBackground" Color="#FFFFFF" />
+            </NavigationView.Resources>
+
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="Kayıtlar" Tag="records">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="List" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Kusur tipleri" Tag="types">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Edit" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Karar açıklamaları" Tag="texts">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Comment" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Bakım" Tag="maint">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Repair" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Ayarlar" Tag="settings">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="Kilitle" Tag="lock">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="ProtectedDocument" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <Grid Padding="20,16" RowSpacing="12" Background="#F3F5F9">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <InfoBar Grid.Row="0" x:Name="Status" IsOpen="False" IsClosable="True" />
+
+                <!-- Kayıtlar: tüm seriler -->
+                <Grid Grid.Row="1" x:Name="RecordsPanel" RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Background="White" CornerRadius="8" Padding="16,12" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Tüm kayıtlar" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="18" VerticalAlignment="Center" Margin="0,0,16,0" />
+                                <Button Content="Yenile" Click="RefreshRecords_Click" Style="{StaticResource AccentButtonStyle}" />
+                                <Button Content="CSV olarak dışa aktar" Click="ExportCsv_Click" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBox x:Name="FPart" Header="Parça no" Width="150" PlaceholderText="Tümü" TextChanged="Filter_Changed" />
+                                <TextBox x:Name="FOp" Header="Operasyon" Width="120" PlaceholderText="Tümü" TextChanged="Filter_Changed" />
+                                <TextBox x:Name="FSerial" Header="Seri no" Width="150" PlaceholderText="Tümü" TextChanged="Filter_Changed" />
+                                <ComboBox x:Name="FType" Header="Hata tipi" Width="180" SelectionChanged="FilterCombo_Changed" />
+                                <ComboBox x:Name="FState" Header="Durum" Width="240" SelectionChanged="FilterCombo_Changed" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Grid.Row="1" x:Name="SummaryCards" Orientation="Horizontal" Spacing="12" />
+                    <ScrollViewer Grid.Row="2">
+                        <StackPanel x:Name="ResultsPanel" Spacing="8" Padding="0,0,12,0" />
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- Kusur tipi şablonları -->
+                <Grid Grid.Row="1" x:Name="TypesPanel" ColumnSpacing="12" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Background="White" CornerRadius="8" Padding="14" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <Grid RowSpacing="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Kusur tipleri" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <ListView Grid.Row="1" x:Name="TypeList" SelectionMode="Single" SelectionChanged="TypeList_SelectionChanged" />
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+                                <Button Content="Yeni tip" Click="AddType_Click" />
+                                <Button Content="Yukarı" Click="MoveUp_Click" />
+                                <Button Content="Aşağı" Click="MoveDown_Click" />
+                                <Button Content="Sil" Click="DeleteType_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Grid.Column="1" Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1" VerticalAlignment="Top">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Şablon" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <TextBlock Text="Muayene ekranında bu tip için yalnızca işaretli ölçüm alanları gösterilir. Spec adı yeni kusura varsayılan olarak yazılır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+                            <TextBox x:Name="TypeName" Header="Ad" Width="320" HorizontalAlignment="Left" MaxLength="40" />
+                            <TextBox x:Name="TypeSpec" Header="Spec adı (isteğe bağlı)" Width="320" HorizontalAlignment="Left" MaxLength="60" />
+                            <TextBlock Text="Ölçüm alanları" FontWeight="SemiBold" />
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <CheckBox x:Name="FieldDepth" Content="Derinlik" />
+                                <CheckBox x:Name="FieldWidth" Content="Genişlik" />
+                                <CheckBox x:Name="FieldLength" Content="Uzunluk" />
+                                <CheckBox x:Name="FieldRadius" Content="Yarıçap" />
+                                <CheckBox x:Name="FieldAngle" Content="Açı" />
+                                <CheckBox x:Name="FieldColor" Content="Renk" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="Şablonu uygula" Click="ApplyType_Click" />
+                                <Button Content="Tümünü ortak alana kaydet" Click="SaveTypes_Click" Style="{StaticResource AccentButtonStyle}" />
+                                <Button Content="Varsayılanlara dön" Click="ResetTypes_Click" />
+                            </StackPanel>
+                            <TextBlock x:Name="TypesDirty" Foreground="#B45309" FontSize="12" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Karar açıklamaları -->
+                <Grid Grid.Row="1" x:Name="TextsPanel" RowSpacing="12" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Background="White" CornerRadius="8" Padding="16,12" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Karar açıklamaları" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="18" VerticalAlignment="Center" Margin="0,0,16,0" />
+                                <Button Content="Ortak alana kaydet" Click="SaveTexts_Click" Style="{StaticResource AccentButtonStyle}" />
+                                <Button Content="Tümünü varsayılana döndür" Click="ResetTexts_Click" />
+                            </StackPanel>
+                            <TextBlock Text="Muayeneci bir karar seçince açılan pencerede bu açıklama gösterilir. Kararın ne yapacağını ve sonra ne yapılacağını yazın (en fazla 600 karakter)." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+                            <TextBlock x:Name="TextsDirty" Foreground="#B45309" FontSize="12" />
+                        </StackPanel>
+                    </Border>
+                    <ScrollViewer Grid.Row="1">
+                        <StackPanel x:Name="TextsList" Spacing="10" Padding="0,0,12,0" />
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- Bakım -->
+                <Grid Grid.Row="1" x:Name="MaintPanel" RowSpacing="12" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Index ve denetim" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="Index'i yeniden oluştur" Click="RebuildIndex_Click" />
+                                <Button Content="Denetim zincirini doğrula" Click="VerifyAudit_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Eski kilitler" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <TextBlock Text="Program çökerse ya da ağ koparsa kilit dosyası kalabilir. 10 dakikadan eski kilitler burada listelenir; yalnızca onlar silinebilir." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button Content="Kilitleri tara" Click="ScanLocks_Click" />
+                                <Button Content="Seçili kilidi sil" Click="RemoveLock_Click" />
+                            </StackPanel>
+                            <ListView x:Name="LockList" SelectionMode="Single" MaxHeight="160" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Row="2" Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <Grid RowSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Son 300 denetim kaydı" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <ListView Grid.Row="1" x:Name="AuditList" SelectionMode="None" />
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- Ayarlar -->
+                <StackPanel Grid.Row="1" x:Name="SettingsPanel" Spacing="12" Visibility="Collapsed">
+                    <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Ortak alan" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <TextBlock Text="Bu admin uygulamasının kullandığı kök klasör. Muayene uygulamalarında aynı yol, exe'nin yanındaki MuayeneKayit.settings.json dosyasına yazılmalıdır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+                            <TextBox x:Name="RootBox" Header="Kök klasör (ör. \\sunucu\Muayene)" Width="520" HorizontalAlignment="Left" />
+                            <Button Content="Kaydet ve yeniden bağlan" Click="SaveRoot_Click" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Admin PIN'i değiştir" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <PasswordBox x:Name="OldPin" Header="Mevcut PIN" Width="240" HorizontalAlignment="Left" MaxLength="12" />
+                            <PasswordBox x:Name="NewPin" Header="Yeni PIN (6-12 rakam)" Width="240" HorizontalAlignment="Left" MaxLength="12" />
+                            <PasswordBox x:Name="NewPinRepeat" Header="Yeni PIN (tekrar)" Width="240" HorizontalAlignment="Left" MaxLength="12" />
+                            <Button Content="PIN'i değiştir" Click="ChangePin_Click" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </NavigationView>
+    </Grid>
+</Window>

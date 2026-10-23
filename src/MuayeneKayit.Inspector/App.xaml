@@ -1,0 +1,14 @@
+<Application
+    x:Class="MuayeneKayit.Inspector.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    RequestedTheme="Light">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+            </ResourceDictionary.MergedDictionaries>
+            <x:Double x:Key="ContentDialogMaxWidth">960</x:Double>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

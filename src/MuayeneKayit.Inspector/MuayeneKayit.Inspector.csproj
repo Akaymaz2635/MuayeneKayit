@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>MuayeneKayit.Inspector</RootNamespace>
+    <AssemblyName>MuayeneKayit.Inspector</AssemblyName>
+    <UseWinUI>true</UseWinUI>
+    <Platforms>x64;ARM64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Paketlenmemiş (unpackaged) çalıştırma: Windows App SDK çalışma zamanı çıktıya dahil edilir. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <!-- Otomatik güncelleme yok, dağıtım yalnızca bu çıktı klasörüyle yapılır. -->
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <!-- Paketleme araçları Visual Studio 2022 kurulumundan alınır (dotnet SDK'sında bulunmaz). -->
+    <AppxMSBuildToolsPath>C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VisualStudio\v17.0\AppxPackage\</AppxMSBuildToolsPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="MuayeneKayit.settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MuayeneKayit.Core\MuayeneKayit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.9169" />
+  </ItemGroup>
+
+  <!--
+    Paketlenmemiş WinUI yayınında derlenmiş XAML (.xbf) ve uygulama kaynak dizini (.pri)
+    yayın klasörüne kopyalanmıyor; bunlar olmadan uygulama açılışta çöküyor.
+  -->
+  <Target Name="CopyXamlArtifactsToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_XamlPublishArtifacts Include="$(OutDir)*.xbf;$(OutDir)$(TargetName).pri" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_XamlPublishArtifacts)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

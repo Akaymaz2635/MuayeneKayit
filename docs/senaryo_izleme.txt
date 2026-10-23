@@ -1,0 +1,45 @@
+  OK    Yol doğrulama: güvenli segmentler kabul edilir
+  OK    Yol doğrulama: dolaşım ve ayraç reddedilir
+  OK    Durum: Rework -> Reinspect -> Accept kapatır
+  OK    Durum: Void yalnızca operatör ve yalnızca Open durumda
+  OK    Durum: MRB reddi otomatik hurda yazar
+  OK    Durum: Vendor'da kusur açık kalır
+  OK    Durum: Yetkisiz kaynak reddedilir
+  OK    Geçit: Açık kusur muayeneyi kapatmaz
+  OK    Geçit: Parent-child zinciri çözülünce geçer
+  OK    Cümle: Defect cümlesi doğru biçimde üretilir
+  OK    Depo: Numara void olsa da yeniden kullanılmaz
+  OK    Depo: Oturum var ise üzerine yazılmaz
+  OK    Index: Rebuild satırları üretir
+  OK    Denetim: Zincir doğrulanır ve kurcalama yakalanır
+  OK    Doğrulama: Ölçüm değerleri pozitif ve açı aralığında
+  OK    Fotoğraf: Geçerli JPG kopyalanır, sahte uzantı reddedilir
+  OK    Yeniden açma: not zorunlu, geçmiş korunur
+  OK    Rework döngüsü: aynı kusur devam ederse tekrar rework
+  OK    Karşılaştırma: artış ve azalış doğru yazılır
+        · 1. Kusur girildi                       #1 Dent      durum=Open               son karar=-                                    D=0.12 W=2 L=-
+        · 2. Rework kararı                       #1 Dent      durum=AwaitingReinspect  son karar=Rework / Reinspect                   D=0.12 W=2 L=-
+        · Karşılaştırma: Derinlik: 0.12 → 0.2 mm (artış) | Genişlik: 2 → 2 mm (aynı)
+        · 3. Reinspect: aynı kusur devam         #1 Dent      durum=Open               son karar=After rework: same defect continues  D=0.2 W=2 L=-
+        · 4. İkinci rework                       #1 Dent      durum=AwaitingReinspect  son karar=Rework / Reinspect                   D=0.2 W=2 L=-
+        · 5. Reinspect: uygun                    #1 Dent      durum=Closed             son karar=After rework conforms                D=- W=- L=-
+  OK    SENARYO 1: Rework sonrası aynı kusur, değer artar, ikinci rework uygun
+        · 1. Undercut girildi                    #1 Undercut  durum=Open               son karar=-                                    D=0.3 W=- L=-
+        · 2. Rework (OP40)                       #1 Undercut  durum=AwaitingReinspect  son karar=Rework / Reinspect                   D=0.3 W=- L=-
+        · 3. Reinspect: yeni hata                #1 Undercut  durum=Superseded         son karar=After rework: new defect found       D=0.3 W=- L=-
+        ·    Child açıldı                        #2 Dent      durum=Open               son karar=-                                    D=- W=- L=-
+        · 4. Dent kabul                          #2 Dent      durum=Closed             son karar=Accept                               D=- W=- L=-
+        · Cümle: Defect 1: There is Undercut on part with Depth: 0.3 mm. / Disposition: After rework: new defect found. Continues as Defect 2.
+  OK    SENARYO 2: Undercut giderildi, Dent oluştu (child)
+        · 1. Kabul                               #1 Nick      durum=Closed             son karar=Accept                               D=- W=- L=-
+        · 2. Yeniden açıldı (not ile)            #1 Nick      durum=Open               son karar=Reopened                             D=- W=- L=-
+        · 3. Hurda                               #1 Nick      durum=Closed             son karar=Scrap                                D=- W=- L=-
+  OK    SENARYO 3: Kapalı kusur yeniden açılır, hurda açılamaz
+        · 1. MRB'ye gönderildi                   #1 Scratch   durum=MrbPending         son karar=Submit MRB (pending)                 D=- W=- L=-
+        · 2. MRB reddi                           #1 Scratch   durum=Closed             son karar=MRB rejected                         D=- W=- L=-
+  OK    SENARYO 4: MRB reddi otomatik hurda, muayene kapanabilir
+  OK    Yeniden açma: hurda kesindir
+  OK    Child: Rework sonrası devam yeni kusur açar ve bağlar
+  OK    Rapor: Kullanıcı metni HTML olarak kaçılır, void dışarıda kalır
+
+Tümü geçti (26/26).
