@@ -1,5 +1,6 @@
 using System.Text.Json;
 using MuayeneKayit.Core;
+using MuayeneKayit.Presentation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -23,15 +24,12 @@ namespace MuayeneKayit.Inspector;
 /// Yalnızca ön (selfie) kamera varsa otomatik seçilmez, kullanıcı listeden seçer.
 /// Zoom yalnızca görüntülemek içindir; fotoğraf kameranın tam çözünürlüğünde kaydedilir.
 /// </summary>
-/// <summary>Çekilen fotoğraf: geçici dosya, piksel boyutu ve çerçevenin açık olup olmadığı.</summary>
-public sealed record CapturedPhoto(string TempPath, int Width, int Height, bool Framed, double FrameFraction);
-
 public sealed partial class CameraWindow : Window
 {
     private const string PreferredCameraName = "C920";
 
     /// <summary>Çekilen fotoğrafı kusura kaydeder ve dosya adını döndürür. Sonra pencere kapanır.</summary>
-    private readonly Func<CapturedPhoto, string> _onSave;
+    private readonly Func<CapturedPhotoData, string> _onSave;
     private readonly int _defectId;
 
     /// <summary>Çerçeve tercihi ve boyutu oturum boyunca hatırlanır.</summary>
@@ -53,7 +51,7 @@ public sealed partial class CameraWindow : Window
         "MuayeneKayit",
         "camera.json");
 
-    public CameraWindow(string target, int defectId, Func<CapturedPhoto, string> onSave)
+    public CameraWindow(string target, int defectId, Func<CapturedPhotoData, string> onSave)
     {
         InitializeComponent();
         _onSave = onSave;
@@ -449,7 +447,7 @@ public sealed partial class CameraWindow : Window
             }
 
             // Kaydedince pencere kapanır; fotoğraf doğrudan işaretleme ekranında açılır.
-            _onSave(new CapturedPhoto(temp, _photoWidth, _photoHeight, FrameToggle.IsOn, _frameFraction));
+            _onSave(new CapturedPhotoData(temp, _photoWidth, _photoHeight, FrameToggle.IsOn, _frameFraction));
             Close();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException

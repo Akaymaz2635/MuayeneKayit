@@ -76,6 +76,21 @@ var tests = new List<(string Name, Action Body)>
     ("VM: fotoğraf kaldırma onay ister", VmRemovePhotoConfirmation),
     ("VM: reopen'da not zorunlu", VmReopenRequiresNote),
     ("Diyalog kuralları: Merge, CanSave, DeltaText, DecisionForm", DialogFormRules),
+    ("VM: fotoğraf kartları etiket, temiz kopya ve bilgi metni", VmPhotoCardsShowLabelsAndCleanCopy),
+    ("VM: kapalı kusurda kartlar yalnızca görüntüleme", VmPhotoCardsAreViewOnlyWhenClosed),
+    ("VM: dosyadan ekle (vazgeç, ekle, geçersiz dosya)", VmAddPhotoFromFile),
+    ("VM: kamera çerçeveli kayıt, kapanınca Fotoğraf sekmesi ve düzenleyici", VmCameraSavesFramedMarkupAndOpensEditor),
+    ("VM: kamera kayıt olmadan kapanırsa düzenleyici açılmaz", VmCameraClosedWithoutPhotoDoesNothing),
+    ("VM: düzenleyici kaydı işaret ve temiz kopya yazar, boş işaret kaldırılır", VmEditorSaveWritesMarkupAndCleanCopy),
+    ("VM: kapalı kusurda düzenleyici yerine dosya açılır", VmOpenEditorOnClosedDefectOpensFile),
+    ("VM: rapor sürüm artırır, HTML yazar, PDF açar", VmReportWritesHtmlAndOpensPdf),
+    ("VM: PDF başarısızsa HTML açılır ve uyarı verilir", VmReportFallsBackToHtml),
+    ("VM: oturumsuz rapor hata verir", VmReportWithoutSessionErrors),
+    ("VM: öneriler _ klasörlerini atlar, üst alana göre gelir", VmSuggestionsListFoldersAndSkipUnderscore),
+    ("Dashboard VM: süzgeçler ve özet kartları", DashboardViewModelTests.DashEmptyBeforeRefreshThenFiltersAndSummary),
+    ("Dashboard VM: boş metinleri ve süzgeçleri temizle", DashboardViewModelTests.DashEmptyTextsAndClearFilters),
+    ("Dashboard VM: kart rozetleri ve Aç olayı", DashboardViewModelTests.DashRowCardsCarryChipsAndOpenEvent),
+    ("Dashboard VM: denetim doğrulama sağlam ve bozuk", DashboardViewModelTests.DashVerifyAuditIntactAndBroken),
 };
 
 int failed = 0;

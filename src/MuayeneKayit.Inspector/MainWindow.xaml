@@ -92,7 +92,7 @@
                                         <TextBlock Text="Başka muayene" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="ReportButton" Click="Report_Click" IsEnabled="{x:Bind Vm.IsSessionOpen, Mode=OneWay}" AutomationProperties.AutomationId="ReportButton" AutomationProperties.Name="Rapor (PDF)">
+                                <Button x:Name="ReportButton" Click="Report_Click" IsEnabled="{x:Bind Vm.CanCreateReport, Mode=OneWay}" AutomationProperties.AutomationId="ReportButton" AutomationProperties.Name="Rapor (PDF)">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE749;" FontSize="14" />
                                         <TextBlock Text="Rapor (PDF)" />
@@ -260,8 +260,35 @@
                                                         </StackPanel>
                                                     </Button>
                                                 </StackPanel>
-                                                <TextBlock x:Name="PhotoEmpty" Text="Henüz fotoğraf yok. Kusuru kamerayla çekin; sonra 'İşaretle' ile kusur numarasını fotoğrafın üzerine koyun." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <VariableSizedWrapGrid x:Name="PhotoPanel" Orientation="Horizontal" ItemWidth="208" ItemHeight="250" />
+                                                <TextBlock x:Name="PhotoEmpty" Visibility="{x:Bind Vm.NoPhotos, Mode=OneWay}" Text="Henüz fotoğraf yok. Kusuru kamerayla çekin; sonra 'İşaretle' ile kusur numarasını fotoğrafın üzerine koyun." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <ItemsRepeater x:Name="PhotoPanel" ItemsSource="{x:Bind Vm.Photos}">
+                                                    <ItemsRepeater.Layout>
+                                                        <UniformGridLayout MinItemWidth="208" MinItemHeight="250" ItemsStretch="None" />
+                                                    </ItemsRepeater.Layout>
+                                                    <ItemsRepeater.ItemTemplate>
+                                                        <DataTemplate x:DataType="pres:PhotoItemViewModel">
+                                                            <Border Width="196" Padding="8" CornerRadius="6" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                                                                <StackPanel Spacing="6">
+                                                                    <Border CornerRadius="4" Background="#111111">
+                                                                        <local:ThumbnailView Path="{x:Bind ThumbnailPath}" Width="180" Height="120" />
+                                                                    </Border>
+                                                                    <TextBlock Text="{x:Bind Caption}" FontSize="12" FontWeight="SemiBold" />
+                                                                    <TextBlock Text="{x:Bind InfoText}" FontSize="11" Foreground="{x:Bind local:MainWindow.InfoBrush(HasInfo)}" />
+                                                                    <Grid ColumnSpacing="6">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <Button Content="{x:Bind EditButtonText}" HorizontalAlignment="Stretch" Tag="{x:Bind FileName}" Click="EditPhoto_Click" />
+                                                                        <Button Grid.Column="1" Visibility="{x:Bind IsEditable}" Tag="{x:Bind FileName}" Click="RemovePhoto_Click" ToolTipService.ToolTip="Fotoğrafı kaldır" AutomationProperties.Name="{x:Bind RemoveAutomationName}">
+                                                                            <FontIcon Glyph="&#xE74D;" FontSize="14" />
+                                                                        </Button>
+                                                                    </Grid>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsRepeater.ItemTemplate>
+                                                </ItemsRepeater>
                                             </StackPanel>
 
                                             <!-- 3. Disposition -->
@@ -312,16 +339,16 @@
                             <Button Content="Denetim kaydını doğrula" Click="VerifyAudit_Click" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBox x:Name="FilterPartBox" Header="Parça no" Width="160" PlaceholderText="Tümü" TextChanged="FilterText_Changed" />
-                            <TextBox x:Name="FilterOpBox" Header="Operasyon" Width="120" PlaceholderText="Tümü" TextChanged="FilterText_Changed" />
-                            <TextBox x:Name="SerialFilterBox" Header="Seri no" Width="160" PlaceholderText="Tümü" TextChanged="FilterText_Changed" />
-                            <ComboBox x:Name="FilterTypeBox" Header="Hata tipi" Width="190" SelectionChanged="FilterSelection_Changed" />
-                            <ComboBox x:Name="FilterStateBox" Header="Durum" Width="260" SelectionChanged="FilterSelection_Changed" />
+                            <TextBox x:Name="FilterPartBox" Text="{x:Bind Dash.PartFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Parça no" Width="160" PlaceholderText="Tümü" />
+                            <TextBox x:Name="FilterOpBox" Text="{x:Bind Dash.OperationFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Operasyon" Width="120" PlaceholderText="Tümü" />
+                            <TextBox x:Name="SerialFilterBox" Text="{x:Bind Dash.SerialFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Seri no" Width="160" PlaceholderText="Tümü" />
+                            <ComboBox x:Name="FilterTypeBox" ItemsSource="{x:Bind Dash.TypeOptions}" SelectedItem="{x:Bind Dash.TypeFilter, Mode=TwoWay}" Header="Hata tipi" Width="190" />
+                            <ComboBox x:Name="FilterStateBox" ItemsSource="{x:Bind Dash.StateOptions}" DisplayMemberPath="Label" SelectedItem="{x:Bind Dash.StateFilter, Mode=TwoWay}" Header="Durum" Width="260" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
-                <InfoBar Grid.Row="1" x:Name="DashInfo" IsOpen="False" IsClosable="True" />
+                <InfoBar Grid.Row="1" x:Name="DashInfo" IsOpen="{x:Bind Dash.IsAuditOpen, Mode=TwoWay}" IsClosable="True" Title="{x:Bind Dash.AuditTitle, Mode=OneWay}" Message="{x:Bind Dash.AuditMessage, Mode=OneWay}" Severity="{x:Bind local:MainWindow.SeverityFor(Dash.AuditKind), Mode=OneWay}" />
 
                 <!-- Özet kartları -->
                 <StackPanel Grid.Row="2" x:Name="SummaryCards" Orientation="Horizontal" Spacing="12" />

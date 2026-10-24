@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using MuayeneKayit.Core;
 
 namespace MuayeneKayit.Inspector;
 
@@ -7,12 +8,12 @@ namespace MuayeneKayit.Inspector;
 /// Ek paket gerekmez. Edge yalnızca Program Files altındaki kurulumundan çalıştırılır (PATH'e güvenilmez),
 /// kullanıcının tarayıcı profilinden ayrı geçici bir profil kullanılır, eklenti ve senkronizasyon kapalıdır.
 /// </summary>
-public static class ReportPdf
+public sealed class EdgePdfConverter : IPdfConverter
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
 
     /// <summary>Başarılıysa null, değilse kısa hata açıklaması döner.</summary>
-    public static async Task<string?> TryConvertAsync(string htmlPath, string pdfPath)
+    public async Task<string?> TryConvertAsync(string htmlPath, string pdfPath)
     {
         var edge = FindEdge();
         if (edge is null)

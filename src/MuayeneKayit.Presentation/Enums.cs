@@ -27,3 +27,11 @@ public enum StatusKind
     Warning,
     Error,
 }
+
+/// <summary>Muayene seçimindeki öneri kutusu: hangi alanın önerileri isteniyor.</summary>
+public enum SuggestLevel
+{
+    Part,
+    Operation,
+    Serial,
+}

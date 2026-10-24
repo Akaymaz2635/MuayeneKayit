@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices.WindowsRuntime;
 using MuayeneKayit.Core;
+using MuayeneKayit.Presentation;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -14,9 +15,6 @@ using Windows.Storage;
 using Windows.Storage.Streams;
 
 namespace MuayeneKayit.Inspector;
-
-/// <summary>Düzenleyicinin sonucu. NewCleanJpeg doluysa yeni arka plan kopyası yazılmalıdır.</summary>
-public sealed record PhotoEditResult(PhotoMarkup Markup, byte[]? NewCleanJpeg);
 
 /// <summary>
 /// Fotoğraf işaretleme ve arka plan kaldırma. Orijinal dosya değişmez: işaretler kusur kaydında
@@ -34,7 +32,7 @@ public sealed partial class PhotoEditorWindow : Window
     private readonly string? _existingCleanPath;
     private readonly string? _existingCleanName;
     private readonly List<Annotation> _shapes;
-    private readonly Action<PhotoEditResult> _onSave;
+    private readonly Action<PhotoEditResultData> _onSave;
 
     private byte[]? _pixels;
     private byte[]? _cleanPixels;
@@ -53,7 +51,7 @@ public sealed partial class PhotoEditorWindow : Window
         PhotoMarkup? existing,
         IReadOnlyList<int> defectIds,
         int currentId,
-        Action<PhotoEditResult> onSave)
+        Action<PhotoEditResultData> onSave)
     {
         InitializeComponent();
         Title = "Fotoğraf işaretle";
@@ -599,7 +597,7 @@ public sealed partial class PhotoEditorWindow : Window
         try
         {
             var jpeg = _cleanState == CleanState.New && _cleanPixels is not null ? await EncodeJpegAsync(_cleanPixels) : null;
-            _onSave(new PhotoEditResult(markup, jpeg));
+            _onSave(new PhotoEditResultData(markup, jpeg));
             Close();
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException

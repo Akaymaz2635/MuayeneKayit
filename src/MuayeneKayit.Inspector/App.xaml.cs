@@ -35,7 +35,15 @@ public partial class App : Application
         services.AddSingleton<WinUiDialogService>();
         services.AddSingleton<IDialogService>(sp => sp.GetRequiredService<WinUiDialogService>());
 
+        // Dosya seçici, kamera / düzenleyici pencereleri ve PDF dönüştürücü: ViewModel bunları portlardan kullanır.
+        services.AddSingleton<WinUiFilePicker>();
+        services.AddSingleton<IFilePicker>(sp => sp.GetRequiredService<WinUiFilePicker>());
+        services.AddSingleton<WinUiWindowService>();
+        services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WinUiWindowService>());
+        services.AddSingleton<IPdfConverter, EdgePdfConverter>();
+
         services.AddSingleton<InspectionViewModel>();
+        services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<MainWindow>();
         return services.BuildServiceProvider();
     }

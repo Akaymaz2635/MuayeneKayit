@@ -3,7 +3,7 @@ using MuayeneKayit.Presentation;
 
 // Muayene ekranı ViewModel testleri: gerçek SessionStore + geçici klasör, sahte denetim kaydı.
 // Program.cs bu sınıfı "using static" ile kullanır.
-public static class ViewModelTests
+public static partial class ViewModelTests
 {
     private sealed class FakeAudit : IAuditTrail
     {
@@ -19,6 +19,9 @@ public static class ViewModelTests
         public required SessionStore Store { get; init; }
         public required FakeAudit Audit { get; init; }
         public required FakeDialogService Dialogs { get; init; }
+        public required FakeFilePicker Picker { get; init; }
+        public required FakeWindowService Windows { get; init; }
+        public required FakePdfConverter Pdf { get; init; }
         public List<(string Message, StatusKind Kind)> Notes { get; } = new();
         public string Folder => Vm.Folder!;
 
@@ -47,12 +50,18 @@ public static class ViewModelTests
             var store = new SessionStore(root);
             var audit = new FakeAudit();
             var dialogs = new FakeDialogService();
+            var picker = new FakeFilePicker();
+            var windows = new FakeWindowService();
+            var pdf = new FakePdfConverter();
             var ctx = new Ctx
             {
-                Vm = new InspectionViewModel(store, audit, SharedConfig.Defaults, dialogs),
+                Vm = new InspectionViewModel(store, audit, SharedConfig.Defaults, dialogs, picker, windows, pdf),
                 Store = store,
                 Audit = audit,
                 Dialogs = dialogs,
+                Picker = picker,
+                Windows = windows,
+                Pdf = pdf,
             };
             ctx.Vm.Notify += (m, k) => ctx.Notes.Add((m, k));
             body(ctx);

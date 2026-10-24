@@ -6,8 +6,8 @@ namespace MuayeneKayit.Presentation;
 
 /// <summary>
 /// Muayene ekranının durumu ve kuralları. WinUI'ye bağlı değildir: depo ve denetim kaydı portlardan gelir,
-/// renkler ton olarak, bildirimler olayla iletilir, diyaloglar IDialogService ile sorulur. Kamera, düzenleyici ve rapor View'da kalır;
-/// View, bu sınıfın verilerini (Store, Folder, Session, User, Current, SelectedId) kullanır.
+/// renkler ton olarak, bildirimler olayla iletilir, diyaloglar IDialogService, pencereler IWindowService, dosya seçimi IFilePicker,
+/// PDF IPdfConverter ile yapılır. Fotoğraf, rapor ve öneri akışları InspectionViewModel.Photos.cs içindedir.
 /// </summary>
 public sealed partial class InspectionViewModel : ObservableObject
 {
@@ -15,6 +15,9 @@ public sealed partial class InspectionViewModel : ObservableObject
     private readonly IAuditTrail _audit;
     private readonly IReadOnlyList<DefectTypeTemplate> _types;
     private readonly IDialogService _dialogs;
+    private readonly IFilePicker _filePicker;
+    private readonly IWindowService _windows;
+    private readonly IPdfConverter _pdf;
 
     private string? _folder;
     private Session? _session;
@@ -31,12 +34,16 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// <summary>Liste yenilenirken ListView'in ara seçim olayları yok sayılır (sekme ve seçim korunur).</summary>
     private bool _refreshing;
 
-    public InspectionViewModel(ISessionStore store, IAuditTrail audit, IReadOnlyList<DefectTypeTemplate> types, IDialogService dialogs)
+    public InspectionViewModel(ISessionStore store, IAuditTrail audit, IReadOnlyList<DefectTypeTemplate> types, IDialogService dialogs,
+        IFilePicker filePicker, IWindowService windows, IPdfConverter pdf)
     {
         _store = store;
         _audit = audit;
         _types = types;
         _dialogs = dialogs;
+        _filePicker = filePicker;
+        _windows = windows;
+        _pdf = pdf;
         Defects = new ObservableCollection<DefectItemViewModel>();
         ApplyDecisionState(null);
     }
@@ -64,7 +71,9 @@ public sealed partial class InspectionViewModel : ObservableObject
 
     // ───────────────────────── Oturum ─────────────────────────
 
-    [ObservableProperty] private bool _isSessionOpen;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCreateReport))]
+    private bool _isSessionOpen;
     [ObservableProperty] private bool _isSessionClosed = true;
     [ObservableProperty] private string _sessionTitle = "";
     [ObservableProperty] private string _sessionSubtitle = "";
@@ -119,6 +128,12 @@ public sealed partial class InspectionViewModel : ObservableObject
     [ObservableProperty] private bool _isReadOnly = true;
     [ObservableProperty] private bool _canVoid;
     [ObservableProperty] private IReadOnlyList<string> _history = Array.Empty<string>();
+
+    /// <summary>Seçili kusurun fotoğraf kartları (Fotoğraflar sekmesi).</summary>
+    public ObservableCollection<PhotoItemViewModel> Photos { get; } = new();
+
+    [ObservableProperty] private bool _hasPhotos;
+    [ObservableProperty] private bool _noPhotos = true;
 
     [ObservableProperty] private string _measureTabLabel = "1. Ölçüm";
     [ObservableProperty] private string _photoTabLabel = "2. Fotoğraflar";
@@ -330,6 +345,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         ShowDelta = false;
         History = Array.Empty<string>();
         HistoryTabLabel = "Geçmiş";
+        UpdatePhotos(null);
         CurrentStep = null;
         IsSavePrimary = false;
         IsCameraPrimary = false;
@@ -405,6 +421,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         ApplyDecisionState(defect);
 
         // Fotoğraf kartları Current değişince çizilir; bu yüzden en son atanır.
+        UpdatePhotos(defect);
         Current = defect;
     }
 
