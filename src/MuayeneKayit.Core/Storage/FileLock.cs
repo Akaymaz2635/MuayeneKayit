@@ -34,16 +34,17 @@ public sealed class FileLock : IDisposable
                     FileOptions.DeleteOnClose);
                 return new FileLock(stream);
             }
-            catch (IOException) when (File.Exists(lockPath))
+            catch (IOException)
             {
-                if (IsStale(lockPath))
+                // Kilit başkasında. Kilit tam bu arada bırakılmış (dosya silinmiş) olabilir: o durumda hemen yeniden denenir.
+                if (File.Exists(lockPath) && IsStale(lockPath))
                     throw new InvalidOperationException(
                         $"Kilit {StaleAfter.TotalMinutes:0} dakikadan eski, admin kontrol etmeli: {lockPath}");
 
                 if (DateTime.UtcNow >= deadline)
                     throw new TimeoutException($"Kilit alınamadı: {lockPath}");
 
-                Thread.Sleep(200);
+                Thread.Sleep(File.Exists(lockPath) ? 200 : 10);
             }
         }
     }
@@ -54,7 +55,11 @@ public sealed class FileLock : IDisposable
     {
         try
         {
-            return DateTime.UtcNow - File.GetLastWriteTimeUtc(lockPath) > StaleAfter;
+            // Dosya kontrol ile okuma arasında silindiyse Windows 1601 tarihini döndürür (hata değil): eski sayılmaz.
+            var written = File.GetLastWriteTimeUtc(lockPath);
+            if (written.Year <= 1601)
+                return false;
+            return DateTime.UtcNow - written > StaleAfter;
         }
         catch (IOException)
         {

@@ -91,6 +91,9 @@ var tests = new List<(string Name, Action Body)>
     ("Dashboard VM: boş metinleri ve süzgeçleri temizle", DashboardViewModelTests.DashEmptyTextsAndClearFilters),
     ("Dashboard VM: kart rozetleri ve Aç olayı", DashboardViewModelTests.DashRowCardsCarryChipsAndOpenEvent),
     ("Dashboard VM: denetim doğrulama sağlam ve bozuk", DashboardViewModelTests.DashVerifyAuditIntactAndBroken),
+    ("Eşzamanlı: iki muayeneci aynı anda kusur ekler, numaralar tekil", ConcurrencyTests.ParallelAddDefectsGetUniqueIds),
+    ("Eşzamanlı: aynı kusura paralel güncelleme kaybolmaz", ConcurrencyTests.ParallelUpdatesSameDefectLoseNothing),
+    ("Eşzamanlı: paralel denetim kaydı zinciri bozmaz", ConcurrencyTests.ParallelAuditAppendsKeepChain),
 };
 
 int failed = 0;

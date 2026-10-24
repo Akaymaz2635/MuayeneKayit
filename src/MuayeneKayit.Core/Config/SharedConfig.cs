@@ -232,7 +232,8 @@ public static class SharedConfig
     /// <summary>Kök altında eski kalmış kilit dosyaları (program çöktüğünde ya da ağ koptuğunda kalır).</summary>
     public static IReadOnlyList<string> StaleLocks(string root) =>
         Directory.EnumerateFiles(Path.GetFullPath(root), "*.lock", SearchOption.AllDirectories)
-            .Where(p => DateTime.UtcNow - File.GetLastWriteTimeUtc(p) > FileLock.StaleAfter)
+            // Tam bu sırada bırakılan kilit 1601 tarihiyle döner; eski sayılmaz.
+            .Where(p => File.GetLastWriteTimeUtc(p) is var w && w.Year > 1601 && DateTime.UtcNow - w > FileLock.StaleAfter)
             .ToList();
 
     /// <summary>
