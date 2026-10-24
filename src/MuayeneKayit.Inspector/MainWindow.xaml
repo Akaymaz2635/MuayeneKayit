@@ -2,7 +2,8 @@
     x:Class="MuayeneKayit.Inspector.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:MuayeneKayit.Inspector">
+    xmlns:local="using:MuayeneKayit.Inspector"
+    xmlns:pres="using:MuayeneKayit.Presentation">
 
     <NavigationView
         x:Name="Nav"
@@ -40,7 +41,7 @@
                 <InfoBar Grid.Row="0" x:Name="Status" IsOpen="False" IsClosable="True" AutomationProperties.AutomationId="StatusInfoBar" />
 
                 <!-- A) Muayene seçimi: oturum açık değilken ekranda yalnızca bu kart -->
-                <Grid Grid.Row="1" x:Name="StartPanel">
+                <Grid Grid.Row="1" Visibility="{x:Bind Vm.IsSessionClosed, Mode=OneWay}">
                     <Border Style="{StaticResource CardStyle}" Width="600" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32">
                         <StackPanel Spacing="16">
                             <StackPanel Spacing="4">
@@ -56,10 +57,10 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <AutoSuggestBox x:Name="PartBox" Header="Parça no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="PartBox" />
-                                <AutoSuggestBox x:Name="OpBox" Grid.Column="1" Header="Operasyon" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="OpBox" />
-                                <AutoSuggestBox x:Name="SerialBox" Grid.Row="1" Header="Seri no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="SerialBox" />
-                                <TextBox x:Name="InspectorBox" Grid.Row="1" Grid.Column="1" Header="Muayeneci" PlaceholderText="Adınız" AutomationProperties.AutomationId="InspectorBox" />
+                                <AutoSuggestBox x:Name="PartBox" Text="{x:Bind Vm.PartNumber, Mode=TwoWay}" Header="Parça no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="PartBox" />
+                                <AutoSuggestBox x:Name="OpBox" Grid.Column="1" Text="{x:Bind Vm.OperationNumber, Mode=TwoWay}" Header="Operasyon" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="OpBox" />
+                                <AutoSuggestBox x:Name="SerialBox" Grid.Row="1" Text="{x:Bind Vm.SerialNumber, Mode=TwoWay}" Header="Seri no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="SerialBox" />
+                                <TextBox x:Name="InspectorBox" Grid.Row="1" Grid.Column="1" Text="{x:Bind Vm.InspectorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Muayeneci" PlaceholderText="Adınız" AutomationProperties.AutomationId="InspectorBox" />
                             </Grid>
                             <Button Content="Muayene oluştur" Click="OpenSession_Click" Height="48" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="OpenSessionButton" />
                         </StackPanel>
@@ -67,7 +68,7 @@
                 </Grid>
 
                 <!-- B) Çalışma alanı: oturum açıkken -->
-                <Grid Grid.Row="1" x:Name="WorkPanel" RowSpacing="12" Visibility="Collapsed">
+                <Grid Grid.Row="1" RowSpacing="12" Visibility="{x:Bind Vm.IsSessionOpen, Mode=OneWay}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -81,8 +82,8 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center" Spacing="2">
-                                <TextBlock x:Name="SessionTitle" Style="{StaticResource SubtitleTextBlockStyle}" />
-                                <TextBlock x:Name="SessionSub" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <TextBlock Text="{x:Bind Vm.SessionTitle, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock Text="{x:Bind Vm.SessionSubtitle, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <Button Click="ChangeSession_Click" AutomationProperties.AutomationId="ChangeSessionButton" AutomationProperties.Name="Başka muayene" ToolTipService.ToolTip="Başka bir parça / seri aç">
@@ -91,13 +92,13 @@
                                         <TextBlock Text="Başka muayene" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="ReportButton" Click="Report_Click" IsEnabled="False" AutomationProperties.AutomationId="ReportButton" AutomationProperties.Name="Rapor (PDF)">
+                                <Button x:Name="ReportButton" Click="Report_Click" IsEnabled="{x:Bind Vm.IsSessionOpen, Mode=OneWay}" AutomationProperties.AutomationId="ReportButton" AutomationProperties.Name="Rapor (PDF)">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE749;" FontSize="14" />
                                         <TextBlock Text="Rapor (PDF)" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="CompleteButton" Click="Complete_Click" AutomationProperties.AutomationId="CompleteButton" AutomationProperties.Name="Muayeneyi tamamla">
+                                <Button x:Name="CompleteButton" Style="{x:Bind local:MainWindow.PrimaryStyle(Vm.IsCompletePrimary), Mode=OneWay}" Click="Complete_Click" AutomationProperties.AutomationId="CompleteButton" AutomationProperties.Name="Muayeneyi tamamla">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE73E;" FontSize="14" />
                                         <TextBlock Text="Muayeneyi tamamla" />
@@ -121,8 +122,8 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
-                                <TextBlock x:Name="DefectCountText" Text="Kusurlar" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="16,0" />
-                                <Button x:Name="AddDefectButton" Grid.Row="1" HorizontalAlignment="Stretch" Height="44" Margin="16,0" AutomationProperties.AutomationId="AddDefectButton" AutomationProperties.Name="Kusur ekle">
+                                <TextBlock Text="{x:Bind Vm.DefectCountText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="16,0" />
+                                <Button x:Name="AddDefectButton" Grid.Row="1" Style="{x:Bind local:MainWindow.PrimaryStyle(Vm.IsAddDefectPrimary), Mode=OneWay}" HorizontalAlignment="Stretch" Height="44" Margin="16,0" AutomationProperties.AutomationId="AddDefectButton" AutomationProperties.Name="Kusur ekle">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE710;" FontSize="14" />
                                         <TextBlock Text="Kusur ekle" />
@@ -136,24 +137,24 @@
                                         </Flyout>
                                     </Button.Flyout>
                                 </Button>
-                                <TextBlock x:Name="DefectListEmpty" Grid.Row="2" Margin="16,8" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                <TextBlock Grid.Row="2" Margin="16,8" Visibility="{x:Bind Vm.IsListEmpty, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            Text="Henüz kusur yok. Parçada kusur bulduysanız 'Kusur ekle' ile başlayın; kusur yoksa muayeneyi tamamlayabilirsiniz." />
-                                <ListView Grid.Row="2" x:Name="DefectList" SelectionMode="Single" SelectionChanged="DefectList_SelectionChanged" AutomationProperties.AutomationId="DefectList">
+                                <ListView Grid.Row="2" x:Name="DefectList" SelectionMode="Single" ItemsSource="{x:Bind Vm.Defects}" SelectedItem="{x:Bind Vm.SelectedDefect, Mode=TwoWay}" Visibility="{x:Bind Vm.HasDefects, Mode=OneWay}" AutomationProperties.AutomationId="DefectList">
                                     <ListView.ItemTemplate>
-                                        <DataTemplate x:DataType="local:DefectItem">
+                                        <DataTemplate x:DataType="pres:DefectItemViewModel">
                                             <Grid Padding="0,10" ColumnSpacing="12">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="44" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <Border Width="44" Height="44" CornerRadius="22" Background="{x:Bind StateBackground}" VerticalAlignment="Top">
-                                                    <TextBlock Text="{x:Bind Number}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{x:Bind StateForeground}" />
+                                                <Border Width="44" Height="44" CornerRadius="22" Background="{x:Bind local:MainWindow.ToneBackground(Tone)}" VerticalAlignment="Top">
+                                                    <TextBlock Text="{x:Bind Number}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{x:Bind local:MainWindow.ToneForeground(Tone)}" />
                                                 </Border>
                                                 <StackPanel Grid.Column="1" Spacing="3">
                                                     <TextBlock Text="{x:Bind Type}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                                     <StackPanel Orientation="Horizontal" Spacing="6">
-                                                        <Border Background="{x:Bind StateBackground}" CornerRadius="4" Padding="6,1">
-                                                            <TextBlock Text="{x:Bind StateText}" FontSize="12" Foreground="{x:Bind StateForeground}" />
+                                                        <Border Background="{x:Bind local:MainWindow.ToneBackground(Tone)}" CornerRadius="4" Padding="6,1">
+                                                            <TextBlock Text="{x:Bind StateText}" FontSize="12" Foreground="{x:Bind local:MainWindow.ToneForeground(Tone)}" />
                                                         </Border>
                                                         <TextBlock Text="{x:Bind PhotoText}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                                     </StackPanel>
@@ -170,13 +171,13 @@
                         <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="0">
                             <Grid>
                                 <!-- Kusur seçilmediğinde -->
-                                <StackPanel x:Name="DetailEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" MaxWidth="420">
+                                <StackPanel Visibility="{x:Bind Vm.NoSelection, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" MaxWidth="420">
                                     <FontIcon Glyph="&#xE8FD;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                     <TextBlock Text="Kusur seçilmedi" HorizontalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <TextBlock Text="Soldaki listeden bir kusur seçin ya da 'Kusur ekle' ile yeni kusur girin." TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
 
-                                <Grid x:Name="DetailContent" Visibility="Collapsed">
+                                <Grid Visibility="{x:Bind Vm.HasSelection, Mode=OneWay}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
@@ -186,59 +187,59 @@
                                     <!-- Başlık: kusur, durum, sıradaki adım -->
                                     <StackPanel Padding="20,16,20,8" Spacing="8">
                                         <StackPanel Orientation="Horizontal" Spacing="12">
-                                            <TextBlock x:Name="SelectedHeader" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
-                                            <Border x:Name="StateChip" CornerRadius="4" Padding="10,3" VerticalAlignment="Center">
-                                                <TextBlock x:Name="StateChipText" FontWeight="SemiBold" />
+                                            <TextBlock Text="{x:Bind Vm.Header, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
+                                            <Border Background="{x:Bind local:MainWindow.ToneBackground(Vm.StateTone), Mode=OneWay}" CornerRadius="4" Padding="10,3" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Vm.StateText, Mode=OneWay}" Foreground="{x:Bind local:MainWindow.ToneForeground(Vm.StateTone), Mode=OneWay}" FontWeight="SemiBold" />
                                             </Border>
                                         </StackPanel>
-                                        <Border x:Name="NextStepBox" Background="{ThemeResource SystemFillColorAttentionBackgroundBrush}" CornerRadius="6" Padding="12,8">
+                                        <Border Visibility="{x:Bind Vm.ShowNextStep, Mode=OneWay}" Background="{ThemeResource SystemFillColorAttentionBackgroundBrush}" CornerRadius="6" Padding="12,8">
                                             <StackPanel Orientation="Horizontal" Spacing="10">
                                                 <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource SystemFillColorAttentionBrush}" />
-                                                <TextBlock x:Name="NextStepText" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                <TextBlock Text="{x:Bind Vm.NextStepText, Mode=OneWay}" TextWrapping="Wrap" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Border>
-                                        <TextBlock x:Name="SelectedSentence" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="{x:Bind Vm.Sentence, Mode=OneWay}" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     </StackPanel>
 
                                     <!-- Adımlar -->
                                     <SelectorBar Grid.Row="1" x:Name="DetailTabs" Margin="12,0" SelectionChanged="DetailTabs_SelectionChanged" AutomationProperties.AutomationId="DetailTabs">
-                                        <SelectorBarItem x:Name="MeasureTabItem" Text="1. Ölçüm" />
-                                        <SelectorBarItem x:Name="PhotoTabItem" Text="2. Fotoğraflar" />
-                                        <SelectorBarItem x:Name="DecisionTabItem" Text="3. Disposition" />
-                                        <SelectorBarItem x:Name="HistoryTabItem" Text="Geçmiş" />
+                                        <SelectorBarItem x:Name="MeasureTabItem" Text="{x:Bind Vm.MeasureTabLabel, Mode=OneWay}" />
+                                        <SelectorBarItem x:Name="PhotoTabItem" Text="{x:Bind Vm.PhotoTabLabel, Mode=OneWay}" />
+                                        <SelectorBarItem x:Name="DecisionTabItem" Text="{x:Bind Vm.DecisionTabLabel, Mode=OneWay}" />
+                                        <SelectorBarItem x:Name="HistoryTabItem" Text="{x:Bind Vm.HistoryTabLabel, Mode=OneWay}" />
                                     </SelectorBar>
 
                                     <ScrollViewer Grid.Row="2" Padding="20,12,20,20">
                                         <Grid>
                                             <!-- 1. Ölçüm -->
                                             <StackPanel x:Name="MeasureTab" Spacing="12">
-                                                <TextBlock x:Name="DeltaText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}" FontWeight="SemiBold" Visibility="Collapsed" />
+                                                <TextBlock Text="{x:Bind Vm.DeltaText, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}" FontWeight="SemiBold" Visibility="{x:Bind Vm.ShowDelta, Mode=OneWay}" />
 
                                                 <!-- Rework'teyken: ölçümler kilitli, ne yapılacağı tek bir kutuda -->
-                                                <Border x:Name="AwaitBanner" Visibility="Collapsed" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}" CornerRadius="6" Padding="16,14">
+                                                <Border Visibility="{x:Bind Vm.IsAwaiting, Mode=OneWay}" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}" CornerRadius="6" Padding="16,14">
                                                     <StackPanel Spacing="8">
-                                                        <TextBlock x:Name="AwaitTitle" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
-                                                        <TextBlock x:Name="AwaitText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                        <Button x:Name="ReinspectButton" Content="Rework sonrası muayene sonucunu gir" Click="ReinspectButton_Click" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="ReinspectButton" />
+                                                        <TextBlock Text="{x:Bind Vm.AwaitTitle, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{x:Bind Vm.AwaitText, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                        <Button x:Name="ReinspectButton" IsEnabled="{x:Bind Vm.IsAwaiting, Mode=OneWay}" Visibility="{x:Bind Vm.IsAwaiting, Mode=OneWay}" Content="Rework sonrası muayene sonucunu gir" Click="ReinspectButton_Click" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="ReinspectButton" />
                                                     </StackPanel>
                                                 </Border>
 
-                                                <StackPanel x:Name="MeasureArea" Spacing="12">
+                                                <StackPanel Visibility="{x:Bind Vm.ShowMeasureArea, Mode=OneWay}" Spacing="12">
                                                     <StackPanel Orientation="Horizontal" Spacing="12">
-                                                        <TextBox x:Name="DepthBox" Header="Derinlik (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="DepthBox" />
-                                                        <TextBox x:Name="WidthBox" Header="Genişlik (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="WidthBox" />
-                                                        <TextBox x:Name="LengthBox" Header="Uzunluk (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="LengthBox" />
-                                                        <TextBox x:Name="RadiusBox" Header="Yarıçap (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="RadiusBox" />
-                                                        <TextBox x:Name="AngleBox" Header="Açı (°)" Width="130" InputScope="Number" AutomationProperties.AutomationId="AngleBox" />
-                                                        <TextBox x:Name="ColorBox" Header="Renk" Width="150" AutomationProperties.AutomationId="ColorBox" />
+                                                        <TextBox x:Name="DepthBox" Text="{x:Bind Vm.DepthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowDepth, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Derinlik (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="DepthBox" />
+                                                        <TextBox x:Name="WidthBox" Text="{x:Bind Vm.WidthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowWidth, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Genişlik (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="WidthBox" />
+                                                        <TextBox x:Name="LengthBox" Text="{x:Bind Vm.LengthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowLength, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Uzunluk (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="LengthBox" />
+                                                        <TextBox x:Name="RadiusBox" Text="{x:Bind Vm.RadiusText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowRadius, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Yarıçap (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="RadiusBox" />
+                                                        <TextBox x:Name="AngleBox" Text="{x:Bind Vm.AngleText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowAngle, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Açı (°)" Width="130" InputScope="Number" AutomationProperties.AutomationId="AngleBox" />
+                                                        <TextBox x:Name="ColorBox" Text="{x:Bind Vm.ColorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowColor, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Renk" Width="150" AutomationProperties.AutomationId="ColorBox" />
                                                     </StackPanel>
-                                                    <TextBox x:Name="NotesBox" Header="Not" AcceptsReturn="True" Height="72" TextWrapping="Wrap" AutomationProperties.AutomationId="NotesBox" />
+                                                    <TextBox x:Name="NotesBox" Text="{x:Bind Vm.NotesText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Not" AcceptsReturn="True" Height="72" TextWrapping="Wrap" AutomationProperties.AutomationId="NotesBox" />
                                                     <StackPanel Orientation="Horizontal" Spacing="10">
-                                                        <CheckBox x:Name="HighMetalBox" Content="High metal mevcut" VerticalAlignment="Center" MinWidth="0" Margin="0,0,6,0"
+                                                        <CheckBox x:Name="HighMetalBox" IsChecked="{x:Bind Vm.HighMetal, Mode=TwoWay}" IsEnabled="{x:Bind Vm.IsEditable, Mode=OneWay}" Content="High metal mevcut" VerticalAlignment="Center" MinWidth="0" Margin="0,0,6,0"
                                                                   AutomationProperties.AutomationId="HighMetalBox"
                                                                   ToolTipService.ToolTip="Yan kusur: pozitif metal yığılması. Cümlede 'Dent with high metal' olarak yazılır." />
-                                                        <Button Content="Ölçümleri kaydet" Click="SaveMeasurements_Click" x:Name="SaveMeasButton" IsEnabled="False" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="SaveMeasButton" />
-                                                        <Button Content="Void (yanlış giriş)" Click="VoidButton_Click" x:Name="VoidButton" Height="44" Visibility="Collapsed" AutomationProperties.AutomationId="VoidButton" />
+                                                        <Button Content="Ölçümleri kaydet" Click="SaveMeasurements_Click" x:Name="SaveMeasButton" IsEnabled="{x:Bind Vm.IsEditable, Mode=OneWay}" Height="44" Style="{x:Bind local:MainWindow.PrimaryStyle(Vm.IsSavePrimary), Mode=OneWay}" AutomationProperties.AutomationId="SaveMeasButton" />
+                                                        <Button Content="Void (yanlış giriş)" Click="VoidButton_Click" x:Name="VoidButton" Height="44" Visibility="{x:Bind Vm.CanVoid, Mode=OneWay}" AutomationProperties.AutomationId="VoidButton" />
                                                     </StackPanel>
                                                 </StackPanel>
                                             </StackPanel>
@@ -246,13 +247,13 @@
                                             <!-- 2. Fotoğraflar -->
                                             <StackPanel x:Name="PhotoTab" Spacing="12" Visibility="Collapsed">
                                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                                    <Button Click="CameraButton_Click" x:Name="CameraButton" IsEnabled="False" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="CameraButton" AutomationProperties.Name="Kamera ile çek">
+                                                    <Button Click="CameraButton_Click" x:Name="CameraButton" IsEnabled="{x:Bind Vm.IsEditable, Mode=OneWay}" Height="44" Style="{x:Bind local:MainWindow.PrimaryStyle(Vm.IsCameraPrimary), Mode=OneWay}" AutomationProperties.AutomationId="CameraButton" AutomationProperties.Name="Kamera ile çek">
                                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                                             <FontIcon Glyph="&#xE722;" FontSize="14" />
                                                             <TextBlock Text="Kamera ile çek" />
                                                         </StackPanel>
                                                     </Button>
-                                                    <Button Click="AddPhoto_Click" x:Name="AddPhotoButton" IsEnabled="False" Height="44" AutomationProperties.AutomationId="AddPhotoButton" AutomationProperties.Name="Dosyadan ekle">
+                                                    <Button Click="AddPhoto_Click" x:Name="AddPhotoButton" IsEnabled="{x:Bind Vm.IsEditable, Mode=OneWay}" Height="44" AutomationProperties.AutomationId="AddPhotoButton" AutomationProperties.Name="Dosyadan ekle">
                                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                                             <FontIcon Glyph="&#xE8E5;" FontSize="14" />
                                                             <TextBlock Text="Dosyadan ekle" />
@@ -265,23 +266,23 @@
 
                                             <!-- 3. Disposition -->
                                             <StackPanel x:Name="DecisionTab" Spacing="12" Visibility="Collapsed">
-                                                <TextBlock x:Name="DecisionHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <ComboBox x:Name="DecisionCombo" Header="Karar (seçince ne olacağı açıklanır, onaylamadan kaydedilmez)" PlaceholderText="Karar seçin" Width="420" SelectionChanged="DecisionCombo_SelectionChanged" AutomationProperties.AutomationId="DecisionCombo" />
-                                                <StackPanel x:Name="UndoPanel" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
+                                                <TextBlock Text="{x:Bind Vm.DecisionHint, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <ComboBox x:Name="DecisionCombo" ItemsSource="{x:Bind Vm.DecisionOptions, Mode=OneWay}" DisplayMemberPath="Label" Visibility="{x:Bind Vm.HasDecisionOptions, Mode=OneWay}" Header="Karar (seçince ne olacağı açıklanır, onaylamadan kaydedilmez)" PlaceholderText="Karar seçin" Width="420" SelectionChanged="DecisionCombo_SelectionChanged" AutomationProperties.AutomationId="DecisionCombo" />
+                                                <StackPanel Orientation="Horizontal" Spacing="10" Visibility="{x:Bind Vm.CanUndo, Mode=OneWay}">
                                                     <Button x:Name="UndoButton" Click="Undo_Click" AutomationProperties.AutomationId="UndoButton" AutomationProperties.Name="Son kararı geri al">
                                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                                             <FontIcon Glyph="&#xE7A7;" FontSize="14" />
                                                             <TextBlock Text="Son kararı geri al" />
                                                         </StackPanel>
                                                     </Button>
-                                                    <TextBlock x:Name="UndoText" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                    <TextBlock Text="{x:Bind Vm.UndoText, Mode=OneWay}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                 </StackPanel>
                                             </StackPanel>
 
                                             <!-- Geçmiş -->
                                             <StackPanel x:Name="HistoryTab" Spacing="8" Visibility="Collapsed">
                                                 <TextBlock Text="Kararlar ve ölçüm düzeltmeleri, eskiden yeniye." Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                <ListView x:Name="HistoryList" SelectionMode="None" />
+                                                <ListView ItemsSource="{x:Bind Vm.History, Mode=OneWay}" SelectionMode="None" />
                                             </StackPanel>
                                         </Grid>
                                     </ScrollViewer>

@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MuayeneKayit.Inspector", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MuayeneKayit.Admin", "src\MuayeneKayit.Admin\MuayeneKayit.Admin.csproj", "{94753E59-E787-4C12-B697-FF179B4B1E5C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MuayeneKayit.Presentation", "src\MuayeneKayit.Presentation\MuayeneKayit.Presentation.csproj", "{CA5ED101-0CAC-4242-B77C-59979B5B192A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,6 +73,18 @@ Global
 		{94753E59-E787-4C12-B697-FF179B4B1E5C}.Release|x64.Build.0 = Release|x64
 		{94753E59-E787-4C12-B697-FF179B4B1E5C}.Release|x86.ActiveCfg = Release|x64
 		{94753E59-E787-4C12-B697-FF179B4B1E5C}.Release|x86.Build.0 = Release|x64
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Debug|x64.Build.0 = Debug|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Debug|x86.Build.0 = Debug|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Release|x64.ActiveCfg = Release|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Release|x64.Build.0 = Release|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Release|x86.ActiveCfg = Release|Any CPU
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -80,5 +94,6 @@ Global
 		{BB79F498-6389-4E68-8221-8411B80091AD} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{7CF94CD3-0FC8-41C8-AEF1-915D7D5D8BD2} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{94753E59-E787-4C12-B697-FF179B4B1E5C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{CA5ED101-0CAC-4242-B77C-59979B5B192A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

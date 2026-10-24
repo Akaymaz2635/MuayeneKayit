@@ -1,4 +1,6 @@
 using MuayeneKayit.Core;
+using MuayeneKayit.Presentation;
+using static ViewModelTests;
 
 // Bağımlılıksız test koşucusu. Dış test paketi kullanılmıyor (güncelleme riski yok).
 var tests = new List<(string Name, Action Body)>
@@ -51,6 +53,18 @@ var tests = new List<(string Name, Action Body)>
     ("High metal: cümle, rapor başlığı ve eski kayıt uyumu", HighMetalSentenceAndReport),
     ("High metal: yalnızca işaretlemek düzeltme kaydı oluşturur", HighMetalEditLogged),
     ("SENARYO 5: Yalnızca high metal rework'ü, ana kusur MRB'ye gider", Scenario5_HighMetalOnlyRework),
+    ("VM: yeni oturum açılır, başlık ve Kusur ekle vurgusu", VmOpensNewSession),
+    ("VM: kusur eklenince seçilir, Ölçüm sekmesi ve Kaydet vurgulu", VmAddDefectSelectsMeasure),
+    ("VM: ölçüm kaydı Fotoğraf sekmesine geçer, ✓ ve kamera vurgusu", VmSaveMeasurementsGoesToPhoto),
+    ("VM: geçersiz ölçüm hata bildirir, dosya değişmez", VmInvalidMeasurementNotifiesError),
+    ("VM: high metal tipte ve cümlede görünür", VmHighMetalShowsInTypeAndSentence),
+    ("VM: oturum açıldıktan sonra ilk seçilen kusurda sekme sıradaki adımdır", VmFirstSelectionAfterOpenUsesCurrentStep),
+    ("VM: aynı kusur yenilenince sekme korunur", VmRefreshKeepsSelectedStep),
+    ("VM: Disposition sekmesinde ✓ yalnızca karar sonrası", VmDecisionTabCheckAfterDecision),
+    ("VM: Complete açık kusurda uyarır, kapanınca tamamlar", VmCompleteRules),
+    ("VM: karar seçenekleri duruma göre, rework bekleyende ilk seçenek reinspect", VmDecisionOptions),
+    ("VM: geri alma metni karar sonrası dolar", VmUndoTextAfterDecision),
+    ("VM: başka muayeneye geçince oturum kapanır, liste boşalır", VmChangeSessionClears),
 };
 
 int failed = 0;

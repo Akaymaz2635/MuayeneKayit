@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\MuayeneKayit.Core\MuayeneKayit.Core.csproj" />
+    <ProjectReference Include="..\..\src\MuayeneKayit.Presentation\MuayeneKayit.Presentation.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

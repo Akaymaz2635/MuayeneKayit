@@ -7,7 +7,7 @@ namespace MuayeneKayit.Core;
 /// Oturum ve kusur dosyalarını okur ve yazar. Her yazma atomiktir.
 /// Kusur numarası ve kusur güncellemeleri, oturum kilidi altında yapılır.
 /// </summary>
-public sealed class SessionStore
+public sealed class SessionStore : ISessionStore
 {
     /// <summary>Tek bir JSON dosyası için üst sınır. Bozuk ya da kötü niyetli büyük dosyayı reddeder.</summary>
     public const long MaxJsonBytes = 5 * 1024 * 1024;

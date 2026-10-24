@@ -1,6 +1,9 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using MuayeneKayit.Core;
+using MuayeneKayit.Presentation;
+using static MuayeneKayit.Presentation.DefectPresentation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using WinRT.Interop;
@@ -13,44 +16,38 @@ namespace MuayeneKayit.Inspector;
 /// </summary>
 public sealed partial class MainWindow : Window
 {
-    private SessionStore? _store;
-    private string? _folder;
-    private Session? _session;
+    /// <summary>Muayene ekranının durumu ve kuralları. Diyaloglar, kamera, düzenleyici ve rapor bu verileri kullanır.</summary>
+    public InspectionViewModel Vm { get; }
 
-    /// <summary>
-    /// İşlemi yapan muayeneci (Muayeneci kutusu). Kayıtlı bir muayeneyi başka biri açabilir;
-    /// denetim kaydı ve kararlar oturumu oluşturana değil, o anki kullanıcıya yazılır.
-    /// </summary>
-    private string _user = "";
-    private int? _selectedId;
-    private Defect? _current;
     private CameraWindow? _camera;
     private PhotoEditorWindow? _editor;
-    private readonly string _rootPath = AppSettings.LoadRootPath();
+    private readonly string _rootPath;
     private List<IndexRow> _indexRows = new();
     private bool _filtersReady;
 
-    /// <summary>Kusur tipleri admin panelinde tanımlanır (_config); yoksa varsayılanlar.</summary>
-    private readonly IReadOnlyList<DefectTypeTemplate> _types;
-    private string[] TypeNames => _types.Select(t => t.Name).ToArray();
+    /// <summary>Sekme programla seçilirken SelectorBar olayları ViewModel'e geri yazılmaz.</summary>
+    private bool _syncingTabs;
 
-    /// <summary>Detayda gösterilen kusur; başka kusura geçilince adımlar "1. Ölçüm"e döner.</summary>
-    private int? _shownId;
-
-    /// <summary>Liste yenilenirken ListView'in ara seçim olayları yok sayılır (sekme ve seçim korunur).</summary>
-    private bool _refreshing;
-
-    public MainWindow()
+    public MainWindow(InspectionViewModel vm)
     {
+        Vm = vm;
+        _rootPath = vm.Store.Root;
         InitializeComponent();
         Title = "MuayeneKayit";
 
+        Vm.Notify += (message, kind) => Show(message, kind switch
+        {
+            StatusKind.Success => InfoBarSeverity.Success,
+            StatusKind.Warning => InfoBarSeverity.Warning,
+            StatusKind.Error => InfoBarSeverity.Error,
+            _ => InfoBarSeverity.Informational,
+        });
+        Vm.PropertyChanged += Vm_PropertyChanged;
 
-        _types = SharedConfig.LoadDefectTypes(_rootPath);
-        DefectTypeBox.ItemsSource = TypeNames;
+        DefectTypeBox.ItemsSource = Vm.TypeNames;
         DefectTypeBox.SelectedIndex = 0;
 
-        FilterTypeBox.ItemsSource = new[] { "Tümü" }.Concat(TypeNames).ToList();
+        FilterTypeBox.ItemsSource = new[] { "Tümü" }.Concat(Vm.TypeNames).ToList();
         FilterTypeBox.SelectedIndex = 0;
         foreach (var (label, tag) in StateFilters)
             FilterStateBox.Items.Add(new ComboBoxItem { Content = label, Tag = tag });
@@ -58,7 +55,6 @@ public sealed partial class MainWindow : Window
         _filtersReady = true;
 
         Nav.SelectedItem = Nav.MenuItems[0];
-        UpdateDecisionButtons(null);
 
         // Ana pencere kapanınca açık kamera penceresi de kapanır (kamera serbest kalır).
         Closed += (_, _) =>
@@ -66,6 +62,35 @@ public sealed partial class MainWindow : Window
             _camera?.Close();
             _editor?.Close();
         };
+    }
+
+    /// <summary>ViewModel değişimlerinden yalnızca bağlama ile gösterilemeyenler: sekme, fotoğraf kartları, sekme kalınlığı.</summary>
+    private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(InspectionViewModel.SelectedStep):
+                ShowTab(TabFor(Vm.SelectedStep));
+                break;
+
+            case nameof(InspectionViewModel.Current):
+                // Fotoğraf kartları seçili kusur her yüklendiğinde yeniden çizilir.
+                if (Vm.Current is { } current)
+                {
+                    RenderPhotos(current, Vm.IsEditable);
+                    ShowTab(TabFor(Vm.SelectedStep));
+                }
+                else
+                {
+                    PhotoPanel.Children.Clear();
+                    PhotoEmpty.Visibility = Visibility.Visible;
+                }
+                break;
+
+            case nameof(InspectionViewModel.CurrentStep):
+                ApplyTabWeights();
+                break;
+        }
     }
 
     // ───────────────────────── Navigasyon ─────────────────────────
@@ -81,35 +106,7 @@ public sealed partial class MainWindow : Window
 
     // ───────────────────────── Oturum ─────────────────────────
 
-    private void OpenSession_Click(object sender, RoutedEventArgs e) => Run(() =>
-    {
-        _store = new SessionStore(_rootPath);
-        var input = new Session
-        {
-            PartNumber = PartBox.Text.Trim(),
-            OperationNumber = OpBox.Text.Trim(),
-            SerialNumber = SerialBox.Text.Trim(),
-            Inspector = InspectorBox.Text.Trim(),
-            Project = PartBox.Text.Trim(),
-        };
-
-        if (string.IsNullOrWhiteSpace(input.Inspector))
-            throw new ArgumentException("Muayeneci adı boş olamaz.");
-
-        var existed = _store.LoadSession(_store.FolderFor(input.PartNumber, input.OperationNumber, input.SerialNumber)) is not null;
-        (_folder, _session) = _store.OpenOrCreate(input);
-        _user = input.Inspector;
-        AuditLog.Append(_store, _user, "session.open", _folder);
-        ReportButton.IsEnabled = true;
-        StartPanel.Visibility = Visibility.Collapsed;
-        WorkPanel.Visibility = Visibility.Visible;
-        ClearSelection();
-        RefreshDefects(null);
-        Show(existed
-            ? $"Kayıtlı muayene açıldı: {_session.PartNumber} / {_session.OperationNumber} / {_session.SerialNumber}"
-            : $"Yeni muayene oluşturuldu: {_session.PartNumber} / {_session.OperationNumber} / {_session.SerialNumber}",
-            InfoBarSeverity.Success);
-    });
+    private void OpenSession_Click(object sender, RoutedEventArgs e) => Vm.OpenSession();
 
     // ───────────────────────── Öneriler ─────────────────────────
 
@@ -171,140 +168,64 @@ public sealed partial class MainWindow : Window
 
     // ───────────────────────── Kusur listesi ─────────────────────────
 
-    private void AddDefect_Click(object sender, RoutedEventArgs e) => Run(() =>
+    private void AddDefect_Click(object sender, RoutedEventArgs e)
     {
-        RequireSession();
-        var type = DefectTypeBox.SelectedItem as string ?? throw new InvalidOperationException("Kusur tipi seçin.");
+        if (Vm.AddDefect(DefectTypeBox.SelectedItem as string))
+            AddDefectFlyout.Hide();
+    }
 
-        var spec = _types.FirstOrDefault(t => t.Name == type)?.SpecName;
-        var defect = _store!.AddDefect(_folder!, type, d => d.SpecName = spec);
-        AuditLog.Append(_store!, _user, "defect.add", $"#{defect.Id} {type}");
-        AddDefectFlyout.Hide();
-        RefreshDefects(defect.Id);
-        Show($"Kusur #{defect.Id} ({type}) eklendi. Ölçümleri girin.", InfoBarSeverity.Success);
-    });
 
-    private void DefectList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    // ───────────────────────── Durum renkleri ve vurgu (x:Bind işlevleri) ─────────────────────────
+
+    private static string ToneKey(Tone tone) => tone switch
     {
-        if (_refreshing)
+        Tone.Success => "Success",
+        Tone.Attention => "Attention",
+        Tone.Neutral => "Neutral",
+        Tone.Caution => "Caution",
+        _ => "Critical",
+    };
+
+    /// <summary>Durum etiketinin arka planı: sistem durum fırçaları (tema ve yüksek kontrast uyumlu).</summary>
+    public static Microsoft.UI.Xaml.Media.Brush ToneBackground(Tone tone) =>
+        (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[$"SystemFillColor{ToneKey(tone)}BackgroundBrush"];
+
+    /// <summary>Durum etiketinin yazı rengi.</summary>
+    public static Microsoft.UI.Xaml.Media.Brush ToneForeground(Tone tone) =>
+        (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[$"SystemFillColor{ToneKey(tone)}Brush"];
+
+    /// <summary>
+    /// Ekranda aynı anda yalnızca sıradaki iş vurgulu (lacivert) olur; diğer düğmeler nötrdür.
+    /// ISA-101 yaklaşımı: renk yalnızca dikkat gereken yerde.
+    /// </summary>
+    public static Style PrimaryStyle(bool primary) =>
+        (Style)Application.Current.Resources[primary ? "AccentButtonStyle" : "DefaultButtonStyle"];
+
+    // ───────────────────────── Sekmeler ─────────────────────────
+
+    private SelectorBarItem TabFor(InspectionStep step) => step switch
+    {
+        InspectionStep.Photo => PhotoTabItem,
+        InspectionStep.Decision => DecisionTabItem,
+        InspectionStep.History => HistoryTabItem,
+        _ => MeasureTabItem,
+    };
+
+    private InspectionStep StepOf(SelectorBarItem item) =>
+        ReferenceEquals(item, PhotoTabItem) ? InspectionStep.Photo
+        : ReferenceEquals(item, DecisionTabItem) ? InspectionStep.Decision
+        : ReferenceEquals(item, HistoryTabItem) ? InspectionStep.History
+        : InspectionStep.Measure;
+
+    private void DetailTabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (_syncingTabs)
             return;
 
-        if (DefectList.SelectedItem is DefectItem row && _store is not null)
-        {
-            _selectedId = row.Id;
-            LoadSelectedDefect();
-        }
-        else if (_store is not null && _folder is not null)
-        {
-            ClearSelection();
-        }
-    }
-
-    private void RefreshDefects(int? selectId)
-    {
-        var defects = _store!.LoadDefects(_folder!);
-        var rows = defects.Select(ToItem).ToList();
-
-        var keep = selectId ?? _selectedId;
-        var match = rows.FirstOrDefault(r => r.Id == keep);
-
-        _refreshing = true;
-        try
-        {
-            DefectList.ItemsSource = rows;
-            DefectList.SelectedItem = match;
-        }
-        finally
-        {
-            _refreshing = false;
-        }
-
-        DefectListEmpty.Visibility = Vis(rows.Count == 0);
-        DefectList.Visibility = Vis(rows.Count > 0);
-        UpdateSessionHeader(defects);
-
-        if (match is not null)
-        {
-            _selectedId = match.Id;
-            LoadSelectedDefect();
-        }
-        else
-        {
-            ClearSelection();
-        }
-    }
-
-    // ───────────────────────── Görünüm yardımcıları ─────────────────────────
-
-    private DefectItem ToItem(Defect d)
-    {
-        var state = DefectStateMachine.GetState(d);
-        var (bg, fg) = StateBrushes(state);
-        return new DefectItem
-        {
-            Id = d.Id,
-            Number = $"#{d.Id}",
-            Type = d.HighMetal ? $"{d.DefectType} + High metal" : d.DefectType,
-            StateText = StateLabel(state),
-            PhotoText = d.Photos.Count == 0 ? "fotoğraf yok" : $"{d.Photos.Count} fotoğraf",
-            NextStep = NextStepFor(d, state),
-            StateBackground = bg,
-            StateForeground = fg,
-        };
-    }
-
-    /// <summary>Durum etiketinin renkleri: sistem durum fırçaları (tema ve yüksek kontrast uyumlu).</summary>
-    private static (Microsoft.UI.Xaml.Media.Brush Background, Microsoft.UI.Xaml.Media.Brush Foreground) StateBrushes(DefectState state)
-    {
-        var key = state switch
-        {
-            DefectState.Closed => "Success",
-            DefectState.MrbPending => "Attention",
-            DefectState.Voided or DefectState.Superseded => "Neutral",
-            DefectState.AwaitingReinspect or DefectState.WaitingVendor or DefectState.Repairing => "Caution",
-            _ => "Critical",
-        };
-        var resources = Application.Current.Resources;
-        return ((Microsoft.UI.Xaml.Media.Brush)resources[$"SystemFillColor{key}BackgroundBrush"],
-                (Microsoft.UI.Xaml.Media.Brush)resources[$"SystemFillColor{key}Brush"]);
-    }
-
-    /// <summary>Muayenecinin bu kusurda yapması gereken sıradaki iş.</summary>
-    private static string NextStepFor(Defect d, DefectState state)
-    {
-        var hasMeasure = HasMeasurement(d);
-        return state switch
-        {
-            DefectState.Open when !hasMeasure => "Sıradaki adım: ölçümleri girin.",
-            DefectState.Open when d.Photos.Count == 0 => "Sıradaki adım: fotoğraf çekin.",
-            DefectState.Open => "Mühendis kararı bekleniyor: rapordan sonra Disposition girin.",
-            DefectState.AwaitingReinspect => "Rework'te: parça dönünce rework sonrası muayene sonucunu girin.",
-            DefectState.Repairing => "Repair'de: sonuca göre kabul, hurda, reinspect ya da MRB girin.",
-            DefectState.WaitingVendor => "Tedarikçide: parça dönünce reinspect girin.",
-            DefectState.MrbPending => "MRB kararı bekleniyor: kabul ya da red gelince girin.",
-            DefectState.Closed => "Tamamlandı.",
-            DefectState.Superseded => d.SupersededById is int to ? $"Takip #{to} numaralı kusur üzerinden yapılıyor." : "Devredildi.",
-            DefectState.Voided => "Void edildi, rapora girmez.",
-            _ => "",
-        };
-    }
-
-    private void UpdateSessionHeader(IReadOnlyList<Defect> defects)
-    {
-        if (_session is null)
-            return;
-        var open = SessionGate.BlockingDefects(defects).Count;
-        var visible = defects.Count(d => DefectStateMachine.GetState(d) != DefectState.Voided);
-        SessionTitle.Text = $"{_session.PartNumber}  ·  {_session.OperationNumber}  ·  {_session.SerialNumber}";
-        SessionSub.Text = $"Muayeneci: {_user}   ·   {visible} kusur, {open} açık   ·   " +
-                          (_session.Status == SessionStatus.Completed ? "Tamamlandı" : "Devam ediyor");
-        DefectCountText.Text = visible == 0 ? "Kusurlar" : $"Kusurlar ({visible})";
-        SetPrimary(CompleteButton, open == 0 && _session.Status != SessionStatus.Completed);
-        SetPrimary(AddDefectButton, visible == 0);
-    }
-
-    private void DetailTabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) =>
         ShowPanels(sender.SelectedItem ?? MeasureTabItem);
+        if (sender.SelectedItem is SelectorBarItem item)
+            Vm.SelectedStep = StepOf(item);
+    }
 
     /// <summary>
     /// Sekmeyi seçer ve içeriğini doğrudan gösterir. SelectorBar ilk kez görünür olurken seçim olayı
@@ -312,8 +233,16 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ShowTab(SelectorBarItem item)
     {
-        foreach (var i in new[] { MeasureTabItem, PhotoTabItem, DecisionTabItem, HistoryTabItem })
-            i.IsSelected = ReferenceEquals(i, item);
+        _syncingTabs = true;
+        try
+        {
+            foreach (var i in new[] { MeasureTabItem, PhotoTabItem, DecisionTabItem, HistoryTabItem })
+                i.IsSelected = ReferenceEquals(i, item);
+        }
+        finally
+        {
+            _syncingTabs = false;
+        }
         ShowPanels(item);
     }
 
@@ -325,130 +254,23 @@ public sealed partial class MainWindow : Window
         HistoryTab.Visibility = Vis(selected == HistoryTabItem);
     }
 
+    /// <summary>Sıradaki adımın sekmesi kalın yazılır.</summary>
+    private void ApplyTabWeights()
+    {
+        foreach (var (item, step) in new[]
+                 {
+                     (MeasureTabItem, InspectionStep.Measure),
+                     (PhotoTabItem, InspectionStep.Photo),
+                     (DecisionTabItem, InspectionStep.Decision),
+                 })
+            item.FontWeight = Vm.CurrentStep == step ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+    }
+
     /// <summary>Başka bir parça / seri açmak için muayene seçimine döner. Kayıtlar zaten diske yazılmıştır.</summary>
     private void ChangeSession_Click(object sender, RoutedEventArgs e)
     {
-        ClearSelection();
-        _session = null;
-        _folder = null;
-        DefectList.ItemsSource = null;
-        ReportButton.IsEnabled = false;
-        WorkPanel.Visibility = Visibility.Collapsed;
-        StartPanel.Visibility = Visibility.Visible;
+        Vm.ChangeSession();
         Status.IsOpen = false;
-    }
-
-    private void ClearSelection()
-    {
-        _selectedId = null;
-        _current = null;
-        _shownId = null;
-        DefectList.SelectedItem = null;
-        DetailEmpty.Visibility = Visibility.Visible;
-        DetailContent.Visibility = Visibility.Collapsed;
-        DeltaText.Visibility = Visibility.Collapsed;
-        PhotoPanel.Children.Clear();
-        PhotoEmpty.Visibility = Visibility.Visible;
-        HistoryList.ItemsSource = null;
-        SaveMeasButton.IsEnabled = false;
-        AddPhotoButton.IsEnabled = false;
-        CameraButton.IsEnabled = false;
-        UpdateDecisionButtons(null);
-    }
-
-    private void LoadSelectedDefect()
-    {
-        var defect = _store!.LoadDefects(_folder!).FirstOrDefault(d => d.Id == _selectedId);
-        if (defect is null)
-        {
-            ClearSelection();
-            return;
-        }
-
-        _current = defect;
-        var state = DefectStateMachine.GetState(defect);
-
-        DetailEmpty.Visibility = Visibility.Collapsed;
-        DetailContent.Visibility = Visibility.Visible;
-        var newDefect = _shownId != defect.Id;
-        _shownId = defect.Id;
-
-        SelectedHeader.Text = $"#{defect.Id}  {defect.DefectType}{(defect.HighMetal ? " + High metal" : "")}";
-        var (chipBg, chipFg) = StateBrushes(state);
-        StateChip.Background = chipBg;
-        StateChipText.Foreground = chipFg;
-        StateChipText.Text = StateLabel(state);
-        NextStepText.Text = NextStepFor(defect, state);
-        SelectedSentence.Text = DefectSentence.Describe(defect);
-        ApplyStepGuidance(defect, state, selectCurrent: newDefect);
-
-        // Değişim satırı yalnızca rework sonrası gerçekten yeniden ölçüldüyse ("aynı kusur devam") gösterilir.
-        var effective = DefectStateMachine.Effective(defect);
-        var lastDecision = effective.LastOrDefault(x => x.Source != DecisionSource.System);
-        var reworkBefore = lastDecision?.Decision == Decision.AfterReworkSameDefect
-            ? effective.TakeWhile(x => !ReferenceEquals(x, lastDecision)).LastOrDefault(x => x.Decision == Decision.Rework)?.Snapshot
-            : null;
-        DeltaText.Text = reworkBefore is null
-            ? ""
-            : "Rework sonrası yeniden ölçüldü. Rework öncesine göre: " + string.Join("   ·   ", MeasurementCompare.Lines(reworkBefore, defect));
-        DeltaText.Visibility = reworkBefore is null ? Visibility.Collapsed : Visibility.Visible;
-
-        // Rework'teyken ölçüm kutuları yerine ne yapılacağını anlatan kutu gösterilir.
-        var awaiting = state == DefectState.AwaitingReinspect;
-        AwaitBanner.Visibility = Vis(awaiting);
-        MeasureArea.Visibility = Vis(!awaiting);
-        if (awaiting)
-        {
-            var sent = effective.LastOrDefault(x => x.Decision is Decision.Rework or Decision.Reinspect);
-            var where = string.IsNullOrWhiteSpace(sent?.TargetOperation) ? "" : $" · {sent!.TargetOperation} operasyonunda yeniden muayene edilecek";
-            AwaitTitle.Text = (sent?.Decision == Decision.Reinspect ? "Yeniden kontrol bekliyor" : "Parça rework'te") + where;
-            AwaitText.Text = $"{(sent?.Decision == Decision.Reinspect ? "Önceki" : "Rework öncesi")} ölçümler: " +
-                             $"{SnapshotText(sent?.Snapshot ?? MeasurementEditor.Snapshot(defect))}. " +
-                             "Ölçümler kilitli. Parça geldiğinde aşağıdaki düğmeyle muayene sonucunu girin.";
-        }
-
-        DepthBox.Text = Fmt(defect.Depth);
-        WidthBox.Text = Fmt(defect.Width);
-        LengthBox.Text = Fmt(defect.Length);
-        RadiusBox.Text = Fmt(defect.Radius);
-        AngleBox.Text = Fmt(defect.AngleDeg);
-        ColorBox.Text = defect.Color ?? "";
-        NotesBox.Text = defect.Notes ?? "";
-        HighMetalBox.IsChecked = defect.HighMetal;
-
-        ApplyTemplateFields(defect);
-
-        HistoryList.ItemsSource = HistoryLines(defect);
-        var historyCount = DefectStateMachine.Effective(defect).Count + defect.MeasurementEdits.Count;
-        HistoryTabItem.Text = historyCount == 0 ? "Geçmiş" : $"Geçmiş ({historyCount})";
-
-        var editable = state is not (DefectState.Closed or DefectState.Voided or DefectState.Superseded
-            or DefectState.AwaitingReinspect);
-        SaveMeasButton.IsEnabled = editable;
-        foreach (var box in new[] { DepthBox, WidthBox, LengthBox, RadiusBox, AngleBox, ColorBox, NotesBox })
-            box.IsReadOnly = !editable;
-        HighMetalBox.IsEnabled = editable;
-        AddPhotoButton.IsEnabled = editable;
-        CameraButton.IsEnabled = editable;
-        RenderPhotos(defect, editable);
-        UpdateDecisionButtons(defect);
-    }
-
-    /// <summary>
-    /// Kusur tipinin şablonundaki ölçüm alanlarını gösterir. Şablon dışı bir alanda değer varsa
-    /// (eski kayıt) o alan da görünür kalır; veri gizlenmez.
-    /// </summary>
-    private void ApplyTemplateFields(Defect defect)
-    {
-        var template = _types.FirstOrDefault(t => string.Equals(t.Name, defect.DefectType, StringComparison.OrdinalIgnoreCase));
-        bool Visible(MeasureField field, bool hasValue) => template is null || template.Fields.Contains(field) || hasValue;
-
-        DepthBox.Visibility = Vis(Visible(MeasureField.Depth, defect.Depth is not null));
-        WidthBox.Visibility = Vis(Visible(MeasureField.Width, defect.Width is not null));
-        LengthBox.Visibility = Vis(Visible(MeasureField.Length, defect.Length is not null));
-        RadiusBox.Visibility = Vis(Visible(MeasureField.Radius, defect.Radius is not null));
-        AngleBox.Visibility = Vis(Visible(MeasureField.Angle, defect.AngleDeg is not null));
-        ColorBox.Visibility = Vis(Visible(MeasureField.Color, !string.IsNullOrWhiteSpace(defect.Color)));
     }
 
     private static Visibility Vis(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
@@ -460,7 +282,7 @@ public sealed partial class MainWindow : Window
     {
         PhotoPanel.Children.Clear();
         PhotoEmpty.Visibility = Vis(defect.Photos.Count == 0);
-        var directory = Path.Combine(_folder!, "defects");
+        var directory = Path.Combine(Vm.Folder!, "defects");
 
         foreach (var photo in defect.Photos)
         {
@@ -542,11 +364,11 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            RequireSelection();
+            Vm.RequireSelection();
             if ((sender as Button)?.Tag is not string photo || !PhotoMarkupValidator.IsPhotoFileName(photo))
                 return;
 
-            var id = _selectedId!.Value;
+            var id = Vm.SelectedId!.Value;
             var dialog = new ContentDialog
             {
                 Title = "Fotoğrafı kaldır",
@@ -565,13 +387,13 @@ public sealed partial class MainWindow : Window
             if (await dialog.ShowAsync() != ContentDialogResult.Primary)
                 return;
 
-            _store!.UpdateDefect(_folder!, id, d =>
+            Vm.Store.UpdateDefect(Vm.Folder!, id, d =>
             {
                 d.Photos.Remove(photo);
                 d.Markups.Remove(photo);
             });
-            AuditLog.Append(_store!, _user, "defect.photo.remove", $"#{id} {photo}");
-            RefreshDefects(id);
+            Vm.Audit.Append(Vm.User, "defect.photo.remove", $"#{id} {photo}");
+            Vm.Refresh(id);
             Show($"{photo} kaldırıldı.", InfoBarSeverity.Success);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
@@ -607,12 +429,12 @@ public sealed partial class MainWindow : Window
     /// <summary>Fotoğrafı işaretleme / arka plan düzenleyicisinde açar.</summary>
     private void OpenEditor(string photo)
     {
-        RequireSelection();
+        Vm.RequireSelection();
 
-        var id = _selectedId!.Value;
-        var folder = _folder!;
-        var store = _store!;
-        var by = _user;
+        var id = Vm.SelectedId!.Value;
+        var folder = Vm.Folder!;
+        var store = Vm.Store;
+        var by = Vm.User;
         var defects = store.LoadDefects(folder);
         var defect = defects.First(d => d.Id == id);
         var state = DefectStateMachine.GetState(defect);
@@ -632,7 +454,7 @@ public sealed partial class MainWindow : Window
 
         _editor?.Close();
         var editor = new PhotoEditorWindow(
-            $"#{id} {defect.DefectType}   ·   {photo}   ·   {_session.PartNumber} / {_session.OperationNumber} / {_session.SerialNumber}",
+            $"#{id} {defect.DefectType}   ·   {photo}   ·   {Vm.Session!.PartNumber} / {Vm.Session!.OperationNumber} / {Vm.Session!.SerialNumber}",
             Path.Combine(folder, "defects"),
             photo,
             defect.Markups.GetValueOrDefault(photo),
@@ -655,11 +477,11 @@ public sealed partial class MainWindow : Window
                     else
                         d.Markups[photo] = markup;
                 });
-                AuditLog.Append(store, by, "defect.markup",
+                Vm.Audit.Append(by, "defect.markup",
                     $"#{id} {photo} {markup.Shapes.Count} işaret{(markup.CleanedFile is null ? "" : ", arka plan kaldırıldı")}");
 
-                if (_selectedId == id && _folder == folder)
-                    RefreshDefects(id);
+                if (Vm.SelectedId == id && Vm.Folder == folder)
+                    Vm.Refresh(id);
                 Show($"{photo} kaydedildi: {markup.Shapes.Count} işaret{(markup.CleanedFile is null ? "" : ", arka plan kaldırılmış kopya")}. Orijinal fotoğraf korunuyor.", InfoBarSeverity.Success);
             });
         editor.Closed += (_, _) =>
@@ -673,51 +495,7 @@ public sealed partial class MainWindow : Window
 
     // ───────────────────────── Ölçüm ve fotoğraf ─────────────────────────
 
-    private void SaveMeasurements_Click(object sender, RoutedEventArgs e) => Run(() =>
-    {
-        RequireSelection();
-
-        var values = new MeasurementSnapshot(
-            ParseOptional(DepthBox.Text, "Derinlik"),
-            ParseOptional(WidthBox.Text, "Genişlik"),
-            ParseOptional(LengthBox.Text, "Uzunluk"),
-            ParseOptional(RadiusBox.Text, "Yarıçap"),
-            ParseOptional(AngleBox.Text, "Açı"),
-            string.IsNullOrWhiteSpace(ColorBox.Text) ? null : ColorBox.Text.Trim(),
-            HighMetalBox.IsChecked == true);
-        var notes = string.IsNullOrWhiteSpace(NotesBox.Text) ? null : NotesBox.Text.Trim();
-        var by = _user;
-        var changed = false;
-
-        _store!.UpdateDefect(_folder!, _selectedId!.Value, d =>
-        {
-            var probe = new Defect
-            {
-                DefectType = d.DefectType,
-                Depth = values.Depth, Width = values.Width, Length = values.Length,
-                Radius = values.Radius, AngleDeg = values.AngleDeg, Color = values.Color,
-            };
-
-            // Doğrulama başarısızsa mutate hata fırlatır ve dosya yazılmaz.
-            var errors = DefectValidator.Validate(probe);
-            if (errors.Count > 0)
-                throw new InvalidOperationException(string.Join(" ", errors));
-
-            changed = MeasurementEditor.Apply(d, values, by);
-            d.Notes = notes;
-        });
-
-        AuditLog.Append(_store!, by, "defect.measure", $"#{_selectedId}");
-        RefreshDefects(_selectedId);
-
-        // Ölçüm bitti, fotoğraf yoksa sıradaki adıma geç.
-        if (_current is { Photos.Count: 0 } && HasMeasurement(_current))
-            ShowTab(PhotoTabItem);
-        Show(changed
-                ? $"#{_selectedId} ölçümleri güncellendi, düzeltme geçmişe yazıldı."
-                : $"#{_selectedId} için ölçüm değişmedi (not kaydedildi).",
-            InfoBarSeverity.Success);
-    });
+    private void SaveMeasurements_Click(object sender, RoutedEventArgs e) => Vm.SaveMeasurements();
 
     /// <summary>
     /// Kamera penceresini açar. Fotoğraflar, pencere açılırken seçili olan kusura kaydedilir;
@@ -725,13 +503,13 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void CameraButton_Click(object sender, RoutedEventArgs e) => Run(() =>
     {
-        RequireSelection();
+        Vm.RequireSelection();
 
-        var id = _selectedId!.Value;
-        var folder = _folder!;
-        var store = _store!;
-        var by = _user;
-        var target = $"#{id} {_current!.DefectType}   ·   {_session.PartNumber} / {_session.OperationNumber} / {_session.SerialNumber}";
+        var id = Vm.SelectedId!.Value;
+        var folder = Vm.Folder!;
+        var store = Vm.Store;
+        var by = Vm.User;
+        var target = $"#{id} {Vm.Current!.DefectType}   ·   {Vm.Session!.PartNumber} / {Vm.Session!.OperationNumber} / {Vm.Session!.SerialNumber}";
 
         // Aynı anda tek kamera penceresi: kamera tek uygulamaya açılabilir.
         _camera?.Close();
@@ -754,7 +532,7 @@ public sealed partial class MainWindow : Window
                     };
                 }
             });
-            AuditLog.Append(store, by, "defect.photo", $"#{id} {name} (kamera{(photo.Framed ? ", çerçeveli" : "")})");
+            Vm.Audit.Append(by, "defect.photo", $"#{id} {name} (kamera{(photo.Framed ? ", çerçeveli" : "")})");
             saved = name;
             return name;
         });
@@ -764,9 +542,9 @@ public sealed partial class MainWindow : Window
                 _camera = null;
 
             // Fotoğraf kaydedildiyse doğrudan işaretleme ekranına geçilir.
-            if (saved is not null && _selectedId == id && _folder == folder)
+            if (saved is not null && Vm.SelectedId == id && Vm.Folder == folder)
             {
-                RefreshDefects(id);
+                Vm.Refresh(id);
                 ShowTab(PhotoTabItem);
                 Run(() => OpenEditor(saved));
             }
@@ -779,7 +557,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            RequireSelection();
+            Vm.RequireSelection();
 
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
             InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
@@ -791,13 +569,13 @@ public sealed partial class MainWindow : Window
             if (file is null)
                 return;
 
-            var id = _selectedId!.Value;
-            var folder = _folder!;
+            var id = Vm.SelectedId!.Value;
+            var folder = Vm.Folder!;
             var name = PhotoImporter.Import(folder, id, file.Path);
 
-            _store!.UpdateDefect(folder, id, d => d.Photos.Add(name));
-            AuditLog.Append(_store!, _user, "defect.photo", $"#{id} {name}");
-            RefreshDefects(id);
+            Vm.Store.UpdateDefect(folder, id, d => d.Photos.Add(name));
+            Vm.Audit.Append(Vm.User, "defect.photo", $"#{id} {name}");
+            Vm.Refresh(id);
             Show($"Fotoğraf eklendi: {name}", InfoBarSeverity.Success);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
@@ -815,15 +593,15 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async void DecisionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var tag = (DecisionCombo.SelectedItem as ComboBoxItem)?.Tag;
-        if (tag is null || _current is null)
+        var option = DecisionCombo.SelectedItem as DecisionOption;
+        if (option is null || Vm.Current is null)
             return;
 
         try
         {
-            if (tag is Decision decision)
-                await ShowDecisionDialog(_current, decision);
-            else if (tag as string == "reinspect")
+            if (option.Decision is Decision decision)
+                await ShowDecisionDialog(Vm.Current, decision);
+            else if (option.IsReinspect)
                 await ShowReinspectDialog();
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
@@ -868,7 +646,7 @@ public sealed partial class MainWindow : Window
                     ? "Rework sonrası muayene hangi operasyonda yapılacak?"
                     : "Yeniden kontrol hangi operasyonda yapılacak? (örn. CTP)",
                 // Varsayılan: bu muayenenin operasyonu. Muayeneci değiştirebilir.
-                Text = _session?.OperationNumber ?? "",
+                Text = Vm.Session?.OperationNumber ?? "",
             };
             target.SelectAll();
             panel.Children.Add(target);
@@ -935,19 +713,19 @@ public sealed partial class MainWindow : Window
             return;
 
         var id = defect.Id;
-        var by = _user;
+        var by = Vm.User;
         var source = SourceFor(decision);
         var noteText = string.IsNullOrWhiteSpace(note.Text) ? null : note.Text.Trim();
         var refText = string.IsNullOrWhiteSpace(reference?.Text) ? null : reference!.Text.Trim();
-        var targetText = target is null ? null : (string.IsNullOrWhiteSpace(target.Text) ? _session!.OperationNumber : target.Text.Trim());
+        var targetText = target is null ? null : (string.IsNullOrWhiteSpace(target.Text) ? Vm.Session!.OperationNumber : target.Text.Trim());
 
-        _store!.UpdateDefect(_folder!, id, d =>
+        Vm.Store.UpdateDefect(Vm.Folder!, id, d =>
             DefectStateMachine.Apply(d, decision, source, by, note: noteText, reference: refText, targetOperation: targetText,
                 reworkScope: (scope?.SelectedItem as RadioButton)?.Tag as ReworkScope?));
 
-        AuditLog.Append(_store!, by, "disposition", $"#{id} {decision}");
-        RefreshDefects(id);
-        Show($"#{id} için '{label}' kaydedildi. Yeni durum: {StateLabel(DefectStateMachine.GetState(_current ?? defect))}.", InfoBarSeverity.Success);
+        Vm.Audit.Append(by, "disposition", $"#{id} {decision}");
+        Vm.Refresh(id);
+        Show($"#{id} için '{label}' kaydedildi. Yeni durum: {StateLabel(DefectStateMachine.GetState(Vm.Current ?? defect))}.", InfoBarSeverity.Success);
 
         // Rework aynı istasyonda hemen yapıldıysa sonucu beklemeden girilebilir; değilse parça rework'e gider.
         if (decision is Decision.Rework or Decision.Reinspect)
@@ -986,8 +764,8 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            RequireSelection();
-            var defect = _store!.LoadDefects(_folder!).First(d => d.Id == _selectedId);
+            Vm.RequireSelection();
+            var defect = Vm.Store.LoadDefects(Vm.Folder!).First(d => d.Id == Vm.SelectedId);
             var last = DefectStateMachine.LastUndoable(defect)
                 ?? throw new InvalidOperationException("Geri alınacak karar yok.");
 
@@ -1035,13 +813,13 @@ public sealed partial class MainWindow : Window
             if (await dialog.ShowAsync() != ContentDialogResult.Primary)
                 return;
 
-            var (undone, voided) = _store!.UndoLastDecision(_folder!, defect.Id, _user, reason.Text);
-            AuditLog.Append(_store!, _user, "disposition.undo",
+            var (undone, voided) = Vm.Store.UndoLastDecision(Vm.Folder!, defect.Id, Vm.User, reason.Text);
+            Vm.Audit.Append(Vm.User, "disposition.undo",
                 $"#{defect.Id} {undone.Decision} (seq {undone.Seq}){(voided is int v ? $", child #{v} void" : "")}");
-            RefreshDefects(defect.Id);
+            Vm.Refresh(defect.Id);
             Show($"#{defect.Id}: '{DefectSentence.DecisionLabel(undone.Decision)}' geri alındı." +
                  (voided is int c ? $" Yeni kusur #{c} void edildi." : "") +
-                 $" Durum: {StateLabel(DefectStateMachine.GetState(_current ?? defect))}.", InfoBarSeverity.Success);
+                 $" Durum: {StateLabel(DefectStateMachine.GetState(Vm.Current ?? defect))}.", InfoBarSeverity.Success);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
                                     or TimeoutException or InvalidDataException or UnauthorizedAccessException)
@@ -1050,138 +828,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private static DecisionSource SourceFor(Decision decision) => decision switch
-    {
-        Decision.Void => DecisionSource.Operator,
-        Decision.MrbAccepted or Decision.MrbRejected => DecisionSource.Mrb,
-        _ => DecisionSource.Engineer,
-    };
-
-    /// <summary>Her karar butonu, seçili kusurun durumuna göre açılır ya da kapanır.</summary>
-    private void UpdateDecisionButtons(Defect? defect)
-    {
-        var awaiting = defect is not null && DefectStateMachine.GetState(defect) == DefectState.AwaitingReinspect;
-        ReinspectButton.IsEnabled = awaiting;
-        ReinspectButton.Visibility = awaiting ? Visibility.Visible : Visibility.Collapsed;
-
-        var voidAllowed = defect is not null && DefectStateMachine.Check(defect, Decision.Void, DecisionSource.Operator).Ok;
-        VoidButton.Visibility = voidAllowed ? Visibility.Visible : Visibility.Collapsed;
-
-        // Disposition listesi: yalnızca bu durumda geçerli kararlar, iş akışı sırasıyla.
-        DecisionCombo.Items.Clear();
-        if (awaiting)
-            DecisionCombo.Items.Add(new ComboBoxItem { Content = "Rework sonrası muayene sonucu…", Tag = "reinspect" });
-        if (defect is not null)
-        {
-            foreach (var (decision, label) in DecisionOrder)
-            {
-                if (DefectStateMachine.Check(defect, decision, SourceFor(decision)).Ok)
-                    DecisionCombo.Items.Add(new ComboBoxItem { Content = label, Tag = decision });
-            }
-        }
-
-        var any = DecisionCombo.Items.Count > 0;
-        DecisionCombo.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
-        DecisionCombo.SelectedIndex = -1;
-
-        var undoable = defect is null ? null : DefectStateMachine.LastUndoable(defect);
-        UndoPanel.Visibility = undoable is null ? Visibility.Collapsed : Visibility.Visible;
-        UndoText.Text = undoable is null
-            ? ""
-            : $"Son karar: {DefectSentence.DecisionLabel(undoable.Decision)} ({undoable.DecidedAt:dd.MM HH:mm}, {undoable.DecidedBy})";
-
-        DecisionHint.Text = defect is null
-            ? "Karar vermek için listeden bir kusur seçin."
-            : DecisionHintFor(defect);
-    }
-
-    /// <summary>Disposition listesinde gösterilecek kararlar ve sıraları.</summary>
-    private static readonly (Decision Decision, string Label)[] DecisionOrder =
-    {
-        (Decision.Accept, "Kabul (SPA)"),
-        (Decision.Rework, "Rework → Reinspect"),
-        (Decision.SubmitMrb, "Submit MRB"),
-        (Decision.MrbAccepted, "MRB kabul (accept as is)"),
-        (Decision.MrbRejected, "MRB red (otomatik hurda)"),
-        (Decision.Repair, "Repair"),
-        (Decision.Reinspect, "Reinspect (CTP)"),
-        (Decision.ReturnToVendor, "Return to vendor"),
-        (Decision.Scrap, "Scrap"),
-        (Decision.Reopen, "Yeniden aç"),
-    };
-
-    private static string DecisionHintFor(Defect defect) => DefectStateMachine.GetState(defect) switch
-    {
-        DefectState.Open => "Açık kusur: rework, reinspect, kabul, hurda, MRB veya tedarikçi kararı verilebilir.",
-        DefectState.Reworking => "Rework yapılıyor: sonra reinspect ile yeniden muayene edin.",
-        DefectState.AwaitingReinspect => "Rework yapıldı. Yeniden muayene sonucunu 'Rework sonrası muayene sonucunu gir' ile girin.",
-        DefectState.WaitingVendor => "Tedarikçide: geri dönünce reinspect verin.",
-        DefectState.MrbPending => "MRB bekleniyor: kabul ya da red gelince girin.",
-        DefectState.Closed when !DefectStateMachine.IsReopenable(defect)
-            => "Kesin kapandı (hurda ya da MRB reddi). Yeniden açılamaz.",
-        DefectState.Closed => "Kapalı kusur. Yeniden açmak için not yazıp 'Yeniden aç' kullanın, geçmiş korunur.",
-        DefectState.Superseded => "Bu kusur yeni bir kusura devredildi. İşlem yeni kusur üzerinden yapılır.",
-        DefectState.Voided => "Void edilmiş kayıt. Rapora girmez, değiştirilemez.",
-        _ => "",
-    };
-
-    private static IReadOnlyList<string> HistoryLines(Defect defect)
-    {
-        var items = new List<(DateTime At, string Text)>();
-
-        // Geri alınan kararlar gösterilmez; ham dosyada ve denetim kaydında kalır.
-        foreach (var x in DefectStateMachine.Effective(defect))
-        {
-            var parts = new List<string>
-            {
-                $"{x.DecidedAt:dd.MM HH:mm}  {x.DecidedBy}  ·  {DefectSentence.DecisionLabel(x)}",
-            };
-            if (!string.IsNullOrWhiteSpace(x.Note)) parts.Add($"not: {x.Note}");
-            if (!string.IsNullOrWhiteSpace(x.Reference)) parts.Add($"ref: {x.Reference}");
-            if (x.Snapshot is MeasurementSnapshot snap) parts.Add($"ölçüm: {SnapshotText(snap)}");
-            items.Add((x.DecidedAt, string.Join("   ", parts)));
-        }
-
-        foreach (var m in defect.MeasurementEdits)
-            items.Add((m.At, $"{m.At:dd.MM HH:mm}  {m.By}  ·  Ölçüm düzeltmesi: {SnapshotText(m.Before)}  →  {SnapshotText(m.After)}"));
-
-        return items.Count == 0
-            ? new[] { "Henüz karar ya da düzeltme yok." }
-            : items.OrderBy(i => i.At).Select((i, n) => $"{n + 1}.  {i.Text}").ToList();
-    }
-
-    private static string SnapshotText(MeasurementSnapshot s)
-    {
-        var parts = new List<string>();
-        if (s.Depth is double d) parts.Add($"D {Fmt(d)}");
-        if (s.Width is double w) parts.Add($"W {Fmt(w)}");
-        if (s.Length is double l) parts.Add($"L {Fmt(l)}");
-        if (s.Radius is double r) parts.Add($"R {Fmt(r)}");
-        if (s.AngleDeg is double a) parts.Add($"A {Fmt(a)}°");
-        if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
-        if (s.HighMetal) parts.Add("High metal");
-        return parts.Count == 0 ? "—" : string.Join(" ", parts);
-    }
-
-    private void Complete_Click(object sender, RoutedEventArgs e) => Run(() =>
-    {
-        RequireSession();
-        var defects = _store!.LoadDefects(_folder!);
-        var blocking = SessionGate.BlockingDefects(defects);
-
-        if (blocking.Count > 0)
-        {
-            var list = string.Join(", ", blocking.Select(d => $"#{d.Id} ({StateLabel(DefectStateMachine.GetState(d))})"));
-            Show($"Muayene kapatılamaz, açık kusurlar var: {list}", InfoBarSeverity.Warning);
-            return;
-        }
-
-        _session!.Status = SessionStatus.Completed;
-        _store!.SaveSession(_folder!, _session);
-        AuditLog.Append(_store!, _user, "session.complete", _folder!);
-        UpdateSessionHeader(defects);
-        Show("Muayene tamamlandı. Rapor oluşturabilirsiniz.", InfoBarSeverity.Success);
-    });
+    private void Complete_Click(object sender, RoutedEventArgs e) => Vm.Complete();
 
     // ───────────────────────── Void ─────────────────────────
 
@@ -1193,8 +840,8 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            RequireSelection();
-            var defect = _current!;
+            Vm.RequireSelection();
+            var defect = Vm.Current!;
 
             var reason = new TextBox
             {
@@ -1230,13 +877,13 @@ public sealed partial class MainWindow : Window
                 return;
 
             var id = defect.Id;
-            var by = _user;
+            var by = Vm.User;
             var note = reason.Text.Trim();
 
-            _store!.UpdateDefect(_folder!, id, d =>
+            Vm.Store.UpdateDefect(Vm.Folder!, id, d =>
                 DefectStateMachine.Apply(d, Decision.Void, DecisionSource.Operator, by, note: note));
-            AuditLog.Append(_store!, by, "defect.void", $"#{id} {note}");
-            RefreshDefects(id);
+            Vm.Audit.Append(by, "defect.void", $"#{id} {note}");
+            Vm.Refresh(id);
             Show($"#{id} void edildi. Kayıt ortak alanda kaldı, rapora girmeyecek.", InfoBarSeverity.Success);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
@@ -1268,8 +915,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private async Task ShowReinspectDialog()
     {
-        RequireSelection();
-        var defect = _store!.LoadDefects(_folder!).First(d => d.Id == _selectedId);
+        Vm.RequireSelection();
+        var defect = Vm.Store.LoadDefects(Vm.Folder!).First(d => d.Id == Vm.SelectedId);
         if (DefectStateMachine.GetState(defect) != DefectState.AwaitingReinspect)
             throw new InvalidOperationException("Bu kusur rework sonrası muayene beklemiyor.");
 
@@ -1277,7 +924,7 @@ public sealed partial class MainWindow : Window
         var sent = effective.LastOrDefault(x => x.Decision is Decision.Rework or Decision.Reinspect);
         var isRework = sent?.Decision == Decision.Rework;
         var before = sent?.Snapshot ?? MeasurementEditor.Snapshot(defect);
-        var template = _types.FirstOrDefault(t => string.Equals(t.Name, defect.DefectType, StringComparison.OrdinalIgnoreCase));
+        var template = Vm.Types.FirstOrDefault(t => string.Equals(t.Name, defect.DefectType, StringComparison.OrdinalIgnoreCase));
 
         var hadHighMetal = before.HighMetal;
         var panel = new StackPanel { Spacing = 12, Width = 480 };
@@ -1360,7 +1007,7 @@ public sealed partial class MainWindow : Window
         panel.Children.Add(samePanel);
 
         // 2. adım (yeni hata): child tipi, varsayılan seçili değil
-        var childType = new ComboBox { Header = "2. Yeni hatanın tipi", ItemsSource = TypeNames, PlaceholderText = "Tip seçin", Width = 300 };
+        var childType = new ComboBox { Header = "2. Yeni hatanın tipi", ItemsSource = Vm.TypeNames, PlaceholderText = "Tip seçin", Width = 300 };
         var newPanel = new StackPanel
         {
             Spacing = 8,
@@ -1464,16 +1111,16 @@ public sealed partial class MainWindow : Window
 
         var result = Selected() ?? throw new InvalidOperationException("Muayene sonucunu seçin.");
         var id = defect.Id;
-        var by = _user;
+        var by = Vm.User;
         var noteText = string.IsNullOrWhiteSpace(note.Text) ? null : note.Text.Trim();
 
         switch (result)
         {
             case "conforms":
-                _store!.UpdateDefect(_folder!, id, d =>
+                Vm.Store.UpdateDefect(Vm.Folder!, id, d =>
                     DefectStateMachine.Apply(d, Decision.AfterReworkConforms, DecisionSource.Engineer, by, noteText));
-                AuditLog.Append(_store!, by, "disposition", $"#{id} AfterReworkConforms");
-                RefreshDefects(id);
+                Vm.Audit.Append(by, "disposition", $"#{id} AfterReworkConforms");
+                Vm.Refresh(id);
                 Show($"#{id} uygun bulundu ve kapandı.", InfoBarSeverity.Success);
                 break;
 
@@ -1488,13 +1135,13 @@ public sealed partial class MainWindow : Window
                 var sameNote = noteText ?? (hadHighMetal && !v.HighMetal ? "High metal giderildi; ana kusur devam ediyor." : null);
 
                 // Yeni ölçümler ve karar aynı kilit altında: karar anı görüntüsü yeni değerleri taşır.
-                _store!.UpdateDefect(_folder!, id, d =>
+                Vm.Store.UpdateDefect(Vm.Folder!, id, d =>
                 {
                     MeasurementEditor.Apply(d, v, by);
                     DefectStateMachine.Apply(d, Decision.AfterReworkSameDefect, DecisionSource.Engineer, by, sameNote);
                 });
-                AuditLog.Append(_store!, by, "disposition", $"#{id} AfterReworkSameDefect");
-                RefreshDefects(id);
+                Vm.Audit.Append(by, "disposition", $"#{id} AfterReworkSameDefect");
+                Vm.Refresh(id);
                 Show(hadHighMetal && !v.HighMetal
                         ? $"#{id}: high metal giderildi, ana kusur devam ediyor. Şimdi Disposition'dan kalan kusur için karar verin."
                         : $"#{id}: aynı kusur devam ediyor, yeni ölçümler kaydedildi. Şimdi Disposition'dan yeni karar verin.",
@@ -1503,9 +1150,9 @@ public sealed partial class MainWindow : Window
 
             case "new":
                 var newType = childType.SelectedItem as string ?? throw new InvalidOperationException("Yeni hata tipini seçin.");
-                var child = _store!.ContinueAsChild(_folder!, id, newType, DecisionSource.Engineer, by, noteText, null);
-                AuditLog.Append(_store!, by, "disposition.continue", $"#{id} -> #{child.Id} {newType}");
-                RefreshDefects(child.Id);
+                var child = Vm.Store.ContinueAsChild(Vm.Folder!, id, newType, DecisionSource.Engineer, by, noteText, null);
+                Vm.Audit.Append(by, "disposition.continue", $"#{id} -> #{child.Id} {newType}");
+                Vm.Refresh(child.Id);
                 Show($"#{id} yeni kusur #{child.Id} ({newType}) olarak devam ediyor. #{child.Id} seçildi: ölçümlerini ve fotoğrafını girin.", InfoBarSeverity.Warning);
                 break;
         }
@@ -1521,23 +1168,23 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            RequireSession();
+            Vm.RequireSession();
             ReportButton.IsEnabled = false;
 
-            var reportsDir = Path.Combine(_folder!, "reports");
+            var reportsDir = Path.Combine(Vm.Folder!, "reports");
             Directory.CreateDirectory(reportsDir);
 
-            var version = ReportFiles.LatestVersion(_folder!) + 1;
+            var version = ReportFiles.LatestVersion(Vm.Folder!) + 1;
             var htmlPath = Path.Combine(reportsDir, $"Rapor_v{version}.html");
             var pdfPath = Path.ChangeExtension(htmlPath, ".pdf");
 
-            var defects = _store!.LoadDefects(_folder!);
-            AtomicFile.WriteAllText(htmlPath, ReportBuilder.Build(_session!, defects, version));
+            var defects = Vm.Store.LoadDefects(Vm.Folder!);
+            AtomicFile.WriteAllText(htmlPath, ReportBuilder.Build(Vm.Session!, defects, version));
 
             Show($"Rapor v{version} hazırlanıyor (PDF)...", InfoBarSeverity.Informational);
             var pdfError = await ReportPdf.TryConvertAsync(htmlPath, pdfPath);
 
-            AuditLog.Append(_store!, _user, "report.create", $"Rapor_v{version}{(pdfError is null ? " (pdf)" : "")}");
+            Vm.Audit.Append(Vm.User, "report.create", $"Rapor_v{version}{(pdfError is null ? " (pdf)" : "")}");
             Process.Start(new ProcessStartInfo(pdfError is null ? pdfPath : htmlPath) { UseShellExecute = true });
             if (pdfError is null)
                 Status.IsOpen = false;
@@ -1552,7 +1199,7 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            ReportButton.IsEnabled = _folder is not null;
+            ReportButton.IsEnabled = Vm.IsSessionOpen;
         }
     }
 
@@ -1570,7 +1217,7 @@ public sealed partial class MainWindow : Window
 
     private void RefreshIndex_Click(object sender, RoutedEventArgs e) => Run(() =>
     {
-        var store = new SessionStore(_store?.Root ?? _rootPath);
+        var store = new SessionStore(_rootPath);
         _indexRows = IndexBuilder.Rebuild(store);
         ApplyFilters();
     });
@@ -1759,12 +1406,12 @@ public sealed partial class MainWindow : Window
     /// <summary>Dashboard kartındaki kaydı Muayene ekranında açar.</summary>
     private void OpenFromDashboard(IndexRow r)
     {
-        PartBox.Text = r.Part;
-        OpBox.Text = r.Operation;
-        SerialBox.Text = r.Serial;
+        Vm.PartNumber = r.Part;
+        Vm.OperationNumber = r.Operation;
+        Vm.SerialNumber = r.Serial;
         Nav.SelectedItem = Nav.MenuItems[0];
 
-        if (string.IsNullOrWhiteSpace(InspectorBox.Text))
+        if (string.IsNullOrWhiteSpace(Vm.InspectorName))
         {
             InspectorBox.Focus(FocusState.Programmatic);
             Show("Kaydı açmak için muayeneci adınızı girip 'Muayene oluştur'a basın.", InfoBarSeverity.Informational);
@@ -1776,7 +1423,7 @@ public sealed partial class MainWindow : Window
 
     private void VerifyAudit_Click(object sender, RoutedEventArgs e) => Run(() =>
     {
-        var store = new SessionStore(_store?.Root ?? _rootPath);
+        var store = new SessionStore(_rootPath);
         var (ok, badLine) = AuditLog.Verify(store);
         DashInfo.Title = ok ? "Denetim kaydı sağlam" : "Denetim kaydı bozulmuş";
         DashInfo.Message = ok ? "Zincir baştan sona doğrulandı." : $"{badLine}. satırda zincir kırılmış.";
@@ -1785,49 +1432,6 @@ public sealed partial class MainWindow : Window
     });
 
     // ───────────────────────── Yardımcılar ─────────────────────────
-
-    private void RequireSession()
-    {
-        if (_store is null || _folder is null || _session is null)
-            throw new InvalidOperationException("Önce bir oturum açın.");
-    }
-
-    private void RequireSelection()
-    {
-        RequireSession();
-        if (_selectedId is null)
-            throw new InvalidOperationException("Önce listeden bir kusur seçin.");
-    }
-
-    private static double? ParseOptional(string text, string label)
-    {
-        var trimmed = text.Trim();
-        if (trimmed.Length == 0)
-            return null;
-
-        if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.CurrentCulture, out var v) ||
-            double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out v))
-            return v;
-
-        throw new ArgumentException($"{label} sayı olmalı: '{text}'");
-    }
-
-    private static string Fmt(double? value) =>
-        value is double v ? v.ToString("0.##", CultureInfo.InvariantCulture) : "";
-
-    private static string StateLabel(DefectState state) => state switch
-    {
-        DefectState.Open => "Açık",
-        DefectState.Reworking => "Rework",
-        DefectState.Repairing => "Repair",
-        DefectState.AwaitingReinspect => "Rework sonrası muayene bekliyor",
-        DefectState.WaitingVendor => "Tedarikçide",
-        DefectState.MrbPending => "MRB bekliyor",
-        DefectState.Closed => "Kapandı",
-        DefectState.Voided => "Void",
-        DefectState.Superseded => "Devredildi",
-        _ => state.ToString(),
-    };
 
     private void Show(string message, InfoBarSeverity severity)
     {
@@ -1856,69 +1460,6 @@ public sealed partial class MainWindow : Window
         };
         return timer;
     }
-
-    // ───────────────────────── Yönlendirme (tek birincil eylem) ─────────────────────────
-
-    /// <summary>
-    /// Ekranda aynı anda yalnızca sıradaki iş vurgulu (lacivert) olur; diğer düğmeler nötrdür.
-    /// ISA-101 yaklaşımı: renk yalnızca dikkat gereken yerde.
-    /// </summary>
-    private static void SetPrimary(Button button, bool primary) =>
-        button.Style = (Style)Application.Current.Resources[primary ? "AccentButtonStyle" : "DefaultButtonStyle"];
-
-    private enum Step { Measure, Photo, Decision, None }
-
-    /// <summary>Kusurun sıradaki adımı: ölçüm, fotoğraf, karar; kapalı / devredilmiş / void için yok.</summary>
-    private static Step CurrentStep(Defect d, DefectState state)
-    {
-        if (state is DefectState.Closed or DefectState.Voided or DefectState.Superseded)
-            return Step.None;
-        if (state == DefectState.AwaitingReinspect)
-            return Step.Measure;
-        if (state == DefectState.Open && !HasMeasurement(d))
-            return Step.Measure;
-        if (state == DefectState.Open && d.Photos.Count == 0)
-            return Step.Photo;
-        return Step.Decision;
-    }
-
-    private static bool HasMeasurement(Defect d) =>
-        d.Depth is not null || d.Width is not null || d.Length is not null
-        || d.Radius is not null || d.AngleDeg is not null || !string.IsNullOrWhiteSpace(d.Color);
-
-    /// <summary>Adım sekmeleri: tamamlanan ✓, sıradaki kalın; vurgulu düğme sıradaki adımdaki düğmedir.</summary>
-    private void ApplyStepGuidance(Defect d, DefectState state, bool selectCurrent)
-    {
-        var step = CurrentStep(d, state);
-        var measured = HasMeasurement(d);
-        var photographed = d.Photos.Count > 0;
-        // Açık kusurda (ilk karar, rework sonrası ya da yeniden açma) karar bekleniyor: tamamlanmış sayılmaz.
-        var decided = state != DefectState.Open && DefectStateMachine.Effective(d).Count > 0;
-
-        MeasureTabItem.Text = (measured ? "✓ " : "") + "1. Ölçüm";
-        PhotoTabItem.Text = (photographed ? "✓ " : "") + (d.Photos.Count == 0 ? "2. Fotoğraflar" : $"2. Fotoğraflar ({d.Photos.Count})");
-        DecisionTabItem.Text = (decided ? "✓ " : "") + "3. Disposition";
-
-        foreach (var (item, s) in new[] { (MeasureTabItem, Step.Measure), (PhotoTabItem, Step.Photo), (DecisionTabItem, Step.Decision) })
-            item.FontWeight = s == step ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
-
-        SetPrimary(SaveMeasButton, step == Step.Measure);
-        SetPrimary(CameraButton, step == Step.Photo);
-
-        if (selectCurrent)
-        {
-            ShowTab(step switch
-            {
-                Step.Photo => PhotoTabItem,
-                Step.Decision => DecisionTabItem,
-                _ => MeasureTabItem,
-            });
-        }
-
-        // Yapılacak iş yoksa yönlendirme kutusu gizlenir.
-        NextStepBox.Visibility = Vis(step != Step.None);
-    }
-
 
     /// <summary>Beklenen hataları yakalar ve InfoBar'da gösterir. Uygulama kapanmaz.</summary>
     private void Run(Action action)
