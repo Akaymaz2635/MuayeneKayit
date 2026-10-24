@@ -258,7 +258,7 @@ public sealed partial class MainWindow : Window
     {
         var key = state switch
         {
-            DefectState.Closed => "Neutral",
+            DefectState.Closed => "Success",
             DefectState.MrbPending => "Attention",
             DefectState.Voided or DefectState.Superseded => "Neutral",
             DefectState.AwaitingReinspect or DefectState.WaitingVendor or DefectState.Repairing => "Caution",
