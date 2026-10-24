@@ -19,7 +19,8 @@ public static class ReportBuilder
             .OrderBy(d => d.Id)
             .ToList();
 
-        var total = Math.Max(1, defects.Count);
+        // Her fotoğraf kendi sayfasında (6.1, 6.2 ...); fotoğrafsız kusur tek sayfa.
+        var total = Math.Max(1, defects.Sum(d => Math.Max(1, d.Photos.Count)));
         var sb = new StringBuilder();
         var status = session.Status == SessionStatus.Completed ? "Tamamlandı" : "Taslak, muayene henüz tamamlanmadı";
 
@@ -41,12 +42,17 @@ public static class ReportBuilder
         var index = 0;
         foreach (var d in defects)
         {
-            index++;
-            sb.Append("<section class=\"page\">");
-            sb.Append(Header(session, version, status));
-            sb.Append(DefectPage(d));
-            sb.Append($"<footer><span>Kusur #{d.Id} · {E(d.DefectType)}</span><span>Sayfa {index} / {total}</span></footer>");
-            sb.Append("</section>");
+            var pages = Math.Max(1, d.Photos.Count);
+            for (var photo = 0; photo < pages; photo++)
+            {
+                index++;
+                var label = PageLabel(d, photo);
+                sb.Append("<section class=\"page\">");
+                sb.Append(Header(session, version, status));
+                sb.Append(DefectPage(d, photo));
+                sb.Append($"<footer><span>Kusur {label} · {E(d.DefectType)}</span><span>Sayfa {index} / {total}</span></footer>");
+                sb.Append("</section>");
+            }
         }
 
         sb.Append("</body></html>");
@@ -57,14 +63,23 @@ public static class ReportBuilder
         $"<div class=\"hdr\"><div><strong>Parça {E(s.PartNumber)}</strong> &nbsp; Operasyon {E(s.OperationNumber)} &nbsp; Seri {E(s.SerialNumber)}</div>" +
         $"<div>Proje {E(s.Project)} · Muayeneci {E(s.Inspector)} · {s.CreatedAt:dd.MM.yyyy} · Rapor v{version} · {E(status)}</div></div>";
 
-    private static string DefectPage(Defect d)
+    /// <summary>Tek fotoğrafta "#6", birden fazlada "#6.1", "#6.2".</summary>
+    private static string PageLabel(Defect d, int photo) =>
+        d.Photos.Count > 1 ? $"#{d.Id}.{photo + 1}" : $"#{d.Id}";
+
+    /// <summary>
+    /// Kusurun bir sayfası: solda tek fotoğraf (tam boy), sağda ölçümler. Karar geçmişi ilk sayfada;
+    /// sonraki fotoğraf sayfalarında ilk sayfaya yönlendirilir.
+    /// </summary>
+    private static string DefectPage(Defect d, int photoIndex)
     {
         var sb = new StringBuilder();
         var state = DefectStateMachine.GetState(d);
+        var first = photoIndex == 0;
 
         sb.Append("<div class=\"defect-bar\">")
-          .Append($"<span class=\"id\">#{d.Id}</span>")
-          .Append($"<span class=\"type\">{E(d.DefectType)}</span>")
+          .Append($"<span class=\"id\">{PageLabel(d, photoIndex)}</span>")
+          .Append($"<span class=\"type\">{E(d.DefectType)}{(d.Photos.Count > 1 ? $" <span class=\"muted\">· Fotoğraf {photoIndex + 1} / {d.Photos.Count}</span>" : "")}</span>")
           .Append($"<span class=\"state st-{CssClass(state)}\">{E(StateText(state))}</span>")
           .Append("</div>");
 
@@ -78,8 +93,8 @@ public static class ReportBuilder
         }
         else
         {
-            foreach (var photo in d.Photos)
-                sb.Append(PhotoFigure(photo, d.Markups.GetValueOrDefault(photo)));
+            var photo = d.Photos[photoIndex];
+            sb.Append(PhotoFigure(photo, d.Markups.GetValueOrDefault(photo)));
         }
         sb.Append("</div>");
 
@@ -106,6 +121,12 @@ public static class ReportBuilder
         // Geri alınan kararlar ve geri alma kayıtları raporda gösterilmez (ham dosyada ve denetim kaydında kalır).
         var history = DefectStateMachine.Effective(d);
         sb.Append("<h3>Karar geçmişi</h3>");
+        if (!first)
+        {
+            sb.Append($"<p class=\"muted\">Karar geçmişi ve ölçüm düzeltmeleri {PageLabel(d, 0)} sayfasında.</p>");
+            sb.Append("</div></div>");
+            return sb.ToString();
+        }
         if (history.Count == 0)
         {
             sb.Append("<p class=\"muted\">Henüz karar yok.</p>");

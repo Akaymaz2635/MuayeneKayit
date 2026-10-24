@@ -37,6 +37,9 @@ public sealed partial class MainWindow : Window
     /// <summary>Detayda gösterilen kusur; başka kusura geçilince adımlar "1. Ölçüm"e döner.</summary>
     private int? _shownId;
 
+    /// <summary>Liste yenilenirken ListView'in ara seçim olayları yok sayılır (sekme ve seçim korunur).</summary>
+    private bool _refreshing;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -183,6 +186,9 @@ public sealed partial class MainWindow : Window
 
     private void DefectList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_refreshing)
+            return;
+
         if (DefectList.SelectedItem is DefectItem row && _store is not null)
         {
             _selectedId = row.Id;
@@ -199,17 +205,33 @@ public sealed partial class MainWindow : Window
         var defects = _store!.LoadDefects(_folder!);
         var rows = defects.Select(ToItem).ToList();
 
-        DefectList.ItemsSource = rows;
+        var keep = selectId ?? _selectedId;
+        var match = rows.FirstOrDefault(r => r.Id == keep);
+
+        _refreshing = true;
+        try
+        {
+            DefectList.ItemsSource = rows;
+            DefectList.SelectedItem = match;
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+
         DefectListEmpty.Visibility = Vis(rows.Count == 0);
         DefectList.Visibility = Vis(rows.Count > 0);
         UpdateSessionHeader(defects);
 
-        var keep = selectId ?? _selectedId;
-        var match = rows.FirstOrDefault(r => r.Id == keep);
         if (match is not null)
-            DefectList.SelectedItem = match;
+        {
+            _selectedId = match.Id;
+            LoadSelectedDefect();
+        }
         else
+        {
             ClearSelection();
+        }
     }
 
     // ───────────────────────── Görünüm yardımcıları ─────────────────────────
@@ -440,34 +462,103 @@ public sealed partial class MainWindow : Window
             if (markup?.Shapes.Count > 0) info.Add($"{markup.Shapes.Count} işaret");
             if (shown != photo) info.Add("arka plan kaldırıldı");
 
-            var button = new Button
+            var edit = new Button
             {
-                Content = editable ? "İşaretle / arka plan" : "Görüntüle",
+                Content = editable ? "İşaretle" : "Görüntüle",
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 Tag = photo,
             };
-            button.Click += EditPhoto_Click;
+            edit.Click += EditPhoto_Click;
 
+            var buttons = new Grid { ColumnSpacing = 6 };
+            buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            buttons.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            buttons.Children.Add(edit);
+            if (editable)
+            {
+                var remove = new Button { Content = new FontIcon { Glyph = "\uE74D", FontSize = 14 }, Tag = photo };
+                ToolTipService.SetToolTip(remove, "Fotoğrafı kaldır");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(remove, $"{photo} fotoğrafını kaldır");
+                remove.Click += RemovePhoto_Click;
+                Grid.SetColumn(remove, 1);
+                buttons.Children.Add(remove);
+            }
+
+            var index = defect.Photos.IndexOf(photo) + 1;
             PhotoPanel.Children.Add(new Border
             {
                 Width = 196,
                 Padding = new Thickness(8),
                 CornerRadius = new CornerRadius(6),
                 BorderThickness = new Thickness(1),
-                BorderBrush = Brush("#DDE2EA"),
-                Background = Brush("#F8FAFC"),
+                BorderBrush = Theme("CardStrokeColorDefaultBrush"),
+                Background = Theme("CardBackgroundFillColorSecondaryBrush"),
                 Child = new StackPanel
                 {
                     Spacing = 6,
                     Children =
                     {
                         new Border { CornerRadius = new CornerRadius(4), Background = Brush("#111111"), Child = image },
-                        new TextBlock { Text = photo, FontSize = 12, Foreground = Brush("#333333") },
-                        new TextBlock { Text = info.Count == 0 ? "İşaret yok" : string.Join(" · ", info), FontSize = 11, Foreground = Brush(info.Count == 0 ? "#888888" : "#B45309") },
-                        button,
+                        new TextBlock { Text = $"{defect.Id}.{index}   ·   {photo}", FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
+                        new TextBlock
+                        {
+                            Text = info.Count == 0 ? "İşaret yok" : string.Join(" · ", info),
+                            FontSize = 11,
+                            Foreground = Theme(info.Count == 0 ? "TextFillColorSecondaryBrush" : "SystemFillColorCautionBrush"),
+                        },
+                        buttons,
                     },
                 },
             });
+        }
+    }
+
+    private static Microsoft.UI.Xaml.Media.Brush Theme(string key) =>
+        (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[key];
+
+    /// <summary>
+    /// Fotoğrafı kusurdan kaldırır (onay ile). Dosya ortak alanda kalır, yalnızca kusurun listesinden ve
+    /// rapordan çıkar; işlem denetim kaydına yazılır.
+    /// </summary>
+    private async void RemovePhoto_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireSelection();
+            if ((sender as Button)?.Tag is not string photo || !PhotoMarkupValidator.IsPhotoFileName(photo))
+                return;
+
+            var id = _selectedId!.Value;
+            var dialog = new ContentDialog
+            {
+                Title = "Fotoğrafı kaldır",
+                Content = new TextBlock
+                {
+                    Width = 440,
+                    TextWrapping = TextWrapping.Wrap,
+                    Text = $"#{id} kusurundan {photo} kaldırılacak; rapora girmez. Dosya ortak alanda saklanmaya devam eder.",
+                },
+                PrimaryButtonText = "Kaldır",
+                CloseButtonText = "Vazgeç",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = Nav.XamlRoot,
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                return;
+
+            _store!.UpdateDefect(_folder!, id, d =>
+            {
+                d.Photos.Remove(photo);
+                d.Markups.Remove(photo);
+            });
+            AuditLog.Append(_store!, _user, "defect.photo.remove", $"#{id} {photo}");
+            RefreshDefects(id);
+            Show($"{photo} kaldırıldı.", InfoBarSeverity.Success);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
+                                    or TimeoutException or InvalidDataException or UnauthorizedAccessException)
+        {
+            Show(ex.Message, InfoBarSeverity.Error);
         }
     }
 

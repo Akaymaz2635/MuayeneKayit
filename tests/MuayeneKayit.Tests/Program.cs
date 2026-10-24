@@ -46,6 +46,7 @@ var tests = new List<(string Name, Action Body)>
     ("Geri al: MRB reddi otomatik hurdayla birlikte geri alınır", UndoMrbRejectedRemovesAutoScrap),
     ("Geri al: child devri geri alınır, child void olur", UndoChildLinkVoidsChild),
     ("Admin: karar açıklamaları kaydedilir, eksik olan varsayılan", DecisionTextRules),
+    ("Rapor: her fotoğraf ayrı sayfa (6.1, 6.2), geçmiş ilk sayfada", ReportPhotoPerPage),
 };
 
 int failed = 0;
@@ -493,6 +494,21 @@ static void UndoChildLinkVoidsChild()
         Expect(!html.Contains("Continues as Defect"), "Rapor eski bağı göstermemeli");
     }
     finally { Directory.Delete(root, recursive: true); }
+}
+
+static void ReportPhotoPerPage()
+{
+    var d = NewDefect(6, "Deformation");
+    d.Photos.AddRange(new[] { "6_photo_01.jpg", "6_photo_02.jpg", "6_photo_03.jpg" });
+    DefectStateMachine.Apply(d, Decision.SubmitMrb, DecisionSource.Engineer, "M. Kaya");
+    var single = NewDefect(7, "Nick");
+
+    var html = ReportBuilder.Build(SampleSession("SN-P"), new[] { d, single }, 1);
+    Expect(html.Contains(">#6.1<") && html.Contains(">#6.2<") && html.Contains(">#6.3<"), "Her fotoğraf 6.1, 6.2, 6.3 olarak etiketlenmeli");
+    Expect(html.Contains(">#7<") && !html.Contains("#7.1"), "Tek / fotoğrafsız kusur alt numara almamalı");
+    Expect(html.Contains("Sayfa 4 / 4"), "3 fotoğraf + 1 kusur = 4 sayfa");
+    Expect(System.Text.RegularExpressions.Regex.Matches(html, "6_photo_0").Count >= 3, "Her fotoğraf kendi sayfasında");
+    Expect(System.Text.RegularExpressions.Regex.Matches(html, "Submit MRB").Count == 1, "Karar geçmişi yalnızca ilk sayfada");
 }
 
 static void DecisionTextRules()
