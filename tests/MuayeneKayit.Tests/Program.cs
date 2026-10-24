@@ -65,6 +65,17 @@ var tests = new List<(string Name, Action Body)>
     ("VM: karar seçenekleri duruma göre, rework bekleyende ilk seçenek reinspect", VmDecisionOptions),
     ("VM: geri alma metni karar sonrası dolar", VmUndoTextAfterDecision),
     ("VM: başka muayeneye geçince oturum kapanır, liste boşalır", VmChangeSessionClears),
+    ("VM: karar kabul kapatır, vazgeç değişiklik yapmaz", VmDecisionAcceptClosesAndCancelChangesNothing),
+    ("VM: high metal'li rework kapsam sorar, 'sonra' bekletir", VmReworkHighMetalAsksScopeAndWaits),
+    ("VM: rework sonrası 'şimdi gir' sonuç penceresini açar", VmReworkNowOpensReinspectDialog),
+    ("VM: reinspect aynı kusur, high metal giderildi, derinlik korunur", VmReinspectSameHighMetalGoneKeepsDepth),
+    ("VM: reinspect yeni hata child açar ve seçer", VmReinspectNewOpensChild),
+    ("VM: reinspect giderildi kapatır, bekleme dışında hata verir", VmReinspectConformsAndWrongStateErrors),
+    ("VM: child devrini geri alma child'ı void eder", VmUndoChildTransferVoidsChild),
+    ("VM: void gerekçe ister", VmVoidNeedsReason),
+    ("VM: fotoğraf kaldırma onay ister", VmRemovePhotoConfirmation),
+    ("VM: reopen'da not zorunlu", VmReopenRequiresNote),
+    ("Diyalog kuralları: Merge, CanSave, DeltaText, DecisionForm", DialogFormRules),
 };
 
 int failed = 0;

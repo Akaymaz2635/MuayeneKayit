@@ -6,7 +6,7 @@ namespace MuayeneKayit.Presentation;
 
 /// <summary>
 /// Muayene ekranının durumu ve kuralları. WinUI'ye bağlı değildir: depo ve denetim kaydı portlardan gelir,
-/// renkler ton olarak, bildirimler olayla iletilir. Diyaloglar, kamera, düzenleyici ve rapor View'da kalır;
+/// renkler ton olarak, bildirimler olayla iletilir, diyaloglar IDialogService ile sorulur. Kamera, düzenleyici ve rapor View'da kalır;
 /// View, bu sınıfın verilerini (Store, Folder, Session, User, Current, SelectedId) kullanır.
 /// </summary>
 public sealed partial class InspectionViewModel : ObservableObject
@@ -14,6 +14,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     private readonly ISessionStore _store;
     private readonly IAuditTrail _audit;
     private readonly IReadOnlyList<DefectTypeTemplate> _types;
+    private readonly IDialogService _dialogs;
 
     private string? _folder;
     private Session? _session;
@@ -30,11 +31,12 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// <summary>Liste yenilenirken ListView'in ara seçim olayları yok sayılır (sekme ve seçim korunur).</summary>
     private bool _refreshing;
 
-    public InspectionViewModel(ISessionStore store, IAuditTrail audit, IReadOnlyList<DefectTypeTemplate> types)
+    public InspectionViewModel(ISessionStore store, IAuditTrail audit, IReadOnlyList<DefectTypeTemplate> types, IDialogService dialogs)
     {
         _store = store;
         _audit = audit;
         _types = types;
+        _dialogs = dialogs;
         Defects = new ObservableCollection<DefectItemViewModel>();
         ApplyDecisionState(null);
     }
