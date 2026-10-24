@@ -1,7 +1,8 @@
 <Window
     x:Class="MuayeneKayit.Inspector.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:MuayeneKayit.Inspector">
 
     <NavigationView
         x:Name="Nav"
@@ -27,142 +28,265 @@
             </NavigationViewItem>
         </NavigationView.MenuItems>
 
-        <Grid Background="#F3F5F9">
+        <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
 
             <!-- ───────── Muayene paneli ───────── -->
-            <Grid x:Name="InspectPanel" Padding="20,16,20,16" RowSpacing="12">
+            <Grid x:Name="InspectPanel" Padding="24,16,24,16" RowSpacing="12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Oturum çubuğu -->
-                <Border Grid.Row="0" Background="White" CornerRadius="8" Padding="16,12" BorderBrush="#DDE2EA" BorderThickness="1">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Oturum" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <AutoSuggestBox x:Name="PartBox" Header="Parça no" Width="170" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" />
-                            <AutoSuggestBox x:Name="OpBox" Header="Operasyon" Width="130" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" />
-                            <AutoSuggestBox x:Name="SerialBox" Header="Seri no" Width="170" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" />
-                            <TextBox x:Name="InspectorBox" Header="Muayeneci" Width="140" />
-                            <Button Content="Muayene oluştur" Click="OpenSession_Click" VerticalAlignment="Bottom" Style="{StaticResource AccentButtonStyle}" />
-                            <Button x:Name="ReportButton" Content="Rapor oluştur (PDF)" Click="Report_Click" VerticalAlignment="Bottom" IsEnabled="False" />
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
+                <InfoBar Grid.Row="0" x:Name="Status" IsOpen="False" IsClosable="True" AutomationProperties.AutomationId="StatusInfoBar" />
 
-                <InfoBar Grid.Row="1" x:Name="Status" IsOpen="False" IsClosable="True" />
-
-                <!-- Gövde: solda kusur listesi, sağda seçili kusur -->
-                <Grid Grid.Row="2" ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="340" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Kusur listesi -->
-                    <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="14" BorderBrush="#DDE2EA" BorderThickness="1">
-                        <Grid RowSpacing="10">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Kusurlar" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
-                            <StackPanel Grid.Row="1" Spacing="8">
-                                <ComboBox x:Name="DefectTypeBox" Header="Kusur tipi (yeni ve child için)" HorizontalAlignment="Stretch" />
-                                <Button Content="Kusur ekle" Click="AddDefect_Click" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" />
+                <!-- A) Muayene seçimi: oturum açık değilken ekranda yalnızca bu kart -->
+                <Grid Grid.Row="1" x:Name="StartPanel">
+                    <Border Style="{StaticResource CardStyle}" Width="600" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32">
+                        <StackPanel Spacing="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Muayene" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock Text="Parça, operasyon ve seri numarasını girin. Kayıt varsa açılır, yoksa yeni muayene oluşturulur." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
-                            <ListView Grid.Row="2" x:Name="DefectList" SelectionMode="Single" SelectionChanged="DefectList_SelectionChanged" />
+                            <Grid ColumnSpacing="12" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <AutoSuggestBox x:Name="PartBox" Header="Parça no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="PartBox" />
+                                <AutoSuggestBox x:Name="OpBox" Grid.Column="1" Header="Operasyon" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="OpBox" />
+                                <AutoSuggestBox x:Name="SerialBox" Grid.Row="1" Header="Seri no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="SerialBox" />
+                                <TextBox x:Name="InspectorBox" Grid.Row="1" Grid.Column="1" Header="Muayeneci" PlaceholderText="Adınız" AutomationProperties.AutomationId="InspectorBox" />
+                            </Grid>
+                            <Button Content="Muayene oluştur" Click="OpenSession_Click" Height="48" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="OpenSessionButton" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- B) Çalışma alanı: oturum açıkken -->
+                <Grid Grid.Row="1" x:Name="WorkPanel" RowSpacing="12" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Oturum başlığı -->
+                    <Border Style="{StaticResource CardStyle}" Padding="20,12">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock x:Name="SessionTitle" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock x:Name="SessionSub" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Button Click="ChangeSession_Click" AutomationProperties.AutomationId="ChangeSessionButton" ToolTipService.ToolTip="Başka bir parça / seri aç">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE8AB;" FontSize="14" />
+                                        <TextBlock Text="Başka muayene" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ReportButton" Click="Report_Click" IsEnabled="False" AutomationProperties.AutomationId="ReportButton">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE749;" FontSize="14" />
+                                        <TextBlock Text="Rapor (PDF)" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Click="Complete_Click" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="CompleteButton">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE73E;" FontSize="14" />
+                                        <TextBlock Text="Muayeneyi tamamla" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
                         </Grid>
                     </Border>
 
-                    <!-- Seçili kusur detayı -->
-                    <ScrollViewer Grid.Column="1">
-                        <StackPanel Spacing="12">
+                    <Grid Grid.Row="1" ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="340" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                            <!-- 1. Kusur ve ölçüm (muayene adımı) -->
-                            <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
-                                <StackPanel Spacing="10">
-                                    <TextBlock x:Name="SelectedHeader" Text="Kusur seçilmedi" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
-                                    <TextBlock x:Name="SelectedSentence" Text="Soldan bir kusur ekleyin ya da seçin, ölçümleri buradan girin." TextWrapping="Wrap" Foreground="#555" />
-                                    <TextBlock x:Name="DeltaText" TextWrapping="Wrap" Foreground="#B45309" FontWeight="SemiBold" Visibility="Collapsed" />
-                                    <!-- Rework'teyken: ölçümler kilitli, ne yapılacağı tek bir kutuda -->
-                                    <Border x:Name="AwaitBanner" Visibility="Collapsed" Background="#FFF8E1" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="14,12">
-                                        <StackPanel Spacing="8">
-                                            <TextBlock x:Name="AwaitTitle" FontWeight="SemiBold" Foreground="#92400E" TextWrapping="Wrap" />
-                                            <TextBlock x:Name="AwaitText" TextWrapping="Wrap" Foreground="#555" />
-                                            <Button x:Name="ReinspectButton" Content="Rework sonrası muayene sonucunu gir" Click="ReinspectButton_Click" Style="{StaticResource AccentButtonStyle}" />
+                        <!-- Kusur listesi -->
+                        <Border Style="{StaticResource CardStyle}" Padding="0,14,0,8">
+                            <Grid RowSpacing="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="DefectCountText" Text="Kusurlar" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="16,0" />
+                                <Button Grid.Row="1" HorizontalAlignment="Stretch" Height="44" Margin="16,0" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="AddDefectButton">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon Glyph="&#xE710;" FontSize="14" />
+                                        <TextBlock Text="Kusur ekle" />
+                                    </StackPanel>
+                                    <Button.Flyout>
+                                        <Flyout x:Name="AddDefectFlyout" Placement="Bottom">
+                                            <StackPanel Spacing="12" Width="280">
+                                                <ComboBox x:Name="DefectTypeBox" Header="Kusur tipi" HorizontalAlignment="Stretch" AutomationProperties.AutomationId="DefectTypeBox" />
+                                                <Button Content="Ekle" Click="AddDefect_Click" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="ConfirmAddDefectButton" />
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                                <TextBlock x:Name="DefectListEmpty" Grid.Row="2" Margin="16,8" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           Text="Henüz kusur yok. Parçada kusur bulduysanız 'Kusur ekle' ile başlayın; kusur yoksa muayeneyi tamamlayabilirsiniz." />
+                                <ListView Grid.Row="2" x:Name="DefectList" SelectionMode="Single" SelectionChanged="DefectList_SelectionChanged" AutomationProperties.AutomationId="DefectList">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="local:DefectItem">
+                                            <Grid Padding="0,10" ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="44" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Width="44" Height="44" CornerRadius="22" Background="{x:Bind StateBackground}" VerticalAlignment="Top">
+                                                    <TextBlock Text="{x:Bind Number}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{x:Bind StateForeground}" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Spacing="3">
+                                                    <TextBlock Text="{x:Bind Type}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <Border Background="{x:Bind StateBackground}" CornerRadius="4" Padding="6,1">
+                                                            <TextBlock Text="{x:Bind StateText}" FontSize="12" Foreground="{x:Bind StateForeground}" />
+                                                        </Border>
+                                                        <TextBlock Text="{x:Bind PhotoText}" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{x:Bind NextStep}" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Grid>
+                        </Border>
+
+                        <!-- Seçili kusur -->
+                        <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="0">
+                            <Grid>
+                                <!-- Kusur seçilmediğinde -->
+                                <StackPanel x:Name="DetailEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" MaxWidth="420">
+                                    <FontIcon Glyph="&#xE8FD;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                    <TextBlock Text="Kusur seçilmedi" HorizontalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock Text="Soldaki listeden bir kusur seçin ya da 'Kusur ekle' ile yeni kusur girin." TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+
+                                <Grid x:Name="DetailContent" Visibility="Collapsed">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Başlık: kusur, durum, sıradaki adım -->
+                                    <StackPanel Padding="20,16,20,8" Spacing="8">
+                                        <StackPanel Orientation="Horizontal" Spacing="12">
+                                            <TextBlock x:Name="SelectedHeader" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
+                                            <Border x:Name="StateChip" CornerRadius="4" Padding="10,3" VerticalAlignment="Center">
+                                                <TextBlock x:Name="StateChipText" FontWeight="SemiBold" />
+                                            </Border>
                                         </StackPanel>
-                                    </Border>
+                                        <Border x:Name="NextStepBox" Background="{ThemeResource SystemFillColorAttentionBackgroundBrush}" CornerRadius="6" Padding="12,8">
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <FontIcon Glyph="&#xE946;" FontSize="16" Foreground="{ThemeResource SystemFillColorAttentionBrush}" />
+                                                <TextBlock x:Name="NextStepText" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock x:Name="SelectedSentence" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
 
-                                    <StackPanel x:Name="MeasureArea" Spacing="10">
-                                    <TextBlock Text="Ölçümler" FontWeight="SemiBold" Margin="0,6,0,0" />
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <TextBox x:Name="DepthBox" Header="Derinlik (mm)" Width="130" />
-                                        <TextBox x:Name="WidthBox" Header="Genişlik (mm)" Width="130" />
-                                        <TextBox x:Name="LengthBox" Header="Uzunluk (mm)" Width="130" />
-                                        <TextBox x:Name="RadiusBox" Header="Yarıçap (mm)" Width="130" />
-                                        <TextBox x:Name="AngleBox" Header="Açı (°)" Width="110" />
-                                        <TextBox x:Name="ColorBox" Header="Renk" Width="150" />
-                                    </StackPanel>
-                                    <TextBox x:Name="NotesBox" Header="Not" AcceptsReturn="True" Height="60" TextWrapping="Wrap" />
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <Button Content="Ölçümleri kaydet" Click="SaveMeasurements_Click" x:Name="SaveMeasButton" IsEnabled="False" Style="{StaticResource AccentButtonStyle}" />
-                                        <Button Content="Void (yanlış giriş)" Click="VoidButton_Click" x:Name="VoidButton" Visibility="Collapsed" />
-                                    </StackPanel>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
+                                    <!-- Adımlar -->
+                                    <SelectorBar Grid.Row="1" x:Name="DetailTabs" Margin="12,0" SelectionChanged="DetailTabs_SelectionChanged" AutomationProperties.AutomationId="DetailTabs">
+                                        <SelectorBarItem x:Name="MeasureTabItem" Text="1. Ölçüm" IsSelected="True" />
+                                        <SelectorBarItem x:Name="PhotoTabItem" Text="2. Fotoğraflar" />
+                                        <SelectorBarItem x:Name="DecisionTabItem" Text="3. Disposition" />
+                                        <SelectorBarItem x:Name="HistoryTabItem" Text="Geçmiş" />
+                                    </SelectorBar>
 
-                            <!-- 2. Fotoğraflar -->
-                            <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="Fotoğraflar" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <Button Content="Kamera ile çek" Click="CameraButton_Click" x:Name="CameraButton" IsEnabled="False" Style="{StaticResource AccentButtonStyle}" />
-                                        <Button Content="Dosyadan ekle (JPG / PNG)" Click="AddPhoto_Click" x:Name="AddPhotoButton" IsEnabled="False" />
-                                    </StackPanel>
-                                    <TextBlock x:Name="PhotoEmpty" Text="Henüz fotoğraf yok." Foreground="#888" />
-                                    <ScrollViewer HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
-                                        <StackPanel x:Name="PhotoPanel" Orientation="Horizontal" Spacing="10" Padding="0,0,0,8" />
+                                    <ScrollViewer Grid.Row="2" Padding="20,12,20,20">
+                                        <Grid>
+                                            <!-- 1. Ölçüm -->
+                                            <StackPanel x:Name="MeasureTab" Spacing="12">
+                                                <TextBlock x:Name="DeltaText" TextWrapping="Wrap" Foreground="{ThemeResource SystemFillColorCautionBrush}" FontWeight="SemiBold" Visibility="Collapsed" />
+
+                                                <!-- Rework'teyken: ölçümler kilitli, ne yapılacağı tek bir kutuda -->
+                                                <Border x:Name="AwaitBanner" Visibility="Collapsed" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}" CornerRadius="6" Padding="16,14">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock x:Name="AwaitTitle" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
+                                                        <TextBlock x:Name="AwaitText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                        <Button x:Name="ReinspectButton" Content="Rework sonrası muayene sonucunu gir" Click="ReinspectButton_Click" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="ReinspectButton" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <StackPanel x:Name="MeasureArea" Spacing="12">
+                                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                                        <TextBox x:Name="DepthBox" Header="Derinlik (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="DepthBox" />
+                                                        <TextBox x:Name="WidthBox" Header="Genişlik (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="WidthBox" />
+                                                        <TextBox x:Name="LengthBox" Header="Uzunluk (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="LengthBox" />
+                                                        <TextBox x:Name="RadiusBox" Header="Yarıçap (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="RadiusBox" />
+                                                        <TextBox x:Name="AngleBox" Header="Açı (°)" Width="130" InputScope="Number" AutomationProperties.AutomationId="AngleBox" />
+                                                        <TextBox x:Name="ColorBox" Header="Renk" Width="150" AutomationProperties.AutomationId="ColorBox" />
+                                                    </StackPanel>
+                                                    <TextBox x:Name="NotesBox" Header="Not" AcceptsReturn="True" Height="72" TextWrapping="Wrap" AutomationProperties.AutomationId="NotesBox" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                                        <Button Content="Ölçümleri kaydet" Click="SaveMeasurements_Click" x:Name="SaveMeasButton" IsEnabled="False" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="SaveMeasButton" />
+                                                        <Button Content="Void (yanlış giriş)" Click="VoidButton_Click" x:Name="VoidButton" Height="44" Visibility="Collapsed" AutomationProperties.AutomationId="VoidButton" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- 2. Fotoğraflar -->
+                                            <StackPanel x:Name="PhotoTab" Spacing="12" Visibility="Collapsed">
+                                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                                    <Button Click="CameraButton_Click" x:Name="CameraButton" IsEnabled="False" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="CameraButton">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <FontIcon Glyph="&#xE722;" FontSize="14" />
+                                                            <TextBlock Text="Kamera ile çek" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Click="AddPhoto_Click" x:Name="AddPhotoButton" IsEnabled="False" Height="44" AutomationProperties.AutomationId="AddPhotoButton">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <FontIcon Glyph="&#xE8E5;" FontSize="14" />
+                                                            <TextBlock Text="Dosyadan ekle" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </StackPanel>
+                                                <TextBlock x:Name="PhotoEmpty" Text="Henüz fotoğraf yok. Kusuru kamerayla çekin; sonra 'İşaretle' ile kusur numarasını fotoğrafın üzerine koyun." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <VariableSizedWrapGrid x:Name="PhotoPanel" Orientation="Horizontal" ItemWidth="208" ItemHeight="250" />
+                                            </StackPanel>
+
+                                            <!-- 3. Disposition -->
+                                            <StackPanel x:Name="DecisionTab" Spacing="12" Visibility="Collapsed">
+                                                <TextBlock x:Name="DecisionHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <ComboBox x:Name="DecisionCombo" Header="Karar (seçince ne olacağı açıklanır, onaylamadan kaydedilmez)" PlaceholderText="Karar seçin" Width="420" SelectionChanged="DecisionCombo_SelectionChanged" AutomationProperties.AutomationId="DecisionCombo" />
+                                                <StackPanel x:Name="UndoPanel" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
+                                                    <Button x:Name="UndoButton" Click="Undo_Click" AutomationProperties.AutomationId="UndoButton">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <FontIcon Glyph="&#xE7A7;" FontSize="14" />
+                                                            <TextBlock Text="Son kararı geri al" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <TextBlock x:Name="UndoText" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- Geçmiş -->
+                                            <StackPanel x:Name="HistoryTab" Spacing="8" Visibility="Collapsed">
+                                                <TextBlock Text="Kararlar ve ölçüm düzeltmeleri, eskiden yeniye." Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <ListView x:Name="HistoryList" SelectionMode="None" />
+                                            </StackPanel>
+                                        </Grid>
                                     </ScrollViewer>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- 3. Mühendis kararı: muayene sonrası, varsayılan kapalı -->
-                            <Expander x:Name="DecisionExpander" IsExpanded="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                                <Expander.Header>
-                                    <TextBlock Text="Disposition" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" Padding="0,10" />
-                                </Expander.Header>
-                                <StackPanel Spacing="10">
-                                    <TextBlock x:Name="DecisionHint" Text="Karar vermek için listeden bir kusur seçin." Foreground="#666" FontSize="12" TextWrapping="Wrap" />
-                                    <ComboBox x:Name="DecisionCombo" Header="Karar (seçince ne olacağı açıklanır, onaylamadan kaydedilmez)" PlaceholderText="Karar seçin" Width="420" SelectionChanged="DecisionCombo_SelectionChanged" />
-                                    <StackPanel x:Name="UndoPanel" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
-                                        <Button x:Name="UndoButton" Content="Son kararı geri al" Click="Undo_Click" />
-                                        <TextBlock x:Name="UndoText" Foreground="#666" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Expander>
-
-                            <!-- 4. Karar geçmişi: varsayılan kapalı -->
-                            <Expander x:Name="HistoryExpander" IsExpanded="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                                <Expander.Header>
-                                    <StackPanel Padding="0,8">
-                                        <TextBlock x:Name="HistoryHeader" Text="Karar ve düzeltme geçmişi" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
-                                        <TextBlock Text="Kayıtlar silinmez. Rework turları, yeniden açmalar ve ölçüm düzeltmeleri burada." Foreground="#666" FontSize="12" />
-                                    </StackPanel>
-                                </Expander.Header>
-                                <ListView x:Name="HistoryList" SelectionMode="None" MaxHeight="260" />
-                            </Expander>
-
-                        </StackPanel>
-                    </ScrollViewer>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
-
-                <Button Grid.Row="3" Content="Muayeneyi tamamla" Click="Complete_Click" HorizontalAlignment="Right" Style="{StaticResource AccentButtonStyle}" />
             </Grid>
 
             <!-- ───────── Dashboard paneli ───────── -->

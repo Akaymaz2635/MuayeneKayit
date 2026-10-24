@@ -9,6 +9,23 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
             <x:Double x:Key="ContentDialogMaxWidth">960</x:Double>
+
+            <!-- Kurumsal vurgu rengi (lacivert). Vurgulu butonlar ve seçimler bu rengi kullanır. -->
+            <Color x:Key="SystemAccentColor">#1A3A5C</Color>
+            <Color x:Key="SystemAccentColorLight1">#2C5480</Color>
+            <Color x:Key="SystemAccentColorLight2">#4A73A0</Color>
+            <Color x:Key="SystemAccentColorLight3">#7C9CC2</Color>
+            <Color x:Key="SystemAccentColorDark1">#1A3A5C</Color>
+            <Color x:Key="SystemAccentColorDark2">#132C46</Color>
+            <Color x:Key="SystemAccentColorDark3">#0C1E30</Color>
+
+            <!-- Kart yüzeyi: sistem kart fırçaları, tema ve yüksek kontrastla uyumlu -->
+            <Style x:Key="CardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
