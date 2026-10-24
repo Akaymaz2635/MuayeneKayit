@@ -177,7 +177,7 @@
                                     <TextBlock Text="Soldaki listeden bir kusur seçin ya da 'Kusur ekle' ile yeni kusur girin." TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 </StackPanel>
 
-                                <Grid Visibility="{x:Bind Vm.HasSelection, Mode=OneWay}">
+                                <Grid Opacity="{x:Bind local:MainWindow.OpacityFor(Vm.HasSelection), Mode=OneWay}" IsHitTestVisible="{x:Bind Vm.HasSelection, Mode=OneWay}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />

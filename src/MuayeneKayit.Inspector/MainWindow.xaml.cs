@@ -193,18 +193,25 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ShowTab(SelectorBarItem item)
     {
-        _syncingTabs = true;
-        try
+        // Detay alanı pencereyle birlikte yüklendiği için (gizliyken de ağaçta) seçim doğrudan uygulanabilir.
+        // Kullanıcı tıkladığında seçim zaten doğrudur; yalnızca farklıysa yazılır.
+        if (!ReferenceEquals(DetailTabs.SelectedItem, item))
         {
-            foreach (var i in new[] { MeasureTabItem, PhotoTabItem, DecisionTabItem, HistoryTabItem })
-                i.IsSelected = ReferenceEquals(i, item);
-        }
-        finally
-        {
-            _syncingTabs = false;
+            _syncingTabs = true;
+            try
+            {
+                DetailTabs.SelectedItem = item;
+            }
+            finally
+            {
+                _syncingTabs = false;
+            }
         }
         ShowPanels(item);
     }
+
+    /// <summary>Seçili kusur yokken detay alanı görünmez ama ağaçta kalır (sekme çubuğu yüklü kalsın diye).</summary>
+    public static double OpacityFor(bool visible) => visible ? 1.0 : 0.0;
 
     private void ShowPanels(SelectorBarItem selected)
     {
