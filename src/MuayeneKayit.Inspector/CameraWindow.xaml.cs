@@ -24,7 +24,7 @@ namespace MuayeneKayit.Inspector;
 /// Zoom yalnızca görüntülemek içindir; fotoğraf kameranın tam çözünürlüğünde kaydedilir.
 /// </summary>
 /// <summary>Çekilen fotoğraf: geçici dosya, piksel boyutu ve çerçevenin açık olup olmadığı.</summary>
-public sealed record CapturedPhoto(string TempPath, int Width, int Height, bool Framed);
+public sealed record CapturedPhoto(string TempPath, int Width, int Height, bool Framed, double FrameFraction);
 
 public sealed partial class CameraWindow : Window
 {
@@ -34,8 +34,9 @@ public sealed partial class CameraWindow : Window
     private readonly Func<CapturedPhoto, string> _onSave;
     private readonly int _defectId;
 
-    /// <summary>Çerçeve tercihi oturum boyunca hatırlanır.</summary>
+    /// <summary>Çerçeve tercihi ve boyutu oturum boyunca hatırlanır.</summary>
     private static bool _frameOn = true;
+    private static double _frameFraction = Annotation.CameraFrameFraction;
 
     private int _videoWidth;
     private int _videoHeight;
@@ -58,6 +59,9 @@ public sealed partial class CameraWindow : Window
         _onSave = onSave;
         _defectId = defectId;
         FrameToggle.IsOn = _frameOn;
+        FrameSizeSlider.Value = _frameFraction;
+        FrameSizeSlider.IsEnabled = _frameOn;
+        FrameSizeText.Text = $"%{_frameFraction * 100:0}";
 
         Title = $"Kamera — {target}";
         TargetText.Text = target;
@@ -302,6 +306,17 @@ public sealed partial class CameraWindow : Window
         DrawFrame(FrameOverlay, e.NewSize.Width, e.NewSize.Height, _videoWidth, _videoHeight);
     }
 
+    private void FrameSize_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        // Pencere yüklenirken görüntü alanı henüz yoktur.
+        if (FrameSizeText is null || PreviewHost is null || ReviewHost is null || FrameOverlay is null || ReviewOverlay is null)
+            return;
+        _frameFraction = e.NewValue;
+        FrameSizeText.Text = $"%{e.NewValue * 100:0}";
+        DrawFrame(FrameOverlay, PreviewHost.Width, PreviewHost.Height, _videoWidth, _videoHeight);
+        DrawFrame(ReviewOverlay, ReviewHost.ActualWidth, ReviewHost.ActualHeight, _photoWidth, _photoHeight);
+    }
+
     private void ReviewHost_SizeChanged(object sender, SizeChangedEventArgs e) =>
         DrawFrame(ReviewOverlay, e.NewSize.Width, e.NewSize.Height, _photoWidth, _photoHeight);
 
@@ -311,6 +326,7 @@ public sealed partial class CameraWindow : Window
         if (PreviewHost is null || ReviewHost is null || FrameOverlay is null || ReviewOverlay is null)
             return;
         _frameOn = FrameToggle.IsOn;
+        FrameSizeSlider.IsEnabled = FrameToggle.IsOn;
         DrawFrame(FrameOverlay, PreviewHost.Width, PreviewHost.Height, _videoWidth, _videoHeight);
         DrawFrame(ReviewOverlay, ReviewHost.ActualWidth, ReviewHost.ActualHeight, _photoWidth, _photoHeight);
     }
@@ -329,7 +345,7 @@ public sealed partial class CameraWindow : Window
         double shownW = imageWidth * scale, shownH = imageHeight * scale;
         double offsetX = (hostWidth - shownW) / 2, offsetY = (hostHeight - shownH) / 2;
 
-        var box = Annotation.CenterSquare(imageWidth, imageHeight, _defectId);
+        var box = Annotation.CenterSquare(imageWidth, imageHeight, _defectId, _frameFraction);
         double x = offsetX + box.X1 * shownW, y = offsetY + box.Y1 * shownH;
         double w = (box.X2 - box.X1) * shownW, h = (box.Y2 - box.Y1) * shownH;
 
@@ -433,7 +449,7 @@ public sealed partial class CameraWindow : Window
             }
 
             // Kaydedince pencere kapanır; fotoğraf doğrudan işaretleme ekranında açılır.
-            _onSave(new CapturedPhoto(temp, _photoWidth, _photoHeight, FrameToggle.IsOn));
+            _onSave(new CapturedPhoto(temp, _photoWidth, _photoHeight, FrameToggle.IsOn, _frameFraction));
             Close();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException

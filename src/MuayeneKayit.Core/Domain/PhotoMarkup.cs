@@ -23,8 +23,8 @@ public sealed class Annotation
     /// <summary>İşaretin gösterdiği kusur numarası. Etikette "#N" olarak yazılır.</summary>
     public int DefectId { get; set; }
 
-    /// <summary>Kamera çerçevesinin kenarı: görüntünün kısa kenarına oranı.</summary>
-    public const double CameraFrameFraction = 0.4;
+    /// <summary>Kamera çerçevesinin varsayılan kenarı: görüntünün kısa kenarına oranı.</summary>
+    public const double CameraFrameFraction = 0.2;
 
     /// <summary>
     /// Kameradaki ortalanmış kare çerçeve. Kenar = kısa kenar × oran; koordinatlar 0..1.

@@ -47,7 +47,7 @@ var tests = new List<(string Name, Action Body)>
     ("Geri al: child devri geri alınır, child void olur", UndoChildLinkVoidsChild),
     ("Admin: karar açıklamaları kaydedilir, eksik olan varsayılan", DecisionTextRules),
     ("Rapor: her fotoğraf ayrı sayfa (6.1, 6.2), geçmiş ilk sayfada", ReportPhotoPerPage),
-    ("Kamera çerçevesi: ortalanmış kare, kısa kenarın %40'ı", CameraFrameSquare),
+    ("Kamera çerçevesi: ortalanmış kare, varsayılan kısa kenarın %20'si, boyut ayarlanabilir", CameraFrameSquare),
 };
 
 int failed = 0;
@@ -502,7 +502,9 @@ static void CameraFrameSquare()
     var a = Annotation.CenterSquare(1920, 1080, 9);
     var wPx = (a.X2 - a.X1) * 1920;
     var hPx = (a.Y2 - a.Y1) * 1080;
-    Expect(Math.Abs(wPx - 432) < 0.01 && Math.Abs(hPx - 432) < 0.01, $"Kare 432 px olmalı ({wPx}x{hPx})");
+    Expect(Math.Abs(wPx - 216) < 0.01 && Math.Abs(hPx - 216) < 0.01, $"Varsayılan kare 216 px olmalı ({wPx}x{hPx})");
+    var big = Annotation.CenterSquare(1920, 1080, 9, 0.5);
+    Expect(Math.Abs((big.Y2 - big.Y1) * 1080 - 540) < 0.01, "Boyut oranı uygulanmalı (540 px)");
     Expect(Math.Abs((a.X1 + a.X2) / 2 - 0.5) < 1e-9 && Math.Abs((a.Y1 + a.Y2) / 2 - 0.5) < 1e-9, "Ortalanmış olmalı");
     Expect(a.Kind == AnnotationKind.Box && a.DefectId == 9, "Kutu ve kusur no");
 

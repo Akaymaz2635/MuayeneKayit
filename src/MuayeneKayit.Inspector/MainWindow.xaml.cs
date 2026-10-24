@@ -741,7 +741,7 @@ public sealed partial class MainWindow : Window
                     {
                         ImageWidth = photo.Width,
                         ImageHeight = photo.Height,
-                        Shapes = { Annotation.CenterSquare(photo.Width, photo.Height, id) },
+                        Shapes = { Annotation.CenterSquare(photo.Width, photo.Height, id, photo.FrameFraction) },
                     };
                 }
             });

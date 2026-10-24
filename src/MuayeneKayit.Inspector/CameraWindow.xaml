@@ -68,6 +68,10 @@
                 <Slider x:Name="ZoomSlider" Minimum="1" Maximum="5" StepFrequency="0.1" Value="1" Width="200" VerticalAlignment="Center" ValueChanged="ZoomSlider_ValueChanged" />
                 <TextBlock x:Name="ZoomText" Text="1.0×" Foreground="White" VerticalAlignment="Center" Width="40" />
                 <Button Content="1×" Click="ZoomReset_Click" />
+                <TextBlock x:Name="FrameSizeLabel" Text="Çerçeve" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="16,0,0,0" />
+                <Slider x:Name="FrameSizeSlider" Minimum="0.05" Maximum="0.9" StepFrequency="0.05" Width="180" VerticalAlignment="Center"
+                        ValueChanged="FrameSize_ValueChanged" ToolTipService.ToolTip="Çerçevenin boyutu (görüntünün kısa kenarına oranı)" />
+                <TextBlock x:Name="FrameSizeText" Foreground="White" VerticalAlignment="Center" Width="40" />
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
