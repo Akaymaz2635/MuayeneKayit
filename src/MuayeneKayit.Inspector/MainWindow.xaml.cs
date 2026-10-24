@@ -258,7 +258,7 @@ public sealed partial class MainWindow : Window
     {
         var key = state switch
         {
-            DefectState.Closed => "Success",
+            DefectState.Closed => "Neutral",
             DefectState.MrbPending => "Attention",
             DefectState.Voided or DefectState.Superseded => "Neutral",
             DefectState.AwaitingReinspect or DefectState.WaitingVendor or DefectState.Repairing => "Caution",
@@ -272,8 +272,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Muayenecinin bu kusurda yapması gereken sıradaki iş.</summary>
     private static string NextStepFor(Defect d, DefectState state)
     {
-        var hasMeasure = d.Depth is not null || d.Width is not null || d.Length is not null
-            || d.Radius is not null || d.AngleDeg is not null || !string.IsNullOrWhiteSpace(d.Color);
+        var hasMeasure = HasMeasurement(d);
         return state switch
         {
             DefectState.Open when !hasMeasure => "Sıradaki adım: ölçümleri girin.",
@@ -300,6 +299,8 @@ public sealed partial class MainWindow : Window
         SessionSub.Text = $"Muayeneci: {_user}   ·   {visible} kusur, {open} açık   ·   " +
                           (_session.Status == SessionStatus.Completed ? "Tamamlandı" : "Devam ediyor");
         DefectCountText.Text = visible == 0 ? "Kusurlar" : $"Kusurlar ({visible})";
+        SetPrimary(CompleteButton, open == 0 && _session.Status != SessionStatus.Completed);
+        SetPrimary(AddDefectButton, visible == 0);
     }
 
     private void DetailTabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
@@ -356,11 +357,8 @@ public sealed partial class MainWindow : Window
 
         DetailEmpty.Visibility = Visibility.Collapsed;
         DetailContent.Visibility = Visibility.Visible;
-        if (_shownId != defect.Id)
-        {
-            _shownId = defect.Id;
-            DetailTabs.SelectedItem = MeasureTabItem;
-        }
+        var newDefect = _shownId != defect.Id;
+        _shownId = defect.Id;
 
         SelectedHeader.Text = $"#{defect.Id}  {defect.DefectType}";
         var (chipBg, chipFg) = StateBrushes(state);
@@ -369,7 +367,7 @@ public sealed partial class MainWindow : Window
         StateChipText.Text = StateLabel(state);
         NextStepText.Text = NextStepFor(defect, state);
         SelectedSentence.Text = DefectSentence.Describe(defect);
-        PhotoTabItem.Text = defect.Photos.Count == 0 ? "2. Fotoğraflar" : $"2. Fotoğraflar ({defect.Photos.Count})";
+        ApplyStepGuidance(defect, state, selectCurrent: newDefect);
 
         // Değişim satırı yalnızca rework sonrası gerçekten yeniden ölçüldüyse ("aynı kusur devam") gösterilir.
         var effective = DefectStateMachine.Effective(defect);
@@ -685,7 +683,7 @@ public sealed partial class MainWindow : Window
         RefreshDefects(_selectedId);
 
         // Ölçüm bitti, fotoğraf yoksa sıradaki adıma geç.
-        if (_current is { Photos.Count: 0 })
+        if (_current is { Photos.Count: 0 } && HasMeasurement(_current))
             DetailTabs.SelectedItem = PhotoTabItem;
         Show(changed
                 ? $"#{_selectedId} ölçümleri güncellendi, düzeltme geçmişe yazıldı."
@@ -1433,10 +1431,11 @@ public sealed partial class MainWindow : Window
 
             AuditLog.Append(_store!, _user, "report.create", $"Rapor_v{version}{(pdfError is null ? " (pdf)" : "")}");
             Process.Start(new ProcessStartInfo(pdfError is null ? pdfPath : htmlPath) { UseShellExecute = true });
-            Show(pdfError is null
-                    ? $"Rapor v{version} PDF olarak oluşturuldu ve açıldı. Yazdırıp mühendise verin."
-                    : $"Rapor v{version} HTML olarak açıldı (PDF üretilemedi: {pdfError}). Tarayıcıdan 'PDF olarak kaydet' ile yazdırabilirsiniz.",
-                pdfError is null ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
+            if (pdfError is null)
+                Status.IsOpen = false;
+            else
+                Show($"Rapor v{version} HTML olarak açıldı (PDF üretilemedi: {pdfError}). Tarayıcıdan 'PDF olarak kaydet' ile yazdırabilirsiniz.",
+                    InfoBarSeverity.Warning);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
                                     or TimeoutException or InvalidDataException or UnauthorizedAccessException)
@@ -1727,7 +1726,90 @@ public sealed partial class MainWindow : Window
         Status.Severity = severity;
         Status.Message = message;
         Status.IsOpen = true;
+
+        _statusTimer?.Stop();
+        if (severity is InfoBarSeverity.Success or InfoBarSeverity.Informational)
+        {
+            _statusTimer ??= CreateStatusTimer();
+            _statusTimer.Start();
+        }
     }
+
+    private DispatcherTimer? _statusTimer;
+
+    private DispatcherTimer CreateStatusTimer()
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (Status.Severity is InfoBarSeverity.Success or InfoBarSeverity.Informational)
+                Status.IsOpen = false;
+        };
+        return timer;
+    }
+
+    // ───────────────────────── Yönlendirme (tek birincil eylem) ─────────────────────────
+
+    /// <summary>
+    /// Ekranda aynı anda yalnızca sıradaki iş vurgulu (lacivert) olur; diğer düğmeler nötrdür.
+    /// ISA-101 yaklaşımı: renk yalnızca dikkat gereken yerde.
+    /// </summary>
+    private static void SetPrimary(Button button, bool primary) =>
+        button.Style = (Style)Application.Current.Resources[primary ? "AccentButtonStyle" : "DefaultButtonStyle"];
+
+    private enum Step { Measure, Photo, Decision, None }
+
+    /// <summary>Kusurun sıradaki adımı: ölçüm, fotoğraf, karar; kapalı / devredilmiş / void için yok.</summary>
+    private static Step CurrentStep(Defect d, DefectState state)
+    {
+        if (state is DefectState.Closed or DefectState.Voided or DefectState.Superseded)
+            return Step.None;
+        if (state == DefectState.AwaitingReinspect)
+            return Step.Measure;
+        if (state == DefectState.Open && !HasMeasurement(d))
+            return Step.Measure;
+        if (state == DefectState.Open && d.Photos.Count == 0)
+            return Step.Photo;
+        return Step.Decision;
+    }
+
+    private static bool HasMeasurement(Defect d) =>
+        d.Depth is not null || d.Width is not null || d.Length is not null
+        || d.Radius is not null || d.AngleDeg is not null || !string.IsNullOrWhiteSpace(d.Color);
+
+    /// <summary>Adım sekmeleri: tamamlanan ✓, sıradaki kalın; vurgulu düğme sıradaki adımdaki düğmedir.</summary>
+    private void ApplyStepGuidance(Defect d, DefectState state, bool selectCurrent)
+    {
+        var step = CurrentStep(d, state);
+        var measured = HasMeasurement(d);
+        var photographed = d.Photos.Count > 0;
+        var decided = DefectStateMachine.Effective(d).Count > 0;
+
+        MeasureTabItem.Text = (measured ? "✓ " : "") + "1. Ölçüm";
+        PhotoTabItem.Text = (photographed ? "✓ " : "") + (d.Photos.Count == 0 ? "2. Fotoğraflar" : $"2. Fotoğraflar ({d.Photos.Count})");
+        DecisionTabItem.Text = (decided ? "✓ " : "") + "3. Disposition";
+
+        foreach (var (item, s) in new[] { (MeasureTabItem, Step.Measure), (PhotoTabItem, Step.Photo), (DecisionTabItem, Step.Decision) })
+            item.FontWeight = s == step ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+
+        SetPrimary(SaveMeasButton, step == Step.Measure);
+        SetPrimary(CameraButton, step == Step.Photo);
+
+        if (selectCurrent)
+        {
+            DetailTabs.SelectedItem = step switch
+            {
+                Step.Photo => PhotoTabItem,
+                Step.Decision => DecisionTabItem,
+                _ => MeasureTabItem,
+            };
+        }
+
+        // Yapılacak iş yoksa yönlendirme kutusu gizlenir.
+        NextStepBox.Visibility = Vis(step != Step.None);
+    }
+
 
     /// <summary>Beklenen hataları yakalar ve InfoBar'da gösterir. Uygulama kapanmaz.</summary>
     private void Run(Action action)
