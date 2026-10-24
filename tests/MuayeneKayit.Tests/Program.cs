@@ -47,6 +47,7 @@ var tests = new List<(string Name, Action Body)>
     ("Geri al: child devri geri alınır, child void olur", UndoChildLinkVoidsChild),
     ("Admin: karar açıklamaları kaydedilir, eksik olan varsayılan", DecisionTextRules),
     ("Rapor: her fotoğraf ayrı sayfa (6.1, 6.2), geçmiş ilk sayfada", ReportPhotoPerPage),
+    ("Kamera çerçevesi: ortalanmış kare, kısa kenarın %40'ı", CameraFrameSquare),
 };
 
 int failed = 0;
@@ -494,6 +495,19 @@ static void UndoChildLinkVoidsChild()
         Expect(!html.Contains("Continues as Defect"), "Rapor eski bağı göstermemeli");
     }
     finally { Directory.Delete(root, recursive: true); }
+}
+
+static void CameraFrameSquare()
+{
+    var a = Annotation.CenterSquare(1920, 1080, 9);
+    var wPx = (a.X2 - a.X1) * 1920;
+    var hPx = (a.Y2 - a.Y1) * 1080;
+    Expect(Math.Abs(wPx - 432) < 0.01 && Math.Abs(hPx - 432) < 0.01, $"Kare 432 px olmalı ({wPx}x{hPx})");
+    Expect(Math.Abs((a.X1 + a.X2) / 2 - 0.5) < 1e-9 && Math.Abs((a.Y1 + a.Y2) / 2 - 0.5) < 1e-9, "Ortalanmış olmalı");
+    Expect(a.Kind == AnnotationKind.Box && a.DefectId == 9, "Kutu ve kusur no");
+
+    var markup = new PhotoMarkup { ImageWidth = 1920, ImageHeight = 1080, Shapes = { a } };
+    Expect(PhotoMarkupValidator.Validate(markup).Count == 0, "Çerçeve geçerli işaret olmalı");
 }
 
 static void ReportPhotoPerPage()

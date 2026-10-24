@@ -22,6 +22,29 @@ public sealed class Annotation
 
     /// <summary>İşaretin gösterdiği kusur numarası. Etikette "#N" olarak yazılır.</summary>
     public int DefectId { get; set; }
+
+    /// <summary>Kamera çerçevesinin kenarı: görüntünün kısa kenarına oranı.</summary>
+    public const double CameraFrameFraction = 0.4;
+
+    /// <summary>
+    /// Kameradaki ortalanmış kare çerçeve. Kenar = kısa kenar × oran; koordinatlar 0..1.
+    /// Kamera önizlemesi ve kaydedilen işaret aynı kuralı kullanır.
+    /// </summary>
+    public static Annotation CenterSquare(int width, int height, int defectId, double fraction = CameraFrameFraction)
+    {
+        if (width <= 0 || height <= 0)
+            throw new ArgumentException("Görüntü boyutu geçersiz.");
+        var side = Math.Min(width, height) * Math.Clamp(fraction, 0.05, 1.0);
+        var hw = side / 2 / width;
+        var hh = side / 2 / height;
+        return new Annotation
+        {
+            Kind = AnnotationKind.Box,
+            X1 = 0.5 - hw, Y1 = 0.5 - hh,
+            X2 = 0.5 + hw, Y2 = 0.5 + hh,
+            DefectId = defectId,
+        };
+    }
 }
 
 /// <summary>

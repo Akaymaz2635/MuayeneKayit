@@ -15,6 +15,8 @@
             <TextBlock x:Name="TargetText" Foreground="White" FontWeight="SemiBold" FontSize="15" VerticalAlignment="Center" Margin="0,0,16,0" />
             <ComboBox x:Name="DeviceBox" Width="320" PlaceholderText="Kamera seçin" SelectionChanged="DeviceBox_SelectionChanged" />
             <Button Content="Kameraları yenile" Click="RefreshDevices_Click" />
+            <ToggleSwitch x:Name="FrameToggle" OnContent="Çerçeve açık" OffContent="Çerçeve kapalı" Toggled="FrameToggle_Toggled"
+                          ToolTipService.ToolTip="Açıkken ortadaki kare, kaydedilen fotoğrafta kusur işareti olur" />
             <ToggleSwitch x:Name="AutoFocusToggle" OnContent="Otomatik odak" OffContent="Odak sabit" IsOn="True" Visibility="Collapsed" Toggled="AutoFocus_Toggled" />
             <TextBlock x:Name="ResolutionText" Foreground="#AAAAAA" VerticalAlignment="Center" />
         </StackPanel>
@@ -32,9 +34,16 @@
                 VerticalScrollBarVisibility="Auto"
                 SizeChanged="PreviewScroll_SizeChanged"
                 ViewChanged="PreviewScroll_ViewChanged">
-                <MediaPlayerElement x:Name="Preview" AutoPlay="True" Stretch="Uniform" />
+                <Grid x:Name="PreviewHost">
+                    <MediaPlayerElement x:Name="Preview" AutoPlay="True" Stretch="Uniform" />
+                    <!-- Kusur çerçevesi: görüntüyle birlikte zoom yapar -->
+                    <Canvas x:Name="FrameOverlay" IsHitTestVisible="False" />
+                </Grid>
             </ScrollViewer>
-            <Image x:Name="Review" Stretch="Uniform" Visibility="Collapsed" />
+            <Grid x:Name="ReviewHost" Visibility="Collapsed" SizeChanged="ReviewHost_SizeChanged">
+                <Image x:Name="Review" Stretch="Uniform" />
+                <Canvas x:Name="ReviewOverlay" IsHitTestVisible="False" />
+            </Grid>
             <TextBlock
                 x:Name="StatusText"
                 Foreground="White"

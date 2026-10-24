@@ -303,9 +303,22 @@ public sealed partial class MainWindow : Window
         SetPrimary(AddDefectButton, visible == 0);
     }
 
-    private void DetailTabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private void DetailTabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) =>
+        ShowPanels(sender.SelectedItem ?? MeasureTabItem);
+
+    /// <summary>
+    /// Sekmeyi seçer ve içeriğini doğrudan gösterir. SelectorBar ilk kez görünür olurken seçim olayı
+    /// gelmeyebilir; panel görünürlüğü bu yüzden olaya bırakılmaz.
+    /// </summary>
+    private void ShowTab(SelectorBarItem item)
     {
-        var selected = sender.SelectedItem;
+        foreach (var i in new[] { MeasureTabItem, PhotoTabItem, DecisionTabItem, HistoryTabItem })
+            i.IsSelected = ReferenceEquals(i, item);
+        ShowPanels(item);
+    }
+
+    private void ShowPanels(SelectorBarItem selected)
+    {
         MeasureTab.Visibility = Vis(selected == MeasureTabItem);
         PhotoTab.Visibility = Vis(selected == PhotoTabItem);
         DecisionTab.Visibility = Vis(selected == DecisionTabItem);
@@ -578,9 +591,15 @@ public sealed partial class MainWindow : Window
 
     private void EditPhoto_Click(object sender, RoutedEventArgs e) => Run(() =>
     {
-        RequireSelection();
         if ((sender as Button)?.Tag is not string photo || !PhotoMarkupValidator.IsPhotoFileName(photo))
             throw new InvalidOperationException("Fotoğraf okunamadı.");
+        OpenEditor(photo);
+    });
+
+    /// <summary>Fotoğrafı işaretleme / arka plan düzenleyicisinde açar.</summary>
+    private void OpenEditor(string photo)
+    {
+        RequireSelection();
 
         var id = _selectedId!.Value;
         var folder = _folder!;
@@ -642,7 +661,7 @@ public sealed partial class MainWindow : Window
         };
         _editor = editor;
         editor.Activate();
-    });
+    }
 
     // ───────────────────────── Ölçüm ve fotoğraf ─────────────────────────
 
@@ -684,7 +703,7 @@ public sealed partial class MainWindow : Window
 
         // Ölçüm bitti, fotoğraf yoksa sıradaki adıma geç.
         if (_current is { Photos.Count: 0 } && HasMeasurement(_current))
-            DetailTabs.SelectedItem = PhotoTabItem;
+            ShowTab(PhotoTabItem);
         Show(changed
                 ? $"#{_selectedId} ölçümleri güncellendi, düzeltme geçmişe yazıldı."
                 : $"#{_selectedId} için ölçüm değişmedi (not kaydedildi).",
@@ -708,19 +727,40 @@ public sealed partial class MainWindow : Window
         // Aynı anda tek kamera penceresi: kamera tek uygulamaya açılabilir.
         _camera?.Close();
 
-        var camera = new CameraWindow(target, tempPath =>
+        string? saved = null;
+        var camera = new CameraWindow(target, id, photo =>
         {
-            var name = PhotoImporter.Import(folder, id, tempPath);
-            store.UpdateDefect(folder, id, d => d.Photos.Add(name));
-            AuditLog.Append(store, by, "defect.photo", $"#{id} {name} (kamera)");
-            if (_selectedId == id && _folder == folder)
-                RefreshDefects(id);
+            var name = PhotoImporter.Import(folder, id, photo.TempPath);
+            store.UpdateDefect(folder, id, d =>
+            {
+                d.Photos.Add(name);
+                // Çerçeve açıkken çekildiyse ortadaki kare kusur işareti olarak kaydedilir.
+                if (photo.Framed && photo.Width > 0 && photo.Height > 0)
+                {
+                    d.Markups[name] = new PhotoMarkup
+                    {
+                        ImageWidth = photo.Width,
+                        ImageHeight = photo.Height,
+                        Shapes = { Annotation.CenterSquare(photo.Width, photo.Height, id) },
+                    };
+                }
+            });
+            AuditLog.Append(store, by, "defect.photo", $"#{id} {name} (kamera{(photo.Framed ? ", çerçeveli" : "")})");
+            saved = name;
             return name;
         });
         camera.Closed += (_, _) =>
         {
             if (ReferenceEquals(_camera, camera))
                 _camera = null;
+
+            // Fotoğraf kaydedildiyse doğrudan işaretleme ekranına geçilir.
+            if (saved is not null && _selectedId == id && _folder == folder)
+            {
+                RefreshDefects(id);
+                ShowTab(PhotoTabItem);
+                Run(() => OpenEditor(saved));
+            }
         };
         _camera = camera;
         camera.Activate();
@@ -1798,12 +1838,12 @@ public sealed partial class MainWindow : Window
 
         if (selectCurrent)
         {
-            DetailTabs.SelectedItem = step switch
+            ShowTab(step switch
             {
                 Step.Photo => PhotoTabItem,
                 Step.Decision => DecisionTabItem,
                 _ => MeasureTabItem,
-            };
+            });
         }
 
         // Yapılacak iş yoksa yönlendirme kutusu gizlenir.

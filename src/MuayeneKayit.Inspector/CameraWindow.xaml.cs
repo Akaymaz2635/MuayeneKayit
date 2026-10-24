@@ -1,7 +1,9 @@
 using System.Text.Json;
+using MuayeneKayit.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Devices.Enumeration;
 using DevicePanel = Windows.Devices.Enumeration.Panel;
@@ -21,12 +23,24 @@ namespace MuayeneKayit.Inspector;
 /// Yalnızca ön (selfie) kamera varsa otomatik seçilmez, kullanıcı listeden seçer.
 /// Zoom yalnızca görüntülemek içindir; fotoğraf kameranın tam çözünürlüğünde kaydedilir.
 /// </summary>
+/// <summary>Çekilen fotoğraf: geçici dosya, piksel boyutu ve çerçevenin açık olup olmadığı.</summary>
+public sealed record CapturedPhoto(string TempPath, int Width, int Height, bool Framed);
+
 public sealed partial class CameraWindow : Window
 {
     private const string PreferredCameraName = "C920";
 
-    /// <summary>Geçici JPEG yolunu alır, kusura kaydeder ve dosya adını döndürür.</summary>
-    private readonly Func<string, string> _onSave;
+    /// <summary>Çekilen fotoğrafı kusura kaydeder ve dosya adını döndürür. Sonra pencere kapanır.</summary>
+    private readonly Func<CapturedPhoto, string> _onSave;
+    private readonly int _defectId;
+
+    /// <summary>Çerçeve tercihi oturum boyunca hatırlanır.</summary>
+    private static bool _frameOn = true;
+
+    private int _videoWidth;
+    private int _videoHeight;
+    private int _photoWidth;
+    private int _photoHeight;
 
     private MediaCapture? _capture;
     private InMemoryRandomAccessStream? _lastPhoto;
@@ -38,10 +52,12 @@ public sealed partial class CameraWindow : Window
         "MuayeneKayit",
         "camera.json");
 
-    public CameraWindow(string target, Func<string, string> onSave)
+    public CameraWindow(string target, int defectId, Func<CapturedPhoto, string> onSave)
     {
         InitializeComponent();
         _onSave = onSave;
+        _defectId = defectId;
+        FrameToggle.IsOn = _frameOn;
 
         Title = $"Kamera — {target}";
         TargetText.Text = target;
@@ -188,6 +204,9 @@ public sealed partial class CameraWindow : Window
 
             var format = source.CurrentFormat;
             ResolutionText.Text = $"Kayıt: {format.VideoFormat.Width}×{format.VideoFormat.Height}";
+            _videoWidth = (int)format.VideoFormat.Width;
+            _videoHeight = (int)format.VideoFormat.Height;
+            DrawFrame(FrameOverlay, PreviewHost.Width, PreviewHost.Height, _videoWidth, _videoHeight);
             SetupFocus(capture);
             SaveDeviceId(deviceId);
 
@@ -278,8 +297,67 @@ public sealed partial class CameraWindow : Window
 
     private void PreviewScroll_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        Preview.Width = e.NewSize.Width;
-        Preview.Height = e.NewSize.Height;
+        Preview.Width = PreviewHost.Width = e.NewSize.Width;
+        Preview.Height = PreviewHost.Height = e.NewSize.Height;
+        DrawFrame(FrameOverlay, e.NewSize.Width, e.NewSize.Height, _videoWidth, _videoHeight);
+    }
+
+    private void ReviewHost_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        DrawFrame(ReviewOverlay, e.NewSize.Width, e.NewSize.Height, _photoWidth, _photoHeight);
+
+    private void FrameToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        // Pencere yüklenirken (XAML okunurken) görüntü alanı henüz yoktur.
+        if (PreviewHost is null || ReviewHost is null || FrameOverlay is null || ReviewOverlay is null)
+            return;
+        _frameOn = FrameToggle.IsOn;
+        DrawFrame(FrameOverlay, PreviewHost.Width, PreviewHost.Height, _videoWidth, _videoHeight);
+        DrawFrame(ReviewOverlay, ReviewHost.ActualWidth, ReviewHost.ActualHeight, _photoWidth, _photoHeight);
+    }
+
+    /// <summary>
+    /// Ortalanmış kare çerçeveyi, düzenleyicideki kutuyla aynı görünümde (kırmızı çizgi, "#N" etiketi) çizer.
+    /// Görüntü alana "Uniform" sığdırıldığı için önce görüntünün ekrandaki dikdörtgeni bulunur.
+    /// </summary>
+    private void DrawFrame(Canvas canvas, double hostWidth, double hostHeight, int imageWidth, int imageHeight)
+    {
+        canvas.Children.Clear();
+        if (FrameToggle is null || !FrameToggle.IsOn || imageWidth <= 0 || imageHeight <= 0 || double.IsNaN(hostWidth) || hostWidth <= 0 || hostHeight <= 0)
+            return;
+
+        var scale = Math.Min(hostWidth / imageWidth, hostHeight / imageHeight);
+        double shownW = imageWidth * scale, shownH = imageHeight * scale;
+        double offsetX = (hostWidth - shownW) / 2, offsetY = (hostHeight - shownH) / 2;
+
+        var box = Annotation.CenterSquare(imageWidth, imageHeight, _defectId);
+        double x = offsetX + box.X1 * shownW, y = offsetY + box.Y1 * shownH;
+        double w = (box.X2 - box.X1) * shownW, h = (box.Y2 - box.Y1) * shownH;
+
+        var red = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xFF, 0x2D, 0x2D));
+        var stroke = Math.Max(2, Math.Max(shownW, shownH) / 220);
+        var font = Math.Max(14, Math.Max(shownW, shownH) / 28);
+
+        var rect = new Microsoft.UI.Xaml.Shapes.Rectangle { Width = w, Height = h, Stroke = red, StrokeThickness = stroke };
+        Canvas.SetLeft(rect, x);
+        Canvas.SetTop(rect, y);
+        canvas.Children.Add(rect);
+
+        var tag = new Border
+        {
+            Background = red,
+            CornerRadius = new CornerRadius(font * 0.2),
+            Padding = new Thickness(font * 0.25, 0, font * 0.25, 0),
+            Child = new TextBlock
+            {
+                Text = $"#{_defectId}",
+                FontSize = font,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+            },
+        };
+        Canvas.SetLeft(tag, x);
+        Canvas.SetTop(tag, Math.Max(0, y - font * 1.25));
+        canvas.Children.Add(tag);
     }
 
     private void ZoomSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -323,7 +401,10 @@ public sealed partial class CameraWindow : Window
             _lastPhoto = stream;
 
             Review.Source = bitmap;
-            Review.Visibility = Visibility.Visible;
+            _photoWidth = bitmap.PixelWidth;
+            _photoHeight = bitmap.PixelHeight;
+            ReviewHost.Visibility = Visibility.Visible;
+            DrawFrame(ReviewOverlay, ReviewHost.ActualWidth, ReviewHost.ActualHeight, _photoWidth, _photoHeight);
             PreviewScroll.Visibility = Visibility.Collapsed;
             CaptureButton.Visibility = Visibility.Collapsed;
             SaveButton.Visibility = Visibility.Visible;
@@ -351,9 +432,9 @@ public sealed partial class CameraWindow : Window
                 await _lastPhoto.AsStreamForRead().CopyToAsync(file);
             }
 
-            var name = _onSave(temp);
-            SavedText.Text = $"Kaydedildi: {name}";
-            ShowLive();
+            // Kaydedince pencere kapanır; fotoğraf doğrudan işaretleme ekranında açılır.
+            _onSave(new CapturedPhoto(temp, _photoWidth, _photoHeight, FrameToggle.IsOn));
+            Close();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException
                                     or UnauthorizedAccessException or TimeoutException)
@@ -378,7 +459,7 @@ public sealed partial class CameraWindow : Window
         _lastPhoto?.Dispose();
         _lastPhoto = null;
         Review.Source = null;
-        Review.Visibility = Visibility.Collapsed;
+        ReviewHost.Visibility = Visibility.Collapsed;
         PreviewScroll.Visibility = Visibility.Visible;
         SaveButton.Visibility = Visibility.Collapsed;
         RetakeButton.Visibility = Visibility.Collapsed;

@@ -11,6 +11,7 @@
         </Grid.RowDefinitions>
         <Grid.KeyboardAccelerators>
             <KeyboardAccelerator Modifiers="Control" Key="Z" Invoked="Undo_Invoked" />
+            <KeyboardAccelerator Key="Delete" Invoked="Delete_Invoked" />
         </Grid.KeyboardAccelerators>
 
         <!-- Araçlar -->
@@ -21,7 +22,7 @@
                     <ToggleButton x:Name="BoxTool" Content="Kutu" Height="44" MinWidth="80" IsChecked="True" Click="Tool_Click" />
                     <ToggleButton x:Name="CircleTool" Content="Daire" Height="44" MinWidth="80" Click="Tool_Click" />
                     <ToggleButton x:Name="ArrowTool" Content="Ok" Height="44" MinWidth="80" Click="Tool_Click" />
-                    <ComboBox x:Name="LabelBox" Height="44" MinWidth="120" VerticalAlignment="Center" ToolTipService.ToolTip="İşaretin gösterdiği kusur numarası" />
+                    <ComboBox x:Name="LabelBox" Height="44" MinWidth="120" VerticalAlignment="Center" ToolTipService.ToolTip="İşaretin gösterdiği kusur numarası (seçili işaretin numarası da buradan değişir)" SelectionChanged="LabelBox_SelectionChanged" />
                     <Button Content="Son işareti geri al" Height="44" Click="Undo_Click" />
                     <Button Content="İşaretleri sil" Height="44" Click="ClearShapes_Click" />
 

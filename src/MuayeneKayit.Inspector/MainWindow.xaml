@@ -85,19 +85,19 @@
                                 <TextBlock x:Name="SessionSub" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Button Click="ChangeSession_Click" AutomationProperties.AutomationId="ChangeSessionButton" ToolTipService.ToolTip="Başka bir parça / seri aç">
+                                <Button Click="ChangeSession_Click" AutomationProperties.AutomationId="ChangeSessionButton" AutomationProperties.Name="Başka muayene" ToolTipService.ToolTip="Başka bir parça / seri aç">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE8AB;" FontSize="14" />
                                         <TextBlock Text="Başka muayene" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="ReportButton" Click="Report_Click" IsEnabled="False" AutomationProperties.AutomationId="ReportButton">
+                                <Button x:Name="ReportButton" Click="Report_Click" IsEnabled="False" AutomationProperties.AutomationId="ReportButton" AutomationProperties.Name="Rapor (PDF)">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE749;" FontSize="14" />
                                         <TextBlock Text="Rapor (PDF)" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="CompleteButton" Click="Complete_Click" AutomationProperties.AutomationId="CompleteButton">
+                                <Button x:Name="CompleteButton" Click="Complete_Click" AutomationProperties.AutomationId="CompleteButton" AutomationProperties.Name="Muayeneyi tamamla">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE73E;" FontSize="14" />
                                         <TextBlock Text="Muayeneyi tamamla" />
@@ -122,7 +122,7 @@
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
                                 <TextBlock x:Name="DefectCountText" Text="Kusurlar" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="16,0" />
-                                <Button x:Name="AddDefectButton" Grid.Row="1" HorizontalAlignment="Stretch" Height="44" Margin="16,0" AutomationProperties.AutomationId="AddDefectButton">
+                                <Button x:Name="AddDefectButton" Grid.Row="1" HorizontalAlignment="Stretch" Height="44" Margin="16,0" AutomationProperties.AutomationId="AddDefectButton" AutomationProperties.Name="Kusur ekle">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon Glyph="&#xE710;" FontSize="14" />
                                         <TextBlock Text="Kusur ekle" />
@@ -202,7 +202,7 @@
 
                                     <!-- Adımlar -->
                                     <SelectorBar Grid.Row="1" x:Name="DetailTabs" Margin="12,0" SelectionChanged="DetailTabs_SelectionChanged" AutomationProperties.AutomationId="DetailTabs">
-                                        <SelectorBarItem x:Name="MeasureTabItem" Text="1. Ölçüm" IsSelected="True" />
+                                        <SelectorBarItem x:Name="MeasureTabItem" Text="1. Ölçüm" />
                                         <SelectorBarItem x:Name="PhotoTabItem" Text="2. Fotoğraflar" />
                                         <SelectorBarItem x:Name="DecisionTabItem" Text="3. Disposition" />
                                         <SelectorBarItem x:Name="HistoryTabItem" Text="Geçmiş" />
@@ -243,13 +243,13 @@
                                             <!-- 2. Fotoğraflar -->
                                             <StackPanel x:Name="PhotoTab" Spacing="12" Visibility="Collapsed">
                                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                                    <Button Click="CameraButton_Click" x:Name="CameraButton" IsEnabled="False" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="CameraButton">
+                                                    <Button Click="CameraButton_Click" x:Name="CameraButton" IsEnabled="False" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="CameraButton" AutomationProperties.Name="Kamera ile çek">
                                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                                             <FontIcon Glyph="&#xE722;" FontSize="14" />
                                                             <TextBlock Text="Kamera ile çek" />
                                                         </StackPanel>
                                                     </Button>
-                                                    <Button Click="AddPhoto_Click" x:Name="AddPhotoButton" IsEnabled="False" Height="44" AutomationProperties.AutomationId="AddPhotoButton">
+                                                    <Button Click="AddPhoto_Click" x:Name="AddPhotoButton" IsEnabled="False" Height="44" AutomationProperties.AutomationId="AddPhotoButton" AutomationProperties.Name="Dosyadan ekle">
                                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                                             <FontIcon Glyph="&#xE8E5;" FontSize="14" />
                                                             <TextBlock Text="Dosyadan ekle" />
@@ -265,7 +265,7 @@
                                                 <TextBlock x:Name="DecisionHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                 <ComboBox x:Name="DecisionCombo" Header="Karar (seçince ne olacağı açıklanır, onaylamadan kaydedilmez)" PlaceholderText="Karar seçin" Width="420" SelectionChanged="DecisionCombo_SelectionChanged" AutomationProperties.AutomationId="DecisionCombo" />
                                                 <StackPanel x:Name="UndoPanel" Orientation="Horizontal" Spacing="10" Visibility="Collapsed">
-                                                    <Button x:Name="UndoButton" Click="Undo_Click" AutomationProperties.AutomationId="UndoButton">
+                                                    <Button x:Name="UndoButton" Click="Undo_Click" AutomationProperties.AutomationId="UndoButton" AutomationProperties.Name="Son kararı geri al">
                                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                                             <FontIcon Glyph="&#xE7A7;" FontSize="14" />
                                                             <TextBlock Text="Son kararı geri al" />

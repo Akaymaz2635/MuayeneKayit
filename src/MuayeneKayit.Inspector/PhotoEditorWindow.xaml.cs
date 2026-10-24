@@ -42,7 +42,6 @@ public sealed partial class PhotoEditorWindow : Window
     private int _w;
     private int _h;
 
-    private bool _drawing;
     private Point _start;
     private Point _current;
     private PixelRect? _bgRect;
@@ -183,75 +182,254 @@ public sealed partial class PhotoEditorWindow : Window
     {
         if (_shapes.Count > 0)
             _shapes.RemoveAt(_shapes.Count - 1);
+        _selected = null;
         Redraw();
     }
 
     private void ClearShapes_Click(object sender, RoutedEventArgs e)
     {
         _shapes.Clear();
+        _selected = null;
         Redraw();
     }
 
-    // ───────────────────────── Çizim ─────────────────────────
+    // ───────────────────────── Çizim, seçme, taşıma ─────────────────────────
 
+    private enum DragMode { None, Draw, Move, Resize }
+
+    private DragMode _mode;
+    private int? _selected;
+    private int _handle;
+    private Annotation? _dragOriginal;
+
+    private double Stroke => Math.Max(_w, _h) / 220.0;
+    private double HandleSize => Math.Max(_w, _h) / 55.0;
+
+    /// <summary>
+    /// PowerPoint gibi: bir işaretin üstüne basılırsa seçilir ve sürüklenerek taşınır; köşe tutamaçlarından
+    /// boyutu değişir. Boş yere basılırsa seçili araçla yeni işaret çizilir.
+    /// </summary>
     private void Ink_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (_pixels is null)
             return;
-        _drawing = true;
+
         _start = _current = ClampPoint(e.GetCurrentPoint(Ink).Position);
         Ink.CapturePointer(e.Pointer);
         e.Handled = true;
+
+        if (BgTool.IsChecked != true)
+        {
+            if (_selected is int sel && HitHandle(_shapes[sel], _start) is int h)
+            {
+                _mode = DragMode.Resize;
+                _handle = h;
+                _dragOriginal = Copy(_shapes[sel]);
+                return;
+            }
+
+            if (HitShape(_start) is int hit)
+            {
+                Select(hit);
+                _mode = DragMode.Move;
+                _dragOriginal = Copy(_shapes[hit]);
+                return;
+            }
+        }
+
+        Select(null);
+        _mode = DragMode.Draw;
     }
 
     private void Ink_PointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (!_drawing)
+        if (_mode == DragMode.None)
             return;
+
         _current = ClampPoint(e.GetCurrentPoint(Ink).Position);
-        Redraw();
-    }
-
-    private void Ink_PointerReleased(object sender, PointerRoutedEventArgs e)
-    {
-        if (!_drawing)
-            return;
-        _drawing = false;
-        Ink.ReleasePointerCapture(e.Pointer);
-
-        var dx = _current.X - _start.X;
-        var dy = _current.Y - _start.Y;
-        var tooSmall = Math.Sqrt(dx * dx + dy * dy) < Math.Max(_w, _h) / 100.0;
-
-        if (!tooSmall)
+        if (_selected is int sel && _dragOriginal is not null)
         {
-            if (BgTool.IsChecked == true)
+            var dx = (_current.X - _start.X) / _w;
+            var dy = (_current.Y - _start.Y) / _h;
+            var shape = _shapes[sel];
+
+            if (_mode == DragMode.Move)
             {
-                _bgRect = new PixelRect(
-                    (int)Math.Min(_start.X, _current.X), (int)Math.Min(_start.Y, _current.Y),
-                    (int)Math.Abs(dx), (int)Math.Abs(dy));
-                BgApplyButton.IsEnabled = true;
+                // Şekil görüntü dışına taşmasın.
+                var o = _dragOriginal;
+                dx = Math.Clamp(dx, -Math.Min(o.X1, o.X2), 1 - Math.Max(o.X1, o.X2));
+                dy = Math.Clamp(dy, -Math.Min(o.Y1, o.Y2), 1 - Math.Max(o.Y1, o.Y2));
+                shape.X1 = o.X1 + dx; shape.X2 = o.X2 + dx;
+                shape.Y1 = o.Y1 + dy; shape.Y2 = o.Y2 + dy;
             }
-            else if (CurrentKind is AnnotationKind kind)
+            else if (_mode == DragMode.Resize)
             {
-                if (_shapes.Count >= PhotoMarkupValidator.MaxShapes)
+                var nx = _current.X / _w;
+                var ny = _current.Y / _h;
+                if (shape.Kind == AnnotationKind.Arrow)
                 {
-                    Hint($"Bir fotoğrafta en fazla {PhotoMarkupValidator.MaxShapes} işaret olabilir.");
+                    if (_handle == 0) { shape.X1 = nx; shape.Y1 = ny; }
+                    else { shape.X2 = nx; shape.Y2 = ny; }
                 }
                 else
                 {
-                    _shapes.Add(new Annotation
-                    {
-                        Kind = kind,
-                        X1 = _start.X / _w, Y1 = _start.Y / _h,
-                        X2 = _current.X / _w, Y2 = _current.Y / _h,
-                        DefectId = CurrentLabel,
-                    });
+                    // Tutamaçlar: 0 sol üst, 1 sağ üst, 2 sağ alt, 3 sol alt. Karşı köşe sabit kalır.
+                    var o = _dragOriginal;
+                    double left = Math.Min(o.X1, o.X2), right = Math.Max(o.X1, o.X2);
+                    double top = Math.Min(o.Y1, o.Y2), bottom = Math.Max(o.Y1, o.Y2);
+                    if (_handle is 0 or 3) left = nx; else right = nx;
+                    if (_handle is 0 or 1) top = ny; else bottom = ny;
+                    shape.X1 = Math.Min(left, right); shape.X2 = Math.Max(left, right);
+                    shape.Y1 = Math.Min(top, bottom); shape.Y2 = Math.Max(top, bottom);
                 }
             }
         }
 
         Redraw();
+    }
+
+    private void Ink_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (_mode == DragMode.None)
+            return;
+
+        var mode = _mode;
+        _mode = DragMode.None;
+        _dragOriginal = null;
+        Ink.ReleasePointerCapture(e.Pointer);
+
+        if (mode == DragMode.Draw)
+        {
+            var dx = _current.X - _start.X;
+            var dy = _current.Y - _start.Y;
+            var tooSmall = Math.Sqrt(dx * dx + dy * dy) < Math.Max(_w, _h) / 100.0;
+
+            if (!tooSmall)
+            {
+                if (BgTool.IsChecked == true)
+                {
+                    _bgRect = new PixelRect(
+                        (int)Math.Min(_start.X, _current.X), (int)Math.Min(_start.Y, _current.Y),
+                        (int)Math.Abs(dx), (int)Math.Abs(dy));
+                    BgApplyButton.IsEnabled = true;
+                }
+                else if (CurrentKind is AnnotationKind kind)
+                {
+                    if (_shapes.Count >= PhotoMarkupValidator.MaxShapes)
+                    {
+                        Hint($"Bir fotoğrafta en fazla {PhotoMarkupValidator.MaxShapes} işaret olabilir.");
+                    }
+                    else
+                    {
+                        _shapes.Add(new Annotation
+                        {
+                            Kind = kind,
+                            X1 = _start.X / _w, Y1 = _start.Y / _h,
+                            X2 = _current.X / _w, Y2 = _current.Y / _h,
+                            DefectId = CurrentLabel,
+                        });
+                        Select(_shapes.Count - 1);
+                    }
+                }
+            }
+        }
+
+        Redraw();
+    }
+
+    private void Select(int? index)
+    {
+        _selected = index;
+        if (index is int i)
+        {
+            // Kusur no listesi seçili işaretin numarasını gösterir; değiştirilirse işaretin numarası değişir.
+            _syncingLabel = true;
+            foreach (var item in LabelBox.Items.OfType<ComboBoxItem>())
+            {
+                if (item.Tag is int id && id == _shapes[i].DefectId)
+                    LabelBox.SelectedItem = item;
+            }
+            _syncingLabel = false;
+            Hint("İşaret seçildi: sürükleyerek taşıyın, köşelerden boyutlandırın, Delete ile silin. Kusur no listesinden numarasını değiştirebilirsiniz.");
+        }
+        else
+        {
+            ToolHint();
+        }
+    }
+
+    private bool _syncingLabel;
+
+    private void LabelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncingLabel || _selected is not int i || i >= _shapes.Count)
+            return;
+        _shapes[i].DefectId = CurrentLabel;
+        Redraw();
+    }
+
+    private void Delete_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (_selected is int i && i < _shapes.Count)
+        {
+            _shapes.RemoveAt(i);
+            Select(null);
+            Redraw();
+            args.Handled = true;
+        }
+    }
+
+    /// <summary>En üstteki işaretten başlayarak tıklanan işareti bulur.</summary>
+    private int? HitShape(Point p)
+    {
+        var tolerance = Stroke * 3;
+        for (var i = _shapes.Count - 1; i >= 0; i--)
+        {
+            var s = _shapes[i];
+            double x1 = s.X1 * _w, y1 = s.Y1 * _h, x2 = s.X2 * _w, y2 = s.Y2 * _h;
+            if (s.Kind == AnnotationKind.Arrow)
+            {
+                if (DistanceToSegment(p, new Point(x1, y1), new Point(x2, y2)) <= tolerance)
+                    return i;
+            }
+            else if (p.X >= Math.Min(x1, x2) - tolerance && p.X <= Math.Max(x1, x2) + tolerance
+                     && p.Y >= Math.Min(y1, y2) - tolerance && p.Y <= Math.Max(y1, y2) + tolerance)
+            {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    private int? HitHandle(Annotation s, Point p)
+    {
+        var handles = Handles(s);
+        for (var i = 0; i < handles.Length; i++)
+        {
+            if (Math.Abs(p.X - handles[i].X) <= HandleSize && Math.Abs(p.Y - handles[i].Y) <= HandleSize)
+                return i;
+        }
+        return null;
+    }
+
+    private Point[] Handles(Annotation s)
+    {
+        double x1 = s.X1 * _w, y1 = s.Y1 * _h, x2 = s.X2 * _w, y2 = s.Y2 * _h;
+        if (s.Kind == AnnotationKind.Arrow)
+            return new[] { new Point(x1, y1), new Point(x2, y2) };
+        double l = Math.Min(x1, x2), r = Math.Max(x1, x2), t = Math.Min(y1, y2), b = Math.Max(y1, y2);
+        return new[] { new Point(l, t), new Point(r, t), new Point(r, b), new Point(l, b) };
+    }
+
+    private static double DistanceToSegment(Point p, Point a, Point b)
+    {
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        var len = dx * dx + dy * dy;
+        var t = len == 0 ? 0 : Math.Clamp(((p.X - a.X) * dx + (p.Y - a.Y) * dy) / len, 0, 1);
+        var cx = a.X + t * dx - p.X;
+        var cy = a.Y + t * dy - p.Y;
+        return Math.Sqrt(cx * cx + cy * cy);
     }
 
     private Point ClampPoint(Point p) => new(Math.Clamp(p.X, 0, _w), Math.Clamp(p.Y, 0, _h));
@@ -260,21 +438,42 @@ public sealed partial class PhotoEditorWindow : Window
     private void Redraw()
     {
         Ink.Children.Clear();
-        var stroke = Math.Max(_w, _h) / 220.0;
+        var stroke = Stroke;
 
         foreach (var s in _shapes)
             DrawShape(s.Kind, new Point(s.X1 * _w, s.Y1 * _h), new Point(s.X2 * _w, s.Y2 * _h), s.DefectId, Red, stroke);
 
-        if (_bgRect is PixelRect r && !(_drawing && BgTool.IsChecked == true))
+        if (_bgRect is PixelRect r && !(_mode == DragMode.Draw && BgTool.IsChecked == true))
             Ink.Children.Add(DashedRect(r.X, r.Y, r.Width, r.Height, stroke));
 
-        if (_drawing)
+        if (_mode == DragMode.Draw)
         {
             if (BgTool.IsChecked == true)
                 Ink.Children.Add(DashedRect(Math.Min(_start.X, _current.X), Math.Min(_start.Y, _current.Y),
                     Math.Abs(_current.X - _start.X), Math.Abs(_current.Y - _start.Y), stroke));
             else if (CurrentKind is AnnotationKind kind)
                 DrawShape(kind, _start, _current, CurrentLabel, Red, stroke);
+        }
+
+        // Seçili işaret: kesik çerçeve ve köşe tutamaçları.
+        if (_selected is int sel && sel < _shapes.Count)
+        {
+            var s = _shapes[sel];
+            if (s.Kind != AnnotationKind.Arrow)
+            {
+                double x1 = s.X1 * _w, y1 = s.Y1 * _h, x2 = s.X2 * _w, y2 = s.Y2 * _h;
+                Ink.Children.Add(DashedRect(Math.Min(x1, x2), Math.Min(y1, y2), Math.Abs(x2 - x1), Math.Abs(y2 - y1), stroke / 2));
+            }
+            var size = HandleSize;
+            foreach (var h in Handles(s))
+            {
+                Place(new Rectangle
+                {
+                    Width = size, Height = size,
+                    Fill = new SolidColorBrush(Colors.White),
+                    Stroke = Cyan, StrokeThickness = Math.Max(1, stroke / 2),
+                }, h.X - size / 2, h.Y - size / 2);
+            }
         }
 
         SaveButton.Content = _shapes.Count == 0 ? "Kaydet" : $"Kaydet ({_shapes.Count} işaret)";
