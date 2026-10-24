@@ -48,6 +48,9 @@ var tests = new List<(string Name, Action Body)>
     ("Admin: karar açıklamaları kaydedilir, eksik olan varsayılan", DecisionTextRules),
     ("Rapor: her fotoğraf ayrı sayfa (6.1, 6.2), geçmiş ilk sayfada", ReportPhotoPerPage),
     ("Kamera çerçevesi: ortalanmış kare, varsayılan kısa kenarın %20'si, boyut ayarlanabilir", CameraFrameSquare),
+    ("High metal: cümle, rapor başlığı ve eski kayıt uyumu", HighMetalSentenceAndReport),
+    ("High metal: yalnızca işaretlemek düzeltme kaydı oluşturur", HighMetalEditLogged),
+    ("SENARYO 5: Yalnızca high metal rework'ü, ana kusur MRB'ye gider", Scenario5_HighMetalOnlyRework),
 };
 
 int failed = 0;
@@ -495,6 +498,73 @@ static void UndoChildLinkVoidsChild()
         Expect(!html.Contains("Continues as Defect"), "Rapor eski bağı göstermemeli");
     }
     finally { Directory.Delete(root, recursive: true); }
+}
+
+static void HighMetalSentenceAndReport()
+{
+    var d = NewDefect(4, "Dent");
+    d.Depth = 12;
+    Expect(DefectSentence.Describe(d).Contains("There is Dent on part with Depth: 12 mm."), "High metal yokken cümle değişmemeli");
+    d.HighMetal = true;
+    Expect(DefectSentence.Describe(d).Contains("There is Dent with high metal on part with Depth: 12 mm."), "High metal cümlede yazılmalı");
+
+    var html = ReportBuilder.Build(SampleSession("SN-HM"), new[] { d }, 1);
+    Expect(html.Contains("Dent with high metal"), "Rapor başlığında high metal görünmeli");
+
+    // Eski kayıt: highMetal alanı yok → false.
+    var old = System.Text.Json.JsonSerializer.Deserialize<Defect>(
+        "{\"id\":1,\"defectType\":\"Dent\",\"dispositions\":[{\"seq\":1,\"decision\":\"Rework\",\"snapshot\":{\"depth\":1}}]}",
+        SessionStore.JsonOptions)!;
+    Expect(!old.HighMetal && old.Dispositions[0].Snapshot!.HighMetal == false, "Eski kayıtta high metal false okunmalı");
+}
+
+static void HighMetalEditLogged()
+{
+    var d = NewDefect();
+    d.Depth = 2;
+    var same = MeasurementEditor.Snapshot(d);
+    Expect(!MeasurementEditor.Apply(d, same, "A"), "Değişiklik yoksa kayıt olmamalı");
+
+    Expect(MeasurementEditor.Apply(d, same with { HighMetal = true }, "A"), "Yalnızca high metal değişikliği kaydedilmeli");
+    Expect(d.HighMetal && d.MeasurementEdits.Count == 1, "Tek düzeltme kaydı");
+    Expect(!d.MeasurementEdits[0].Before.HighMetal && d.MeasurementEdits[0].After.HighMetal, "Önce yok, sonra var");
+}
+
+static void Scenario5_HighMetalOnlyRework()
+{
+    var d = NewDefect(4, "Dent");
+    d.Depth = 12;
+    d.HighMetal = true;
+
+    DefectStateMachine.Apply(d, Decision.Rework, DecisionSource.Engineer, "M. Kaya", targetOperation: "OP60",
+        reworkScope: ReworkScope.HighMetalOnly);
+    Trace("1. Rework (yalnızca high metal)", d);
+    Expect(d.Dispositions[0].Snapshot!.HighMetal, "Rework anı görüntüsü high metal içermeli");
+    Expect(DefectSentence.Describe(d).Contains("Rework / Reinspect (high metal only)"), "Kapsam karar etiketinde görünmeli");
+
+    // Rework sonrası: high metal gitti, derinlik aynı.
+    MeasurementEditor.Apply(d, MeasurementEditor.Snapshot(d) with { HighMetal = false }, "CTP");
+    DefectStateMachine.Apply(d, Decision.AfterReworkSameDefect, DecisionSource.Engineer, "CTP",
+        note: "High metal giderildi; ana kusur devam ediyor.");
+    Trace("2. High metal giderildi, Dent devam", d);
+
+    Expect(DefectStateMachine.GetState(d) == DefectState.Open, "Ana kusur açık kalmalı");
+    Expect(DefectSentence.Describe(d).Contains("There is Dent on part with Depth: 12 mm."), "Cümlede high metal kalmamalı");
+    var lines = MeasurementCompare.Lines(d.Dispositions[0].Snapshot, d);
+    Expect(lines.Contains("High metal: var → giderildi") && lines.Any(l => l.StartsWith("Derinlik: 12 → 12")),
+        "Değişim: high metal giderildi, derinlik aynı");
+
+    Expect(DefectStateMachine.Check(d, Decision.SubmitMrb, DecisionSource.Engineer).Ok, "Kalan kusur MRB'ye gönderilebilmeli");
+    DefectStateMachine.Apply(d, Decision.SubmitMrb, DecisionSource.Engineer, "M. Kaya");
+    Trace("3. Ana kusur MRB'de", d);
+
+    var bad = false;
+    try { DefectStateMachine.Apply(NewDefect(), Decision.Accept, DecisionSource.Engineer, "x", reworkScope: ReworkScope.HighMetalOnly); }
+    catch (InvalidOperationException) { bad = true; }
+    Expect(bad, "Kapsam yalnızca rework kararında verilebilir");
+
+    var html = ReportBuilder.Build(SampleSession("SN-HM5"), new[] { d }, 1);
+    Expect(html.Contains("Rework / Reinspect (high metal only)") && html.Contains("High metal"), "Rapor geçmişinde kapsam ve high metal");
 }
 
 static void CameraFrameSquare()

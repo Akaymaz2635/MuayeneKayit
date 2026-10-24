@@ -24,6 +24,10 @@ public sealed class Defect
     public double? Radius { get; set; }
     public double? AngleDeg { get; set; }
     public string? Color { get; set; }
+
+    /// <summary>Yan kusur: pozitif metal yığılması. Cümlede "Dent with high metal" olarak yazılır.</summary>
+    public bool HighMetal { get; set; }
+
     public string? Notes { get; set; }
 
     /// <summary>Mühendis kabul kağıdındaki spec adı.</summary>
@@ -56,7 +60,8 @@ public sealed record MeasurementSnapshot(
     double? Length,
     double? Radius,
     double? AngleDeg,
-    string? Color);
+    string? Color,
+    bool HighMetal = false);
 
 /// <summary>Bir kararın kaydı. Yalnızca eklenir, hiçbir zaman silinmez.</summary>
 public sealed class Disposition
@@ -72,6 +77,9 @@ public sealed class Disposition
     public string? Reference { get; set; }
     public DateTime DecidedAt { get; set; } = DateTime.Now;
     public string DecidedBy { get; set; } = "";
+
+    /// <summary>Rework kararında: yalnızca high metal mi, kusur + high metal mi giderilecek. Diğer kararlarda boş.</summary>
+    public ReworkScope? ReworkScope { get; set; }
 
     /// <summary>Undo kaydında: geri alınan kararın sıra numarası.</summary>
     public int? UndoesSeq { get; set; }

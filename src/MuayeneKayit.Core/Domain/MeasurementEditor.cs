@@ -14,7 +14,7 @@ public sealed record MeasurementEdit(
 public static class MeasurementEditor
 {
     public static MeasurementSnapshot Snapshot(Defect d) =>
-        new(d.Depth, d.Width, d.Length, d.Radius, d.AngleDeg, d.Color);
+        new(d.Depth, d.Width, d.Length, d.Radius, d.AngleDeg, d.Color, d.HighMetal);
 
     /// <returns>Ölçüm değiştiyse true.</returns>
     public static bool Apply(Defect defect, MeasurementSnapshot values, string by, DateTime? at = null)
@@ -29,6 +29,7 @@ public static class MeasurementEditor
         defect.Radius = values.Radius;
         defect.AngleDeg = values.AngleDeg;
         defect.Color = values.Color;
+        defect.HighMetal = values.HighMetal;
 
         defect.MeasurementEdits.Add(new MeasurementEdit(at ?? DateTime.Now, by, before, values));
         return true;

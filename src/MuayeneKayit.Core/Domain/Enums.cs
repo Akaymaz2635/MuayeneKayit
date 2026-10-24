@@ -46,6 +46,13 @@ public enum DefectState
     Superseded,
 }
 
+/// <summary>Rework'ün kapsamı: kusurla birlikte high metal mi, yalnızca high metal mi giderilecek.</summary>
+public enum ReworkScope
+{
+    DefectAndHighMetal,
+    HighMetalOnly,
+}
+
 public enum SessionStatus
 {
     Open,

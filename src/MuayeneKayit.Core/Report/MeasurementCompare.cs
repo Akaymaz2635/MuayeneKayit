@@ -23,6 +23,9 @@ public static class MeasurementCompare
         if (!string.Equals(before.Color ?? "", after.Color ?? "", StringComparison.Ordinal))
             lines.Add($"Renk: {Text(before.Color)} → {Text(after.Color)}");
 
+        if (before.HighMetal != after.HighMetal)
+            lines.Add(before.HighMetal ? "High metal: var → giderildi" : "High metal: yok → var (yeni)");
+
         return lines.Count == 0 ? new[] { "Ölçüm alanı yok." } : lines;
     }
 

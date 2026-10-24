@@ -170,7 +170,8 @@ public static class DefectStateMachine
         string? note = null,
         string? reference = null,
         string? targetOperation = null,
-        DateTime? decidedAt = null)
+        DateTime? decidedAt = null,
+        ReworkScope? reworkScope = null)
     {
         var (ok, reason) = Check(defect, decision, source);
         if (!ok)
@@ -185,7 +186,10 @@ public static class DefectStateMachine
         if (decision == Decision.Reopen && string.IsNullOrWhiteSpace(note))
             throw new InvalidOperationException("Yeniden açmak için bir gerekçe notu zorunludur.");
 
-        Add(defect, decision, source, decidedBy, note, reference, targetOperation, decidedAt);
+        if (reworkScope is not null && decision != Decision.Rework)
+            throw new InvalidOperationException("Rework kapsamı yalnızca rework kararında verilir.");
+
+        Add(defect, decision, source, decidedBy, note, reference, targetOperation, decidedAt, reworkScope);
 
         if (decision == Decision.MrbRejected)
         {
@@ -253,11 +257,12 @@ public static class DefectStateMachine
         string? note,
         string? reference,
         string? targetOperation,
-        DateTime? decidedAt)
+        DateTime? decidedAt,
+        ReworkScope? reworkScope = null)
     {
         var snapshot = decision is Decision.Rework or Decision.AfterReworkConforms
             or Decision.AfterReworkSameDefect or Decision.AfterReworkNewDefect
-            ? new MeasurementSnapshot(defect.Depth, defect.Width, defect.Length, defect.Radius, defect.AngleDeg, defect.Color)
+            ? MeasurementEditor.Snapshot(defect)
             : null;
 
         defect.Dispositions.Add(new Disposition
@@ -271,6 +276,7 @@ public static class DefectStateMachine
             TargetOperation = targetOperation,
             DecidedAt = decidedAt ?? DateTime.Now,
             Snapshot = snapshot,
+            ReworkScope = reworkScope,
         });
     }
 }

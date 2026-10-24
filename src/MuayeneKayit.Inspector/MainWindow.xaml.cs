@@ -244,7 +244,7 @@ public sealed partial class MainWindow : Window
         {
             Id = d.Id,
             Number = $"#{d.Id}",
-            Type = d.DefectType,
+            Type = d.HighMetal ? $"{d.DefectType} + High metal" : d.DefectType,
             StateText = StateLabel(state),
             PhotoText = d.Photos.Count == 0 ? "fotoğraf yok" : $"{d.Photos.Count} fotoğraf",
             NextStep = NextStepFor(d, state),
@@ -373,7 +373,7 @@ public sealed partial class MainWindow : Window
         var newDefect = _shownId != defect.Id;
         _shownId = defect.Id;
 
-        SelectedHeader.Text = $"#{defect.Id}  {defect.DefectType}";
+        SelectedHeader.Text = $"#{defect.Id}  {defect.DefectType}{(defect.HighMetal ? " + High metal" : "")}";
         var (chipBg, chipFg) = StateBrushes(state);
         StateChip.Background = chipBg;
         StateChipText.Foreground = chipFg;
@@ -414,6 +414,7 @@ public sealed partial class MainWindow : Window
         AngleBox.Text = Fmt(defect.AngleDeg);
         ColorBox.Text = defect.Color ?? "";
         NotesBox.Text = defect.Notes ?? "";
+        HighMetalBox.IsChecked = defect.HighMetal;
 
         ApplyTemplateFields(defect);
 
@@ -426,6 +427,7 @@ public sealed partial class MainWindow : Window
         SaveMeasButton.IsEnabled = editable;
         foreach (var box in new[] { DepthBox, WidthBox, LengthBox, RadiusBox, AngleBox, ColorBox, NotesBox })
             box.IsReadOnly = !editable;
+        HighMetalBox.IsEnabled = editable;
         AddPhotoButton.IsEnabled = editable;
         CameraButton.IsEnabled = editable;
         RenderPhotos(defect, editable);
@@ -675,7 +677,8 @@ public sealed partial class MainWindow : Window
             ParseOptional(LengthBox.Text, "Uzunluk"),
             ParseOptional(RadiusBox.Text, "Yarıçap"),
             ParseOptional(AngleBox.Text, "Açı"),
-            string.IsNullOrWhiteSpace(ColorBox.Text) ? null : ColorBox.Text.Trim());
+            string.IsNullOrWhiteSpace(ColorBox.Text) ? null : ColorBox.Text.Trim(),
+            HighMetalBox.IsChecked == true);
         var notes = string.IsNullOrWhiteSpace(NotesBox.Text) ? null : NotesBox.Text.Trim();
         var by = _user;
         var changed = false;
@@ -833,7 +836,7 @@ public sealed partial class MainWindow : Window
         var label = DecisionOrder.First(x => x.Decision == decision).Label;
 
         // Sabit genişlik: pencere içeriğe göre açılır, metin kırpılmadan alt satıra geçer.
-        var panel = new StackPanel { Spacing = 12, Width = 560 };
+        var panel = new StackPanel { Spacing = 12, Width = 480 };
 
         panel.Children.Add(new TextBlock
         {
@@ -877,6 +880,16 @@ public sealed partial class MainWindow : Window
             panel.Children.Add(reference);
         }
 
+        // High metal'li kusurda rework kapsamı sorulur: yalnızca high metal mi, kusurla birlikte mi.
+        RadioButtons? scope = null;
+        if (decision == Decision.Rework && defect.HighMetal)
+        {
+            scope = new RadioButtons { Header = "Rework kapsamı (zorunlu)" };
+            scope.Items.Add(new RadioButton { Content = "Kusur + high metal giderilecek", Tag = ReworkScope.DefectAndHighMetal });
+            scope.Items.Add(new RadioButton { Content = "Yalnızca high metal giderilecek (ana kusur kalabilir)", Tag = ReworkScope.HighMetalOnly });
+            panel.Children.Add(scope);
+        }
+
         var noteRequired = decision == Decision.Reopen;
         var note = new TextBox
         {
@@ -902,11 +915,14 @@ public sealed partial class MainWindow : Window
             PrimaryButtonText = "Kararı kaydet",
             CloseButtonText = "Vazgeç",
             DefaultButton = ContentDialogButton.Close,
-            IsPrimaryButtonEnabled = !noteRequired,
+            IsPrimaryButtonEnabled = !noteRequired && scope is null,
             XamlRoot = Nav.XamlRoot,
         };
-        if (noteRequired)
-            note.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(note.Text);
+        void UpdateSave() => dialog.IsPrimaryButtonEnabled =
+            (!noteRequired || !string.IsNullOrWhiteSpace(note.Text)) && (scope is null || scope.SelectedItem is not null);
+        note.TextChanged += (_, _) => UpdateSave();
+        if (scope is not null)
+            scope.SelectionChanged += (_, _) => UpdateSave();
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return;
@@ -919,7 +935,8 @@ public sealed partial class MainWindow : Window
         var targetText = target is null ? null : (string.IsNullOrWhiteSpace(target.Text) ? _session!.OperationNumber : target.Text.Trim());
 
         _store!.UpdateDefect(_folder!, id, d =>
-            DefectStateMachine.Apply(d, decision, source, by, note: noteText, reference: refText, targetOperation: targetText));
+            DefectStateMachine.Apply(d, decision, source, by, note: noteText, reference: refText, targetOperation: targetText,
+                reworkScope: (scope?.SelectedItem as RadioButton)?.Tag as ReworkScope?));
 
         AuditLog.Append(_store!, by, "disposition", $"#{id} {decision}");
         RefreshDefects(id);
@@ -966,7 +983,7 @@ public sealed partial class MainWindow : Window
             var last = DefectStateMachine.LastUndoable(defect)
                 ?? throw new InvalidOperationException("Geri alınacak karar yok.");
 
-            var panel = new StackPanel { Spacing = 12, Width = 520 };
+            var panel = new StackPanel { Spacing = 12, Width = 480 };
             panel.Children.Add(new TextBlock
             {
                 Text = $"#{defect.Id} {defect.DefectType} için son karar geri alınacak:\n" +
@@ -1108,7 +1125,7 @@ public sealed partial class MainWindow : Window
         {
             var parts = new List<string>
             {
-                $"{x.DecidedAt:dd.MM HH:mm}  {x.DecidedBy}  ·  {DefectSentence.DecisionLabel(x.Decision)}",
+                $"{x.DecidedAt:dd.MM HH:mm}  {x.DecidedBy}  ·  {DefectSentence.DecisionLabel(x)}",
             };
             if (!string.IsNullOrWhiteSpace(x.Note)) parts.Add($"not: {x.Note}");
             if (!string.IsNullOrWhiteSpace(x.Reference)) parts.Add($"ref: {x.Reference}");
@@ -1133,6 +1150,7 @@ public sealed partial class MainWindow : Window
         if (s.Radius is double r) parts.Add($"R {Fmt(r)}");
         if (s.AngleDeg is double a) parts.Add($"A {Fmt(a)}°");
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
+        if (s.HighMetal) parts.Add("High metal");
         return parts.Count == 0 ? "—" : string.Join(" ", parts);
     }
 
@@ -1178,7 +1196,7 @@ public sealed partial class MainWindow : Window
                 TextWrapping = TextWrapping.Wrap,
             };
 
-            var panel = new StackPanel { Spacing = 10, MinWidth = 420 };
+            var panel = new StackPanel { Spacing = 10, Width = 480 };
             panel.Children.Add(new TextBlock
             {
                 Text = $"#{defect.Id} {defect.DefectType} kaydı geçersiz sayılacak. Kayıt silinmez ama rapora girmez ve bu işlem geri alınamaz.",
@@ -1251,7 +1269,17 @@ public sealed partial class MainWindow : Window
         var before = sent?.Snapshot ?? MeasurementEditor.Snapshot(defect);
         var template = _types.FirstOrDefault(t => string.Equals(t.Name, defect.DefectType, StringComparison.OrdinalIgnoreCase));
 
-        var panel = new StackPanel { Spacing = 12, Width = 560 };
+        var hadHighMetal = before.HighMetal;
+        var panel = new StackPanel { Spacing = 12, Width = 480 };
+        if (sent?.ReworkScope == ReworkScope.HighMetalOnly)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Rework kapsamı: yalnızca high metal için yapıldı. Ana kusur kalabilir.",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
         panel.Children.Add(new TextBlock
         {
             Text = $"{(isRework ? "Rework öncesi" : "Önceki")} ölçümler: {SnapshotText(before)}" +
@@ -1263,7 +1291,13 @@ public sealed partial class MainWindow : Window
         // 1. adım: sonuç
         var outcome = new RadioButtons { Header = "1. Muayene sonucu ne?" };
         outcome.Items.Add(new RadioButton { Content = "Kusur giderildi (uygun) → kusur kapanır", Tag = "conforms" });
-        outcome.Items.Add(new RadioButton { Content = "Aynı kusur hâlâ var → yeni ölçümleri gir, sonra yeni karar ver", Tag = "same" });
+        outcome.Items.Add(new RadioButton
+        {
+            Content = hadHighMetal
+                ? "Ana kusur hâlâ var (high metal giderilmiş olabilir) → yeni ölçüm / durum gir"
+                : "Aynı kusur hâlâ var → yeni ölçümleri gir, sonra yeni karar ver",
+            Tag = "same",
+        });
         outcome.Items.Add(new RadioButton { Content = "Eski kusur gitti ama yeni bir hata oluştu → yeni kusur aç", Tag = "new" });
         panel.Children.Add(outcome);
 
@@ -1299,11 +1333,20 @@ public sealed partial class MainWindow : Window
             Visibility = Visibility.Collapsed,
             Children =
             {
-                new TextBlock { Text = "2. Rework sonrası ölçümleri girin (boş bırakılan alan önceki değerinde kalır)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap },
+                new TextBlock { Text = (hadHighMetal ? "3." : "2.") + " Rework sonrası ölçümleri girin (boş bırakılan alan önceki değerinde kalır)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap },
                 new ScrollViewer { Content = measureGrid, HorizontalScrollMode = ScrollMode.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollMode = ScrollMode.Disabled },
                 delta,
             },
         };
+        // High metal'li kusurda durum açıkça sorulur (varsayılan yok): yalnızca high metal gidip değerler aynı kalabilir.
+        RadioButtons? highMetal = null;
+        if (hadHighMetal)
+        {
+            highMetal = new RadioButtons { Header = "2. High metal durumu (zorunlu)" };
+            highMetal.Items.Add(new RadioButton { Content = "Giderildi", Tag = false });
+            highMetal.Items.Add(new RadioButton { Content = "Hâlâ var", Tag = true });
+            samePanel.Children.Insert(0, highMetal);
+        }
         panel.Children.Add(samePanel);
 
         // 2. adım (yeni hata): child tipi, varsayılan seçili değil
@@ -1359,9 +1402,12 @@ public sealed partial class MainWindow : Window
         MeasurementSnapshot Merged()
         {
             var v = ReadValues();
+            var hm = (highMetal?.SelectedItem as RadioButton)?.Tag is bool b ? b : before.HighMetal;
             return new MeasurementSnapshot(v.Depth ?? before.Depth, v.Width ?? before.Width, v.Length ?? before.Length,
-                v.Radius ?? before.Radius, v.AngleDeg ?? before.AngleDeg, v.Color ?? before.Color);
+                v.Radius ?? before.Radius, v.AngleDeg ?? before.AngleDeg, v.Color ?? before.Color, hm);
         }
+
+        bool HighMetalAnswered() => highMetal is null || highMetal.SelectedItem is not null;
 
         bool AnyValue()
         {
@@ -1379,14 +1425,17 @@ public sealed partial class MainWindow : Window
             if (tag == "same")
             {
                 var v = Merged();
-                var now = new Defect { Depth = v.Depth, Width = v.Width, Length = v.Length, Radius = v.Radius, AngleDeg = v.AngleDeg, Color = v.Color };
-                delta.Text = AnyValue() ? string.Join("\n", MeasurementCompare.Lines(before, now)) : "Değişimi görmek için ölçüm girin.";
+                var now = new Defect { Depth = v.Depth, Width = v.Width, Length = v.Length, Radius = v.Radius, AngleDeg = v.AngleDeg, Color = v.Color, HighMetal = v.HighMetal };
+                delta.Text = AnyValue() || (highMetal is not null && HighMetalAnswered())
+                    ? string.Join("\n", MeasurementCompare.Lines(before, now))
+                    : "Değişimi görmek için ölçüm girin.";
             }
 
             dialog.IsPrimaryButtonEnabled = tag switch
             {
                 "conforms" => true,
-                "same" => AnyValue(),
+                // High metal varsa durumu zorunlu, ölçümler boş kalabilir (değerler aynı); yoksa en az bir ölçüm.
+                "same" => highMetal is not null ? HighMetalAnswered() : AnyValue(),
                 "new" => childType.SelectedItem is string,
                 _ => false,
             };
@@ -1394,6 +1443,8 @@ public sealed partial class MainWindow : Window
 
         outcome.SelectionChanged += (_, _) => Refresh();
         childType.SelectionChanged += (_, _) => Refresh();
+        if (highMetal is not null)
+            highMetal.SelectionChanged += (_, _) => Refresh();
         foreach (var box in boxes.Values.Append(colorBox).OfType<TextBox>())
             box.TextChanged += (_, _) => Refresh();
 
@@ -1422,15 +1473,21 @@ public sealed partial class MainWindow : Window
                 if (errors.Count > 0)
                     throw new InvalidOperationException(string.Join(" ", errors));
 
+                // High metal giderildiyse ve not yazılmadıysa otomatik not: kalan ana kusurun kararı buna göre verilir.
+                var sameNote = noteText ?? (hadHighMetal && !v.HighMetal ? "High metal giderildi; ana kusur devam ediyor." : null);
+
                 // Yeni ölçümler ve karar aynı kilit altında: karar anı görüntüsü yeni değerleri taşır.
                 _store!.UpdateDefect(_folder!, id, d =>
                 {
                     MeasurementEditor.Apply(d, v, by);
-                    DefectStateMachine.Apply(d, Decision.AfterReworkSameDefect, DecisionSource.Engineer, by, noteText);
+                    DefectStateMachine.Apply(d, Decision.AfterReworkSameDefect, DecisionSource.Engineer, by, sameNote);
                 });
                 AuditLog.Append(_store!, by, "disposition", $"#{id} AfterReworkSameDefect");
                 RefreshDefects(id);
-                Show($"#{id}: aynı kusur devam ediyor, yeni ölçümler kaydedildi. Şimdi Disposition'dan yeni karar verin.", InfoBarSeverity.Warning);
+                Show(hadHighMetal && !v.HighMetal
+                        ? $"#{id}: high metal giderildi, ana kusur devam ediyor. Şimdi Disposition'dan kalan kusur için karar verin."
+                        : $"#{id}: aynı kusur devam ediyor, yeni ölçümler kaydedildi. Şimdi Disposition'dan yeni karar verin.",
+                    InfoBarSeverity.Warning);
                 break;
 
             case "new":
@@ -1824,7 +1881,8 @@ public sealed partial class MainWindow : Window
         var step = CurrentStep(d, state);
         var measured = HasMeasurement(d);
         var photographed = d.Photos.Count > 0;
-        var decided = DefectStateMachine.Effective(d).Count > 0;
+        // Açık kusurda (ilk karar, rework sonrası ya da yeniden açma) karar bekleniyor: tamamlanmış sayılmaz.
+        var decided = state != DefectState.Open && DefectStateMachine.Effective(d).Count > 0;
 
         MeasureTabItem.Text = (measured ? "✓ " : "") + "1. Ölçüm";
         PhotoTabItem.Text = (photographed ? "✓ " : "") + (d.Photos.Count == 0 ? "2. Fotoğraflar" : $"2. Fotoğraflar ({d.Photos.Count})");

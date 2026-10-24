@@ -234,6 +234,9 @@
                                                     </StackPanel>
                                                     <TextBox x:Name="NotesBox" Header="Not" AcceptsReturn="True" Height="72" TextWrapping="Wrap" AutomationProperties.AutomationId="NotesBox" />
                                                     <StackPanel Orientation="Horizontal" Spacing="10">
+                                                        <CheckBox x:Name="HighMetalBox" Content="High metal mevcut" VerticalAlignment="Center" MinWidth="0" Margin="0,0,6,0"
+                                                                  AutomationProperties.AutomationId="HighMetalBox"
+                                                                  ToolTipService.ToolTip="Yan kusur: pozitif metal yığılması. Cümlede 'Dent with high metal' olarak yazılır." />
                                                         <Button Content="Ölçümleri kaydet" Click="SaveMeasurements_Click" x:Name="SaveMeasButton" IsEnabled="False" Height="44" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="SaveMeasButton" />
                                                         <Button Content="Void (yanlış giriş)" Click="VoidButton_Click" x:Name="VoidButton" Height="44" Visibility="Collapsed" AutomationProperties.AutomationId="VoidButton" />
                                                     </StackPanel>

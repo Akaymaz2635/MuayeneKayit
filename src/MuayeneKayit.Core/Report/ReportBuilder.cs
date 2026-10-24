@@ -79,7 +79,7 @@ public static class ReportBuilder
 
         sb.Append("<div class=\"defect-bar\">")
           .Append($"<span class=\"id\">{PageLabel(d, photoIndex)}</span>")
-          .Append($"<span class=\"type\">{E(d.DefectType)}{(d.Photos.Count > 1 ? $" <span class=\"muted\">· Fotoğraf {photoIndex + 1} / {d.Photos.Count}</span>" : "")}</span>")
+          .Append($"<span class=\"type\">{E(DefectSentence.TypeText(d))}{(d.Photos.Count > 1 ? $" <span class=\"muted\">· Fotoğraf {photoIndex + 1} / {d.Photos.Count}</span>" : "")}</span>")
           .Append($"<span class=\"state st-{CssClass(state)}\">{E(StateText(state))}</span>")
           .Append("</div>");
 
@@ -142,7 +142,7 @@ public static class ReportBuilder
                   .Append($"<td>{row}</td>")
                   .Append($"<td>{x.DecidedAt:dd.MM.yyyy HH:mm}</td>")
                   .Append($"<td>{E(x.DecidedBy)}</td>")
-                  .Append($"<td>{E(DefectSentence.DecisionLabel(x.Decision))}</td>")
+                  .Append($"<td>{E(DefectSentence.DecisionLabel(x))}</td>")
                   .Append($"<td>{E(x.Note)}</td>")
                   .Append($"<td>{E(x.Reference)}</td>")
                   .Append($"<td>{E(SnapshotText(x.Snapshot))}</td>")
@@ -239,6 +239,7 @@ public static class ReportBuilder
         if (s.Radius is double r) parts.Add($"R {Num(r)}");
         if (s.AngleDeg is double a) parts.Add($"A {Num(a)}°");
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
+        if (s.HighMetal) parts.Add("High metal");
         return parts.Count == 0 ? "—" : string.Join(" · ", parts);
     }
 

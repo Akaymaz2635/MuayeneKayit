@@ -13,7 +13,7 @@ public static class DefectSentence
     public static string Describe(Defect defect)
     {
         var sb = new StringBuilder();
-        sb.Append($"Defect {defect.Id}: There is {defect.DefectType} on part");
+        sb.Append($"Defect {defect.Id}: There is {TypeText(defect)} on part");
 
         var measurements = new List<string>();
         AddMm(measurements, "Depth", defect.Depth);
@@ -45,6 +45,16 @@ public static class DefectSentence
         return sb.ToString();
     }
 
+    /// <summary>"Dent" ya da yan kusurla "Dent with high metal".</summary>
+    public static string TypeText(Defect defect) =>
+        defect.HighMetal ? $"{defect.DefectType} with high metal" : defect.DefectType;
+
+    /// <summary>Karar etiketi; rework kapsamı yalnızca high metal ise belirtilir.</summary>
+    public static string DecisionLabel(Disposition d) =>
+        d.Decision == Decision.Rework && d.ReworkScope == ReworkScope.HighMetalOnly
+            ? "Rework / Reinspect (high metal only)"
+            : DecisionLabel(d.Decision);
+
     private static void AddMm(List<string> target, string label, double? value)
     {
         if (value is double v)
@@ -61,7 +71,7 @@ public static class DefectSentence
         if (last is null)
             return "Pending";
 
-        return DecisionLabel(last.Decision);
+        return DecisionLabel(last);
     }
 
     public static string DecisionLabel(Decision decision) => decision switch
