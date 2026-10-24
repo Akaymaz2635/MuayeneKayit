@@ -255,8 +255,12 @@ public sealed partial class MainWindow : Window
         Show("Karar açıklamaları kaydedildi. Muayene ekranında bir sonraki karar seçiminde görünür.", InfoBarSeverity.Success);
     });
 
-    private void ResetTexts_Click(object sender, RoutedEventArgs e)
+    private async void ResetTexts_Click(object sender, RoutedEventArgs e)
     {
+        if (!await ConfirmAsync("Açıklamaları varsayılana döndür",
+                "Düzenlediğiniz tüm karar açıklamaları varsayılan metinlerle değiştirilecek. " +
+                "Ortak alana kaydedilene kadar kalıcı olmaz.", "Varsayılana döndür"))
+            return;
         RenderTexts(SharedConfig.DefaultDecisionTexts);
         TextsDirty.Text = "Varsayılanlar yüklendi; kalıcı olması için 'Ortak alana kaydet'e basın.";
     }
@@ -460,10 +464,14 @@ public sealed partial class MainWindow : Window
         MarkDirty();
     }
 
-    private void DeleteType_Click(object sender, RoutedEventArgs e)
+    private async void DeleteType_Click(object sender, RoutedEventArgs e)
     {
         var i = TypeList.SelectedIndex;
         if (i < 0)
+            return;
+        if (!await ConfirmAsync("Kusur tipini sil",
+                $"'{_types[i].Name}' listeden silinecek. Ortak alana kaydedilene kadar muayene ekranı etkilenmez; " +
+                "kaydedildikten sonra bu tip yeni kusurlarda seçilemez (eski kayıtlar değişmez).", "Sil"))
             return;
         _types.RemoveAt(i);
         RefreshTypeList(Math.Min(i, _types.Count - 1));
@@ -485,8 +493,12 @@ public sealed partial class MainWindow : Window
         MarkDirty();
     }
 
-    private void ResetTypes_Click(object sender, RoutedEventArgs e)
+    private async void ResetTypes_Click(object sender, RoutedEventArgs e)
     {
+        if (!await ConfirmAsync("Varsayılanlara dön",
+                $"Listedeki {_types.Count} kusur tipi ve şablonları silinip varsayılan {SharedConfig.Defaults.Count} tip yüklenecek. " +
+                "Ortak alana kaydedilene kadar kalıcı olmaz.", "Varsayılanlara dön"))
+            return;
         _types = SharedConfig.Defaults.Select(Clone).ToList();
         RefreshTypeList(0);
         MarkDirty();
@@ -540,15 +552,26 @@ public sealed partial class MainWindow : Window
         Show(locks.Count == 0 ? "Eski kilit yok." : $"{locks.Count} eski kilit bulundu.", locks.Count == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
     });
 
-    private void RemoveLock_Click(object sender, RoutedEventArgs e) => Run(() =>
+    private async void RemoveLock_Click(object sender, RoutedEventArgs e)
     {
         if (LockList.SelectedItem is not string path)
-            throw new InvalidOperationException("Listeden bir kilit seçin.");
-        SharedConfig.RemoveStaleLock(_root, path);
-        AuditLog.Append(new SessionStore(_root), "admin", "admin.lock.remove", path);
-        LockList.ItemsSource = SharedConfig.StaleLocks(_root).ToList();
-        Show("Kilit silindi.", InfoBarSeverity.Success);
-    });
+        {
+            Show("Listeden bir kilit seçin.", InfoBarSeverity.Error);
+            return;
+        }
+        if (!await ConfirmAsync("Kilidi sil",
+                $"{path}\n\nBu kilit 10 dakikadan eski. Silmeden önce o kayıtta çalışan kimse olmadığından emin olun; " +
+                "işlem denetim kaydına yazılır.", "Kilidi sil"))
+            return;
+
+        Run(() =>
+        {
+            SharedConfig.RemoveStaleLock(_root, path);
+            AuditLog.Append(new SessionStore(_root), "admin", "admin.lock.remove", path);
+            LockList.ItemsSource = SharedConfig.StaleLocks(_root).ToList();
+            Show("Kilit silindi.", InfoBarSeverity.Success);
+        });
+    }
 
     // ───────────────────────── Ayarlar ─────────────────────────
 
@@ -577,6 +600,25 @@ public sealed partial class MainWindow : Window
     });
 
     // ───────────────────────── Yardımcılar ─────────────────────────
+
+    /// <summary>
+    /// Geri alınamayan ya da toplu değişiklikler için onay. Onay düğmesi vurgulu, vazgeç sade;
+    /// varsayılan düğme yok, Enter yanlışlıkla onaylamaz.
+    /// </summary>
+    private async Task<bool> ConfirmAsync(string title, string message, string confirmText)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Width = 440 },
+            PrimaryButtonText = confirmText,
+            CloseButtonText = "Vazgeç",
+            DefaultButton = ContentDialogButton.None,
+            PrimaryButtonStyle = (Style)Application.Current.Resources["AccentButtonStyle"],
+            XamlRoot = Nav.XamlRoot,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
 
     private static Border Stat(string label, string value, string color) => new()
     {
