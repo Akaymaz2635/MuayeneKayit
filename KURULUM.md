@@ -22,7 +22,8 @@ Güncelleme: yeni klasörü kopyalayın. Program kendini güncellemez.
 
 1. Admin exe'sini açın. Ortak klasörde PIN yoksa PIN belirleme ekranı gelir (6-12 rakam).
 2. **Kusur tipleri** sayfasında tipleri ve her tipin ölçüm alanlarını düzenleyip **Tümünü ortak alana kaydet**.
-3. Muayene exe'leri yeni listeyi bir sonraki açılışta kullanır.
+3. İsterseniz **Karar açıklamaları** sayfasında, muayenecinin karar seçince gördüğü açıklamaları düzenleyip **Ortak alana kaydet**.
+4. Muayene exe'leri kusur tiplerini bir sonraki açılışta, karar açıklamalarını bir sonraki karar seçiminde kullanır.
 
 PIN unutulursa: admin, ortak klasördeki `_config\admin.json` dosyasını silip PIN'i yeniden belirler.
 Bu yüzden `_config` klasörüne yalnızca admin grubu yazabilmelidir.
