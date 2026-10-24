@@ -213,7 +213,7 @@
                             <TextBlock Text="Ortak alan" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
                             <TextBlock Text="Bu admin uygulamasının kullandığı kök klasör. Muayene uygulamalarında aynı yol, exe'nin yanındaki MuayeneKayit.settings.json dosyasına yazılmalıdır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
                             <TextBox x:Name="RootBox" Header="Kök klasör (ör. \\sunucu\Muayene)" Width="520" HorizontalAlignment="Left" />
-                            <Button Content="Kaydet ve yeniden bağlan" Click="SaveRoot_Click" />
+                            <Button Content="Kaydet ve yeniden bağlan" Click="SaveRoot_Click" Style="{StaticResource AccentButtonStyle}" />
                         </StackPanel>
                     </Border>
                     <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
@@ -222,7 +222,7 @@
                             <PasswordBox x:Name="OldPin" Header="Mevcut PIN" Width="240" HorizontalAlignment="Left" MaxLength="12" />
                             <PasswordBox x:Name="NewPin" Header="Yeni PIN (6-12 rakam)" Width="240" HorizontalAlignment="Left" MaxLength="12" />
                             <PasswordBox x:Name="NewPinRepeat" Header="Yeni PIN (tekrar)" Width="240" HorizontalAlignment="Left" MaxLength="12" />
-                            <Button Content="PIN'i değiştir" Click="ChangePin_Click" />
+                            <Button Content="PIN'i değiştir" Click="ChangePin_Click" Style="{StaticResource AccentButtonStyle}" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

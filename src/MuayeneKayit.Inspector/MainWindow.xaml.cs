@@ -526,6 +526,11 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Diyaloglarda onay düğmesi vurgulu (koyu), vazgeç sade. Varsayılan düğme yok: Enter yanlışlıkla kaydetmez.
+    /// </summary>
+    private static Style ConfirmButtonStyle => (Style)Application.Current.Resources["AccentButtonStyle"];
+
     private static Microsoft.UI.Xaml.Media.Brush Theme(string key) =>
         (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[key];
 
@@ -553,7 +558,8 @@ public sealed partial class MainWindow : Window
                 },
                 PrimaryButtonText = "Kaldır",
                 CloseButtonText = "Vazgeç",
-                DefaultButton = ContentDialogButton.Close,
+                DefaultButton = ContentDialogButton.None,
+                PrimaryButtonStyle = ConfirmButtonStyle,
                 XamlRoot = Nav.XamlRoot,
             };
             if (await dialog.ShowAsync() != ContentDialogResult.Primary)
@@ -914,7 +920,8 @@ public sealed partial class MainWindow : Window
             Content = panel,
             PrimaryButtonText = "Kararı kaydet",
             CloseButtonText = "Vazgeç",
-            DefaultButton = ContentDialogButton.Close,
+            DefaultButton = ContentDialogButton.None,
+            PrimaryButtonStyle = ConfirmButtonStyle,
             IsPrimaryButtonEnabled = !noteRequired && scope is null,
             XamlRoot = Nav.XamlRoot,
         };
@@ -958,7 +965,8 @@ public sealed partial class MainWindow : Window
                 },
                 PrimaryButtonText = "Sonucu şimdi gir",
                 CloseButtonText = "Sonra",
-                DefaultButton = ContentDialogButton.Close,
+                DefaultButton = ContentDialogButton.None,
+                PrimaryButtonStyle = ConfirmButtonStyle,
                 XamlRoot = Nav.XamlRoot,
             };
             if (await ask.ShowAsync() == ContentDialogResult.Primary)
@@ -1017,7 +1025,8 @@ public sealed partial class MainWindow : Window
                 Content = panel,
                 PrimaryButtonText = "Geri al",
                 CloseButtonText = "Vazgeç",
-                DefaultButton = ContentDialogButton.Close,
+                DefaultButton = ContentDialogButton.None,
+                PrimaryButtonStyle = ConfirmButtonStyle,
                 IsPrimaryButtonEnabled = false,
                 XamlRoot = Nav.XamlRoot,
             };
@@ -1210,7 +1219,8 @@ public sealed partial class MainWindow : Window
                 Content = panel,
                 PrimaryButtonText = "Void et",
                 CloseButtonText = "Vazgeç",
-                DefaultButton = ContentDialogButton.Close,
+                DefaultButton = ContentDialogButton.None,
+                PrimaryButtonStyle = ConfirmButtonStyle,
                 IsPrimaryButtonEnabled = false,
                 XamlRoot = Nav.XamlRoot,
             };
@@ -1378,7 +1388,8 @@ public sealed partial class MainWindow : Window
             Content = panel,
             PrimaryButtonText = "Kaydet",
             CloseButtonText = "Vazgeç",
-            DefaultButton = ContentDialogButton.Close,
+            DefaultButton = ContentDialogButton.None,
+            PrimaryButtonStyle = ConfirmButtonStyle,
             IsPrimaryButtonEnabled = false,
             XamlRoot = Nav.XamlRoot,
         };
