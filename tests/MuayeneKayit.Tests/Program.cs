@@ -60,6 +60,7 @@ var tests = new List<(string Name, Action Body)>
     ("VM: high metal tipte ve cümlede görünür", VmHighMetalShowsInTypeAndSentence),
     ("VM: oturum açıldıktan sonra ilk seçilen kusurda sekme sıradaki adımdır", VmFirstSelectionAfterOpenUsesCurrentStep),
     ("VM: aynı kusur yenilenince sekme korunur", VmRefreshKeepsSelectedStep),
+    ("VM: liste yenilenince ListView yeniden seçse de sekme korunur", VmListViewReselectAfterRefreshKeepsTab),
     ("VM: Disposition sekmesinde ✓ yalnızca karar sonrası", VmDecisionTabCheckAfterDecision),
     ("VM: Complete açık kusurda uyarır, kapanınca tamamlar", VmCompleteRules),
     ("VM: karar seçenekleri duruma göre, rework bekleyende ilk seçenek reinspect", VmDecisionOptions),

@@ -160,6 +160,26 @@ public static partial class ViewModelTests
         Check(c.Vm.SelectedId == 1 && c.Vm.SelectedDefect?.Id == 1, "Seçim korunmalı");
     });
 
+    /// <summary>
+    /// Regresyon: liste yenilenince ListView seçimi bir an boşa düşürüp aynı kusuru yeniden seçer.
+    /// Bu "yeni kusur" sayılmamalı; sekme (ör. fotoğraf eklerken Fotoğraflar) değişmemeli.
+    /// </summary>
+    public static void VmListViewReselectAfterRefreshKeepsTab() => With(c =>
+    {
+        c.Open();
+        c.Vm.AddDefect("Dent");
+        c.Store.UpdateDefect(c.Folder, 1, d => { d.Depth = 0.1; d.Photos.Add("1_photo_01.jpg"); });
+        c.Vm.Refresh(1);
+        c.Vm.SelectedStep = InspectionStep.Photo;
+
+        // ListView'in yaptığı: önce boş seçim, sonra aynı öğe (yeni nesne).
+        c.Vm.SelectedDefect = null;
+        c.Vm.SelectedDefect = c.Vm.Defects.First(d => d.Id == 1);
+
+        Check(c.Vm.SelectedId == 1 && c.Vm.HasSelection, "Seçim korunmalı");
+        Check(c.Vm.SelectedStep == InspectionStep.Photo, $"Sekme Fotoğraflar'da kalmalı: {c.Vm.SelectedStep}");
+    });
+
     public static void VmDecisionTabCheckAfterDecision() => With(c =>
     {
         c.Open();

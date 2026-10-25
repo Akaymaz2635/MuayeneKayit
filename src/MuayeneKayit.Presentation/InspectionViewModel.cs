@@ -245,6 +245,19 @@ public sealed partial class InspectionViewModel : ObservableObject
         if (_refreshing)
             return;
 
+        // Liste yenilenince (öğeler silinip yeniden eklenince) ListView seçimi bir an boşa düşürüp aynı kusuru
+        // yeniden seçer. Bu "yeni kusur seçildi" sayılırsa sekme sıradaki adıma atlar. Seçili kusur hâlâ listedeyse
+        // boş seçim yok sayılır ve aynı kusur korunur.
+        if (value is null && SelectedId is int keepId && _folder is not null)
+        {
+            var same = Defects.FirstOrDefault(d => d.Id == keepId);
+            if (same is not null)
+            {
+                WithoutSelectionEvents(() => SelectedDefect = same);
+                return;
+            }
+        }
+
         if (value is not null && _folder is not null)
         {
             SelectedId = value.Id;
