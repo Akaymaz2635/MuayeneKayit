@@ -1,31 +1,39 @@
-﻿MUAYENE KAYIT - AĞ KLASÖRÜ KURULUMU
-===================================
+﻿MUAYENE KAYIT - AĞ KLASÖRÜNDEN ÇALIŞTIRMA
+=========================================
 
-Bu klasörün tamamı ağ paylaşımına kopyalanır, örneğin:
+Kurulum yoktur, yönetici yetkisi gerekmez. Program ağ klasöründen çalışır.
+
+Bu paketin tamamı ağdaki bir PROGRAM klasörüne kopyalanır, örneğin:
     \\sunucu\MuayeneKayit\Program\
+        MuayeneKayit.exe            <- muayene programını açar (kullanıcılar bunu açar)
+        MuayeneKayit Admin.exe      <- admin programını açar (yalnızca yöneticiler)
+        surum.txt                   <- hangi sürümün açılacağı (ör. 1.0.0)
+        1.0.0\                      <- sürüm klasörü (Inspector / Admin, x64 / ARM64)
+        MuayeneKayit.settings.json  <- ortak VERİ klasörünün yolu (aşağıda oluşturulur)
 
-1) İLK KURULUM (bir kez, BT / sorumlu kişi)
+1) İLK KURULUM (bir kez, sorumlu kişi)
    - "MuayeneKayit.settings.example.json" dosyasının bir kopyasını aynı klasörde
      "MuayeneKayit.settings.json" adıyla oluşturun.
    - İçindeki "rootPath" değerini ortak VERİ klasörü yapın (program klasörü değil), örneğin:
          { "rootPath": "\\\\sunucu\\MuayeneKayit\\Veri" }
      (JSON'da her ters bölü iki kez yazılır.)
-   - Kullanıcıların VERİ klasörüne okuma + yazma izni olmalı. Program klasörüne yalnızca okuma yeterli.
+   - Kullanıcıların VERİ klasörüne okuma + yazma izni olmalı. PROGRAM klasörüne yalnızca okuma yeterli.
 
-2) KULLANICI BİLGİSAYARINA KURULUM (her bilgisayarda bir kez)
-   - Ağ klasöründeki "Kur.cmd" dosyasına çift tıklayın. Yönetici yetkisi gerekmez.
-   - Program bilgisayara kopyalanır, masaüstüne "Muayene Kayit" kısayolu gelir.
-   - Admin uygulaması (yalnızca yöneticiler): komut isteminde   Kur.cmd Admin
+2) KULLANICILAR
+   - Ağdaki "MuayeneKayit.exe" dosyasına sağ tık > Göster: Diğer seçenekler > Gönder > Masaüstü (kısayol oluştur).
+     Bundan sonra masaüstündeki kısayolla açılır. Hiçbir şey kurulmaz, kopyalanmaz.
+   - Surface (ARM64) bilgisayarlar ARM64 sürümünü kendiliğinden açar.
 
-3) GÜNCELLEME
-   - Yeni sürümün klasörlerini (Inspector-x64, Inspector-arm64, Admin-x64, Admin-arm64, Baslat.cmd)
-     ağ klasöründeki eskilerinin üzerine kopyalayın. "MuayeneKayit.settings.json" dosyasına dokunmayın.
-   - Kullanıcılar programı bir sonraki açışta yeni sürümü kendiliğinden alır (kısayol eşitler).
-   - Program açıkken güncelleme alınamaz; kapatıp yeniden açmak yeterli.
-   - Sürüm, pencere başlığında görünür (ör. "MuayeneKayit 1.0.0").
+3) GÜNCELLEME (program açıkken de yapılabilir)
+   - Yeni paketteki sürüm klasörünü (ör. "1.0.1") ağdaki Program klasörüne kopyalayın.
+   - Sonra "surum.txt" içindeki sürümü yeni klasörün adıyla değiştirin (ör. 1.0.1).
+   - Kullanıcılar programı bir sonraki açışta yeni sürümü açar; açık olanlar eski sürümde çalışmaya devam eder.
+   - Eski sürüm klasörünü, herkes programı kapattıktan sonra (ör. ertesi gün) silebilirsiniz.
+   - Başlatıcılar (MuayeneKayit.exe) ve MuayeneKayit.settings.json değişmez; üzerine kopyalamayın.
+   - Sürüm, pencere başlığında görünür (ör. "MuayeneKayit 1.0.1").
 
 NOTLAR
-   - Kişisel ayarlar (ölçü birimi, tema, son kamera) her kullanıcının kendi bilgisayarında saklanır:
-     %LOCALAPPDATA%\MuayeneKayit
-   - Ağ yoksa program yerel kopyadan yine açılır; veriler ortak klasörde olduğu için kayıt yapılamaz.
-   - Surface (ARM64) bilgisayarlar otomatik olarak ARM64 sürümünü alır.
+   - Kişisel ayarlar (ölçü birimi, tema, son kamera) her kullanıcının kendi Windows profilinde saklanır.
+   - Program ağdan açıldığı için ilk açılış birkaç saniye sürebilir (özellikle Wi-Fi'da).
+   - Şirketin uygulama kısıtlamaları (AppLocker vb.) ağ klasöründeki exe'leri engelliyorsa
+     BT'den bu klasöre izin istenmelidir.

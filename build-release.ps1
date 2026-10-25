@@ -1,8 +1,11 @@
 ﻿<#
   Dağıtım paketi hazırlar (tek komut). Visual Studio'da: Görünüm > Terminal (Developer PowerShell) içinde
       .\build-release.ps1
-  Adımlar: testler -> Inspector ve Admin yayını (x64 + ARM64) -> dist\MuayeneKayit-<sürüm>\ klasörü ve zip.
-  Zip'in içi olduğu gibi ağ klasörüne kopyalanır (bkz. KURULUM.md > Dağıtım).
+  Adımlar: testler -> başlatıcı + Inspector ve Admin yayını (x64 + ARM64) -> dist\MuayeneKayit-<sürüm>\ ve zip.
+  Zip'in içi ağdaki Program klasörüne açılır; program oradan çalışır, kurulum yoktur (bkz. KURULUM.md > Dağıtım):
+      MuayeneKayit.exe, MuayeneKayit Admin.exe   başlatıcılar (kısayol bunlara)
+      surum.txt                                  açılacak sürüm
+      <sürüm>\Inspector-x64, Inspector-arm64, Admin-x64, Admin-arm64
   -SkipTests: testleri atlar.  -X64Only: yalnızca x64 (Surface / ARM64 yoksa daha hızlı).
 #>
 param(
@@ -28,7 +31,7 @@ if (-not $SkipTests) {
 
 $arches = if ($X64Only) { @("x64") } else { @("x64", "arm64") }
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
-New-Item -ItemType Directory -Force $dist | Out-Null
+New-Item -ItemType Directory -Force (Join-Path $dist $version) | Out-Null
 
 foreach ($app in "Inspector", "Admin") {
     foreach ($arch in $arches) {
@@ -38,12 +41,20 @@ foreach ($app in "Inspector", "Admin") {
 
         $out = Join-Path $root "publish\$app-$arch"
         if (-not (Test-Path (Join-Path $out "MuayeneKayit.$app.exe"))) { throw "Exe bulunamadı: $out" }
-        Copy-Item $out (Join-Path $dist "$app-$arch") -Recurse
+        Copy-Item $out (Join-Path $dist "$version\$app-$arch") -Recurse
     }
 }
 
-# Dağıtım dosyaları: kurulum / başlatma betikleri ve ortak ayar örneği.
-Copy-Item (Join-Path $root "dagitim\Kur.cmd"), (Join-Path $root "dagitim\Baslat.cmd"), (Join-Path $root "dagitim\OKU-BENI.txt") $dist
+# Başlatıcı: tek dosya. Adında "Admin" geçen kopyası admin uygulamasını açar.
+Write-Host "Yayın: başlatıcı" -ForegroundColor Cyan
+$launcherOut = Join-Path $root "publish\Launcher"
+dotnet publish src\MuayeneKayit.Launcher -c Release -o $launcherOut
+if ($LASTEXITCODE -ne 0) { throw "Başlatıcı yayını başarısız" }
+Copy-Item (Join-Path $launcherOut "MuayeneKayit.exe") (Join-Path $dist "MuayeneKayit.exe")
+Copy-Item (Join-Path $launcherOut "MuayeneKayit.exe") (Join-Path $dist "MuayeneKayit Admin.exe")
+
+[IO.File]::WriteAllText((Join-Path $dist "surum.txt"), "$version`r`n", (New-Object Text.UTF8Encoding($false)))
+Copy-Item (Join-Path $root "dagitim\OKU-BENI.txt") $dist
 Copy-Item (Join-Path $root "src\MuayeneKayit.Inspector\MuayeneKayit.settings.example.json") $dist
 
 $zip = Join-Path $root "dist\$name.zip"

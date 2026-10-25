@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Ağ klasöründeki küçük başlatıcı (MuayeneKayit.exe): tek dosya, .NET kurulumu gerektirmez, kurulum yapmaz.
+    x64 derlenir; ARM64 Windows'ta (Surface) öykünmeyle çalışır ve ARM64 programı açar.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <AssemblyName>MuayeneKayit</AssemblyName>
+    <RootNamespace>MuayeneKayit.Launcher</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- Kullanılmayan .NET kodu atılır: başlatıcı ~70 MB yerine birkaç MB olur, ağdan hızlı açılır. -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MuayeneKayit.Core\MuayeneKayit.Core.csproj" />
+  </ItemGroup>
+
+</Project>

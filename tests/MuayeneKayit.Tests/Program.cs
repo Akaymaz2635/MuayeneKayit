@@ -40,6 +40,8 @@ var tests = new List<(string Name, Action Body)>
     ("Arka plan: parça ayrılır, zemin silinir", BackgroundSeparatesPart),
     ("Arka plan: temiz kopya orijinali ve numaralamayı bozmaz", CleanedCopyKeepsOriginal),
     ("Rapor: son sürüm numarası bulunur", ReportVersionRules),
+    ("Kurulum ayarı üst klasörlerde aranır (ağdan çalıştırma)", InstallSettingsFoundInParentFolders),
+    ("Başlatıcı: surum.txt ve mimariye göre exe seçer", ProgramLayoutResolvesVersionAndArch),
     ("Admin: kusur tipi şablonu kaydedilir, bozuksa varsayılan", DefectTypeTemplates),
     ("Admin: PIN özetle saklanır ve doğrulanır", AdminPinRules),
     ("Admin: eski olmayan ya da kök dışı kilit silinmez", StaleLockRules),
@@ -805,6 +807,70 @@ static void CleanedCopyKeepsOriginal()
         Expect(rejected, "Geçersiz ad reddedilmeli");
     }
     finally { Directory.Delete(root, true); }
+}
+
+static void InstallSettingsFoundInParentFolders()
+{
+    var root = TempRoot();
+    try
+    {
+        // Ağ düzeni: Program\MuayeneKayit.settings.json, exe Program\1.0.0\Inspector-x64 içinde (iki üst klasör).
+        var exeDir = Path.Combine(root, "Program", "1.0.0", "Inspector-x64");
+        Directory.CreateDirectory(exeDir);
+        Expect(InstallSettings.Find(exeDir) is null, "Dosya yokken null");
+        Expect(InstallSettings.LoadRootPath(exeDir).EndsWith("MuayeneKayitDemo"), "Dosya yokken demo klasörü");
+
+        var shared = Path.Combine(root, "Program", InstallSettings.FileName);
+        File.WriteAllText(shared, "{ \"rootPath\": \"\\\\\\\\sunucu\\\\Veri\" }");
+        Expect(InstallSettings.Find(exeDir) == shared, "Üst klasördeki dosya bulunmalı");
+        Expect(InstallSettings.LoadRootPath(exeDir) == @"\\sunucu\Veri", "Kökteki yol okunmalı");
+
+        // Exe'nin yanındaki dosya önceliklidir; kayıt bulunan dosyaya yazılır.
+        File.WriteAllText(Path.Combine(exeDir, InstallSettings.FileName), "{ \"rootPath\": \"D:\\\\Yerel\" }");
+        Expect(InstallSettings.LoadRootPath(exeDir) == @"D:\Yerel", "Exe yanındaki dosya öncelikli");
+        File.Delete(Path.Combine(exeDir, InstallSettings.FileName));
+        InstallSettings.SaveRootPath(exeDir, @"\\sunucu\Yeni");
+        Expect(InstallSettings.LoadRootPath(exeDir) == @"\\sunucu\Yeni" && !File.Exists(Path.Combine(exeDir, InstallSettings.FileName)),
+            "Kayıt kökteki dosyaya yazılmalı");
+    }
+    finally { Directory.Delete(root, true); }
+}
+
+static void ProgramLayoutResolvesVersionAndArch()
+{
+    var root = TempRoot();
+    try
+    {
+        Expect(Throws(() => ProgramLayout.Resolve(root, "Inspector", false)), "surum.txt yoksa hata");
+        File.WriteAllText(Path.Combine(root, ProgramLayout.VersionFile), "1.0.1\r\n");
+        Expect(Throws(() => ProgramLayout.Resolve(root, "Inspector", false)), "Sürüm klasörü yoksa hata");
+
+        string Exe(string app, string arch)
+        {
+            var dir = Path.Combine(root, "1.0.1", $"{app}-{arch}");
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, $"MuayeneKayit.{app}.exe");
+            File.WriteAllText(path, "");
+            return path;
+        }
+
+        var x64 = Exe("Inspector", "x64");
+        Expect(ProgramLayout.Resolve(root, "Inspector", false) == x64, "x64");
+        Expect(ProgramLayout.Resolve(root, "Inspector", true) == x64, "ARM64 sürümü yoksa x64");
+        var arm = Exe("Inspector", "arm64");
+        Expect(ProgramLayout.Resolve(root, "Inspector", true) == arm, "ARM64 bilgisayarda ARM64 sürümü");
+        Expect(Throws(() => ProgramLayout.Resolve(root, "Admin", false)), "Admin yoksa hata");
+
+        File.WriteAllText(Path.Combine(root, ProgramLayout.VersionFile), "..\\x");
+        Expect(Throws(() => ProgramLayout.Resolve(root, "Inspector", false)), "Geçersiz sürüm adı reddedilmeli");
+    }
+    finally { Directory.Delete(root, true); }
+}
+
+static bool Throws(Action action)
+{
+    try { action(); return false; }
+    catch (FileNotFoundException) { return true; }
 }
 
 static void ReportVersionRules()

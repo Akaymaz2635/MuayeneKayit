@@ -20,7 +20,7 @@ Visual Studio Installer > Değiştir > iş yükleri:
 3. Yayın: Çözüm Gezgini'nde `MuayeneKayit.Inspector` > sağ tık > **Yayımla** > profil `win-x64` > **Yayımla**.
    Çıktı: depo kökünde `publish\Inspector-x64\`. Admin için aynısı `MuayeneKayit.Admin` ile.
    Tek komutla tüm paket: **Görünüm > Terminal** içinde `.\build-release.ps1` → `dist\MuayeneKayit-<sürüm>.zip`
-   (testler + Inspector / Admin, x64 + ARM64 + kurulum betikleri). Yalnızca x64 için: `.\build-release.ps1 -X64Only`.
+   (testler + başlatıcı + Inspector / Admin, x64 + ARM64). Yalnızca x64 için: `.\build-release.ps1 -X64Only`.
 
 **Paketler inmiyorsa** (nuget.org'a erişim yok / proxy): Releases sayfasından `MuayeneKayit-paketler-offline.zip`'i depo
 köküne indirin, terminalde
@@ -31,35 +31,37 @@ köküne indirin, terminalde
 
 **Sürüm numarası** `Directory.Build.props` > `<Version>` içindedir; yeni dağıtımdan önce artırın. Pencere başlığında görünür.
 
-## 1. Dağıtım (ağ klasörü + her bilgisayarda yerel kopya)
+## 1. Dağıtım (ağ klasöründen çalıştırma, kurulum yok)
 
-Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğu gibi bir ağ klasörüne açılır, örneğin `\\SUNUCU\MuayeneKayit\Program\`:
+Kullanıcı bilgisayarına hiçbir şey kurulmaz ve kopyalanmaz, yönetici yetkisi gerekmez. Program ağdaki bir **program**
+klasöründen çalışır. Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğu gibi bu klasöre açılır, örneğin `\\SUNUCU\MuayeneKayit\Program\`:
 
 | Dosya / klasör | Ne işe yarar |
 |---|---|
-| `Inspector-x64`, `Inspector-arm64` | Muayene programı (Surface Pro 9 5G / SQ3 ARM64 sürümünü kendiliğinden alır) |
-| `Admin-x64`, `Admin-arm64` | Admin programı (yalnızca yöneticiler) |
-| `Kur.cmd` | Kullanıcı bilgisayarına bir kez kurulum: yerel kopya + masaüstü kısayolu |
-| `Baslat.cmd` | Kısayolun çalıştırdığı başlatıcı: ağdaki yeni sürümü alır, programı yerelden açar |
+| `MuayeneKayit.exe` | Başlatıcı (12 MB): `surum.txt`'deki sürümün muayene programını açar. Kullanıcılar bunu açar. |
+| `MuayeneKayit Admin.exe` | Aynı başlatıcı; admin programını açar (yalnızca yöneticiler). |
+| `surum.txt` | Açılacak sürüm (ör. `1.0.0`). |
+| `1.0.0\Inspector-x64`, `Inspector-arm64`, `Admin-x64`, `Admin-arm64` | Sürüm klasörü. Surface Pro 9 5G (SQ3) ARM64 sürümünü kendiliğinden açar. |
 | `MuayeneKayit.settings.example.json` | Ortak ayar örneği |
 | `OKU-BENI.txt` | Bu bölümün kısa hâli |
 
-1. Örnekten aynı klasörde `MuayeneKayit.settings.json` oluşturup **veri** klasörünü yazın (program klasörü değil):
+1. Örnekten aynı klasörde `MuayeneKayit.settings.json` oluşturup ortak **veri** klasörünü yazın (program klasörü değil):
    ```json
    { "rootPath": "\\\\SUNUCU\\MuayeneKayit\\Veri" }
    ```
-2. Her kullanıcı bilgisayarında ağ klasöründeki `Kur.cmd` bir kez çalıştırılır (yönetici hakkı gerekmez).
-   Program `%LOCALAPPDATA%\Programs\MuayeneKayit` altına kopyalanır, masaüstüne **Muayene Kayit** kısayolu gelir.
-   Admin için komut isteminde: `Kur.cmd Admin`.
-3. **Güncelleme:** yeni paketin klasörlerini ağdakilerin üzerine kopyalayın (`MuayeneKayit.settings.json`'a dokunmayın).
-   Kullanıcılar bir sonraki açılışta yeni sürümü kendiliğinden alır (yalnızca değişen dosyalar kopyalanır).
+   Sürüm klasörlerindeki programlar bu tek dosyayı kullanır (exe'nin klasöründe yoksa üst klasörlere bakar).
+2. **Kullanıcılar:** ağdaki `MuayeneKayit.exe` > sağ tık > *Gönder > Masaüstü (kısayol oluştur)*. Kısayolu BT grup ilkesiyle de dağıtabilir.
+3. **Güncelleme** (program açıkken de yapılabilir): yeni paketteki sürüm klasörünü (ör. `1.0.1`) program klasörüne kopyalayın,
+   sonra `surum.txt`'yi `1.0.1` yapın. Kullanıcılar bir sonraki açışta yeni sürümü açar; açık programlar eski klasörden
+   çalışmaya devam eder. Eski sürüm klasörü herkes kapattıktan sonra silinebilir. Başlatıcılara ve
+   `MuayeneKayit.settings.json`'a dokunmayın.
 
-Neden yerel kopya: program ~210 MB / ~520 dosyadır; ağdan her açılışta okunması yavaştır (özellikle Wi-Fi) ve
-paylaşımdaki exe açıkken güncelleme kopyalanamaz. Ağ yoksa program yerel kopyadan yine açılır.
+İzinler: kullanıcılara program klasöründe yalnızca **okuma**, veri klasöründe **okuma + yazma** (bölüm 3).
+Program ~210 MB olduğu için ağdan ilk açılış birkaç saniye sürebilir (Wi-Fi'da daha uzun). Şirketin uygulama kısıtlamaları
+(AppLocker vb.) ağdaki exe'leri engelliyorsa BT'den program klasörü için izin istenmelidir.
 
-Kişisel ayarlar (Ayarlar sekmesi: ölçü birimi, tema; son kullanılan kamera) her kullanıcının kendi bilgisayarında,
+Kişisel ayarlar (Ayarlar sekmesi: ölçü birimi, tema; son kullanılan kamera) her kullanıcının kendi Windows profilinde,
 `%LOCALAPPDATA%\MuayeneKayit` altında saklanır; program klasörüne yazılmaz.
-
 **Muayeneci kimliği:** Admin > Ayarlar > *Muayeneci kimliği* açılırsa muayeneci adı elle yazılmaz; Windows'a giriş yapan
 kullanıcıdan alınır (Active Directory'deki ad + sicil no, ör. `Ali Kaymaz (12345)`). Tüm bilgisayarlara uygulanır.
 
