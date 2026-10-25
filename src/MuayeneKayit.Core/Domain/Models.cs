@@ -25,6 +25,9 @@ public sealed class Defect
     public double? AngleDeg { get; set; }
     public string? Color { get; set; }
 
+    /// <summary>Uzunluk ölçülerinin (derinlik, genişlik, uzunluk, yarıçap) birimi. Alanı olmayan eski kayıtlar mm okunur.</summary>
+    public LengthUnit Unit { get; set; } = LengthUnit.Mm;
+
     /// <summary>Yan kusur: pozitif metal yığılması. Cümlede "Dent with high metal" olarak yazılır.</summary>
     public bool HighMetal { get; set; }
 

@@ -19,31 +19,29 @@ public sealed class WinUiDialogService : IDialogService
     /// <summary>Pencereler bu kökte açılır; MainWindow yüklenince bağlanır.</summary>
     public void Attach(Func<XamlRoot?> xamlRoot) => _xamlRoot = xamlRoot;
 
-    private static Style ConfirmButtonStyle => (Style)Application.Current.Resources["AccentButtonStyle"];
+    private static Style Res(string key) => (Style)Application.Current.Resources[key];
 
-    private static Microsoft.UI.Xaml.Media.SolidColorBrush Brush(string hex)
-    {
-        var h = hex.TrimStart('#');
-        return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(
-            255,
-            Convert.ToByte(h.Substring(0, 2), 16),
-            Convert.ToByte(h.Substring(2, 2), 16),
-            Convert.ToByte(h.Substring(4, 2), 16)));
-    }
+    private static Style ConfirmButtonStyle => (Style)Application.Current.Resources["AccentButtonStyle"];
 
     private static Visibility Vis(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
 
-    private ContentDialog NewDialog(string title, object content, string primary, string close, bool primaryEnabled = true) => new()
+    private ContentDialog NewDialog(string title, object content, string primary, string close, bool primaryEnabled = true)
     {
-        Title = title,
-        Content = content,
-        PrimaryButtonText = primary,
-        CloseButtonText = close,
-        DefaultButton = ContentDialogButton.None,
-        PrimaryButtonStyle = ConfirmButtonStyle,
-        IsPrimaryButtonEnabled = primaryEnabled,
-        XamlRoot = _xamlRoot?.Invoke() ?? throw new InvalidOperationException("Pencere henüz hazır değil."),
-    };
+        var xamlRoot = _xamlRoot?.Invoke() ?? throw new InvalidOperationException("Pencere henüz hazır değil.");
+        return new ContentDialog
+        {
+            Title = title,
+            Content = content,
+            PrimaryButtonText = primary,
+            CloseButtonText = close,
+            DefaultButton = ContentDialogButton.None,
+            PrimaryButtonStyle = ConfirmButtonStyle,
+            IsPrimaryButtonEnabled = primaryEnabled,
+            XamlRoot = xamlRoot,
+            // Pencere kökündeki tema (Açık / Koyu) diyaloğa da uygulanır.
+            RequestedTheme = (xamlRoot.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Default,
+        };
+    }
 
     // ───────────────────────── Karar ─────────────────────────
 
@@ -55,13 +53,11 @@ public sealed class WinUiDialogService : IDialogService
         panel.Children.Add(new TextBlock
         {
             Text = $"#{request.DefectId} {request.DefectType}  ·  şu an: {request.StateText}",
-            Foreground = Brush("#666666"),
+            Style = Res("SecondaryTextStyle"),
         });
         panel.Children.Add(new Border
         {
-            Background = Brush("#F3F5F9"),
-            BorderBrush = Brush("#DDE2EA"),
-            BorderThickness = new Thickness(1),
+            Style = Res("SubtleCardStyle"),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12),
             Child = new TextBlock { Text = request.EffectText, TextWrapping = TextWrapping.Wrap },
@@ -107,7 +103,7 @@ public sealed class WinUiDialogService : IDialogService
         panel.Children.Add(new TextBlock
         {
             Text = "Yanlış kaydederseniz 'Son kararı geri al' ile geri alabilirsiniz. Geri alma da geçmişe yazılır.",
-            Foreground = Brush("#666666"),
+            Style = Res("SecondaryTextStyle"),
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
         });
@@ -162,9 +158,9 @@ public sealed class WinUiDialogService : IDialogService
         }
         panel.Children.Add(new TextBlock
         {
-            Text = $"{(request.IsRework ? "Rework öncesi" : "Önceki")} ölçümler: {SnapshotText(before)}" +
+            Text = $"{(request.IsRework ? "Rework öncesi" : "Önceki")} ölçümler: {SnapshotText(before, request.Unit)}" +
                    (string.IsNullOrWhiteSpace(request.TargetOperation) ? "" : $"   ·   muayene yeri: {request.TargetOperation}"),
-            Foreground = Brush("#666666"),
+            Style = Res("SecondaryTextStyle"),
             TextWrapping = TextWrapping.Wrap,
         });
 
@@ -184,10 +180,10 @@ public sealed class WinUiDialogService : IDialogService
         // 2. adım (aynı kusur): yeni ölçümler, boş gelir
         var headers = new (MeasureField Field, string Header, double? Old)[]
         {
-            (MeasureField.Depth, "Derinlik (mm)", before.Depth),
-            (MeasureField.Width, "Genişlik (mm)", before.Width),
-            (MeasureField.Length, "Uzunluk (mm)", before.Length),
-            (MeasureField.Radius, "Yarıçap (mm)", before.Radius),
+            (MeasureField.Depth, Units.Header("Derinlik", request.Unit), before.Depth),
+            (MeasureField.Width, Units.Header("Genişlik", request.Unit), before.Width),
+            (MeasureField.Length, Units.Header("Uzunluk", request.Unit), before.Length),
+            (MeasureField.Radius, Units.Header("Yarıçap", request.Unit), before.Radius),
             (MeasureField.Angle, "Açı (°)", before.AngleDeg),
         };
         var boxes = new Dictionary<MeasureField, TextBox>();
@@ -196,7 +192,7 @@ public sealed class WinUiDialogService : IDialogService
         {
             if (!request.Fields.Contains(field))
                 continue;
-            var box = new TextBox { Header = header, Width = 120, PlaceholderText = old is double o ? $"önce: {Fmt(o)}" : "" };
+            var box = new TextBox { Header = header, Width = 120, PlaceholderText = old is double o ? $"önce: {(field == MeasureField.Angle ? Fmt(o) : Fmt(o, request.Unit))}" : "" };
             boxes[field] = box;
             measureGrid.Children.Add(box);
         }
@@ -206,7 +202,7 @@ public sealed class WinUiDialogService : IDialogService
             colorBox = new TextBox { Header = "Renk", Width = 140, PlaceholderText = before.Color is null ? "" : $"önce: {before.Color}" };
             measureGrid.Children.Add(colorBox);
         }
-        var delta = new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = Brush("#B45309") };
+        var delta = new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Style = Res("WarnTextStyle") };
         var samePanel = new StackPanel
         {
             Spacing = 8,
@@ -242,7 +238,7 @@ public sealed class WinUiDialogService : IDialogService
                 {
                     Text = $"#{request.DefectId} kapanmış sayılmaz, yeni kusura devredilir ('Defect {request.DefectId} continues as Defect N'). Yeni kusurun ölçümlerini ve fotoğrafını kaydettikten sonra girersiniz.",
                     TextWrapping = TextWrapping.Wrap,
-                    Foreground = Brush("#666666"),
+                    Style = Res("SecondaryTextStyle"),
                     FontSize = 12,
                 },
             },
@@ -284,7 +280,7 @@ public sealed class WinUiDialogService : IDialogService
             if (tag == ReinspectOutcome.Same)
             {
                 var merged = ReinspectForm.Merge(before, entered, HighMetalAnswer());
-                delta.Text = ReinspectForm.DeltaText(before, merged, anyValue, highMetal is not null && HighMetalAnswer() is not null);
+                delta.Text = ReinspectForm.DeltaText(before, merged, anyValue, highMetal is not null && HighMetalAnswer() is not null, request.Unit);
             }
 
             dialog.IsPrimaryButtonEnabled = ReinspectForm.CanSave(tag, hadHighMetal, HighMetalAnswer(), anyValue, ChildType());

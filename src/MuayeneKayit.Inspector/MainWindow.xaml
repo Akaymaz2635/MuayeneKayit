@@ -7,18 +7,11 @@
 
     <NavigationView
         x:Name="Nav"
-        RequestedTheme="Light"
         IsBackButtonVisible="Collapsed"
         IsSettingsVisible="False"
         PaneDisplayMode="Left"
         OpenPaneLength="190"
         SelectionChanged="Nav_SelectionChanged">
-
-        <NavigationView.Resources>
-            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#FFFFFF" />
-            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#FFFFFF" />
-            <SolidColorBrush x:Key="NavigationViewTopPaneBackground" Color="#FFFFFF" />
-        </NavigationView.Resources>
 
         <NavigationView.MenuItems>
             <NavigationViewItem Content="Muayene" Tag="inspect">
@@ -26,6 +19,9 @@
             </NavigationViewItem>
             <NavigationViewItem Content="Dashboard" Tag="dash">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="View" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="Ayarlar" Tag="settings" AutomationProperties.AutomationId="SettingsNavItem">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon>
             </NavigationViewItem>
         </NavigationView.MenuItems>
 
@@ -226,10 +222,10 @@
 
                                                 <StackPanel Visibility="{x:Bind Vm.ShowMeasureArea, Mode=OneWay}" Spacing="12">
                                                     <StackPanel Orientation="Horizontal" Spacing="12">
-                                                        <TextBox x:Name="DepthBox" Text="{x:Bind Vm.DepthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowDepth, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Derinlik (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="DepthBox" />
-                                                        <TextBox x:Name="WidthBox" Text="{x:Bind Vm.WidthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowWidth, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Genişlik (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="WidthBox" />
-                                                        <TextBox x:Name="LengthBox" Text="{x:Bind Vm.LengthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowLength, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Uzunluk (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="LengthBox" />
-                                                        <TextBox x:Name="RadiusBox" Text="{x:Bind Vm.RadiusText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowRadius, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Yarıçap (mm)" Width="130" InputScope="Number" AutomationProperties.AutomationId="RadiusBox" />
+                                                        <TextBox x:Name="DepthBox" Text="{x:Bind Vm.DepthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowDepth, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="{x:Bind Vm.DepthHeader, Mode=OneWay}" Width="130" InputScope="Number" AutomationProperties.AutomationId="DepthBox" />
+                                                        <TextBox x:Name="WidthBox" Text="{x:Bind Vm.WidthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowWidth, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="{x:Bind Vm.WidthHeader, Mode=OneWay}" Width="130" InputScope="Number" AutomationProperties.AutomationId="WidthBox" />
+                                                        <TextBox x:Name="LengthBox" Text="{x:Bind Vm.LengthText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowLength, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="{x:Bind Vm.LengthHeader, Mode=OneWay}" Width="130" InputScope="Number" AutomationProperties.AutomationId="LengthBox" />
+                                                        <TextBox x:Name="RadiusBox" Text="{x:Bind Vm.RadiusText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowRadius, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="{x:Bind Vm.RadiusHeader, Mode=OneWay}" Width="130" InputScope="Number" AutomationProperties.AutomationId="RadiusBox" />
                                                         <TextBox x:Name="AngleBox" Text="{x:Bind Vm.AngleText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowAngle, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Açı (°)" Width="130" InputScope="Number" AutomationProperties.AutomationId="AngleBox" />
                                                         <TextBox x:Name="ColorBox" Text="{x:Bind Vm.ColorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowColor, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Renk" Width="150" AutomationProperties.AutomationId="ColorBox" />
                                                     </StackPanel>
@@ -330,10 +326,10 @@
                 </Grid.RowDefinitions>
 
                 <!-- Filtreler -->
-                <Border Grid.Row="0" Background="White" CornerRadius="8" Padding="16,12" BorderBrush="#DDE2EA" BorderThickness="1">
+                <Border Grid.Row="0" Style="{StaticResource CardStyle}" Padding="16,12">
                     <StackPanel Spacing="10">
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="Dashboard" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="18" VerticalAlignment="Center" Margin="0,0,16,0" />
+                            <TextBlock Text="Dashboard" FontWeight="SemiBold" Style="{StaticResource BrandTextStyle}" FontSize="18" VerticalAlignment="Center" Margin="0,0,16,0" />
                             <Button Content="Yenile" Click="RefreshIndex_Click" Style="{StaticResource AccentButtonStyle}" />
                             <Button Content="Filtreleri temizle" Click="ClearFilters_Click" />
                             <Button Content="Denetim kaydını doğrula" Click="VerifyAudit_Click" />
@@ -356,6 +352,28 @@
                 <!-- Sonuçlar -->
                 <ScrollViewer Grid.Row="3">
                     <StackPanel x:Name="ResultsPanel" Spacing="8" Padding="0,0,12,0" />
+                </ScrollViewer>
+            </Grid>
+
+            <!-- ───────── Ayarlar paneli ───────── -->
+            <Grid x:Name="SettingsPanel" Padding="24,16,24,16" Visibility="Collapsed">
+                <ScrollViewer>
+                    <StackPanel Spacing="12" MaxWidth="640" HorizontalAlignment="Left">
+                        <TextBlock Text="Ayarlar" Style="{StaticResource BrandTextStyle}" FontWeight="SemiBold" FontSize="18" />
+                        <Border Style="{StaticResource CardStyle}" Padding="20,16">
+                            <StackPanel Spacing="20">
+                                <RadioButtons Header="Ölçü birimi" SelectedIndex="{x:Bind Settings.UnitIndex, Mode=TwoWay}" AutomationProperties.AutomationId="UnitRadio">
+                                    <RadioButton Content="mm (milimetre)" />
+                                    <RadioButton Content="inch (inç)" />
+                                </RadioButtons>
+                                <RadioButtons Header="Tema" SelectedIndex="{x:Bind Settings.ThemeIndex, Mode=TwoWay}" AutomationProperties.AutomationId="ThemeRadio">
+                                    <RadioButton Content="Açık" />
+                                    <RadioButton Content="Koyu" />
+                                </RadioButtons>
+                                <TextBlock Text="{x:Bind Settings.Description}" TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </ScrollViewer>
             </Grid>
 

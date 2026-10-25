@@ -15,6 +15,13 @@ Her klasördeki `MuayeneKayit.settings.json` dosyasına ortak klasör yolunu yaz
 { "rootPath": "\\\\SUNUCU\\Muayene" }
 ```
 
+Muayene exe'sindeki **Ayarlar** sekmesi aynı dosyaya `unit` (`"mm"` / `"inch"`) ve `theme` (`"light"` / `"dark"`) alanlarını yazar;
+bu ayarlar o bilgisayara özeldir, `rootPath` korunur. Alanlar yoksa mm ve açık tema kullanılır. Elle de yazılabilir:
+
+```json
+{ "rootPath": "\\\\SUNUCU\\Muayene", "unit": "inch", "theme": "dark" }
+```
+
 Exe'yi ağ paylaşımından çalıştırmak yerine her bilgisayara kopyalayın. Paylaşımdaki exe kilitlenir, güncelleme zorlaşır.
 Güncelleme: yeni klasörü kopyalayın. Program kendini güncellemez.
 

@@ -14,6 +14,9 @@ public partial class App : Application
 
     public App()
     {
+        // Tema Application düzeyinde yalnızca burada, başlatmadan önce verilebilir. Pencere içeriği çalışırken
+        // MainWindow kökündeki RequestedTheme ile değişir; burası kod ile çözülen sistem fırçalarının başlangıç temasıdır.
+        RequestedTheme = UserSettingsAdapter.LoadTheme() == AppTheme.Dark ? ApplicationTheme.Dark : ApplicationTheme.Light;
         InitializeComponent();
         Services = ConfigureServices();
     }
@@ -41,6 +44,10 @@ public partial class App : Application
         services.AddSingleton<WinUiWindowService>();
         services.AddSingleton<IWindowService>(sp => sp.GetRequiredService<WinUiWindowService>());
         services.AddSingleton<IPdfConverter, EdgePdfConverter>();
+
+        // Kullanıcı ayarları (birim, tema): bu bilgisayarın ayar dosyasında.
+        services.AddSingleton<IUserSettings, UserSettingsAdapter>();
+        services.AddSingleton<UserSettingsViewModel>();
 
         services.AddSingleton<InspectionViewModel>();
         services.AddSingleton<DashboardViewModel>();

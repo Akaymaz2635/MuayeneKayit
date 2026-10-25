@@ -123,7 +123,8 @@ public sealed partial class InspectionViewModel
             before,
             fields,
             template is null || template.Fields.Contains(MeasureField.Color) || before.Color is not null,
-            TypeNames);
+            TypeNames,
+            defect.Unit);
 
         var input = await _dialogs.AskReinspectAsync(request);
         if (input is null)

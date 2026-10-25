@@ -50,6 +50,9 @@ ARM64 sürümü Surface Pro 9 (SQ3, 5G) içindir; Intel Surface ve notebook'lar 
    İsteğe bağlı arka plan kaldırma, "Orijinale dön" ile geri alınır. Fotoğraf kaldırılabilir (dosya ortak alanda kalır).
 5. **Rapor (PDF)**: yatay A4; her fotoğraf ayrı sayfa (6.1, 6.2 …); işaretler fotoğraf üzerinde; geri alınan kararlar görünmez.
    Yazdırılır, mühendis kağıt üzerinde karar verir.
+   **Ayarlar** sekmesinde ölçü birimi (mm / inch) ve tema (Açık / Koyu) seçilir; ayar bilgisayara özeldir (exe yanındaki
+   `MuayeneKayit.settings.json`, `unit` / `theme` alanları). Birim kusur oluşturulurken o anki ayardan kusura yazılır (`Defect.Unit`);
+   mevcut kayıtlar girildiği birimle kalır, dönüştürme yapılmaz. Inch değerleri 1'den küçükken baştaki sıfırsız yazılır (`.123 in`).
 6. Karar sisteme girilir (**Disposition**) ve rapor yeni sürüm olarak yeniden üretilir.
 7. Açık kusur kalmayınca **Muayeneyi tamamla**.
 

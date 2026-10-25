@@ -18,6 +18,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     private readonly IFilePicker _filePicker;
     private readonly IWindowService _windows;
     private readonly IPdfConverter _pdf;
+    private readonly IUserSettings _settings;
 
     private string? _folder;
     private Session? _session;
@@ -35,7 +36,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     private bool _refreshing;
 
     public InspectionViewModel(ISessionStore store, IAuditTrail audit, IReadOnlyList<DefectTypeTemplate> types, IDialogService dialogs,
-        IFilePicker filePicker, IWindowService windows, IPdfConverter pdf)
+        IFilePicker filePicker, IWindowService windows, IPdfConverter pdf, IUserSettings settings)
     {
         _store = store;
         _audit = audit;
@@ -44,8 +45,10 @@ public sealed partial class InspectionViewModel : ObservableObject
         _filePicker = filePicker;
         _windows = windows;
         _pdf = pdf;
+        _settings = settings;
         Defects = new ObservableCollection<DefectItemViewModel>();
         ApplyDecisionState(null);
+        ApplyUnitHeaders(settings.Unit);
     }
 
     // ───────────────────────── Bağımlılıklar (View kullanır) ─────────────────────────
@@ -113,6 +116,12 @@ public sealed partial class InspectionViewModel : ObservableObject
     [ObservableProperty] private string _lengthText = "";
     [ObservableProperty] private string _radiusText = "";
     [ObservableProperty] private string _angleText = "";
+
+    /// <summary>Ölçüm kutusu başlıkları; seçili kusurun birimine göre ("Derinlik (in)"), kusur yokken ayardaki birim.</summary>
+    [ObservableProperty] private string _depthHeader = "";
+    [ObservableProperty] private string _widthHeader = "";
+    [ObservableProperty] private string _lengthHeader = "";
+    [ObservableProperty] private string _radiusHeader = "";
     [ObservableProperty] private string _colorText = "";
     [ObservableProperty] private string _notesText = "";
     [ObservableProperty] private bool _highMetal;
@@ -227,7 +236,8 @@ public sealed partial class InspectionViewModel : ObservableObject
             var name = type ?? throw new InvalidOperationException("Kusur tipi seçin.");
 
             var spec = _types.FirstOrDefault(t => t.Name == name)?.SpecName;
-            var defect = _store.AddDefect(_folder!, name, d => d.SpecName = spec);
+            // Birim o anki ayardan alınır ve kusura yazılır; ayar sonradan değişse de bu kusur aynı birimde kalır.
+            var defect = _store.AddDefect(_folder!, name, d => d.SpecName = spec, _settings.Unit);
             _audit.Append(_user, "defect.add", $"#{defect.Id} {name}");
             added = true;
             Refresh(defect.Id);
@@ -353,6 +363,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         _shownId = null;
         WithoutSelectionEvents(() => SelectedDefect = null);
 
+        ApplyUnitHeaders(_settings.Unit);
         HasSelection = false;
         NoSelection = true;
         ShowDelta = false;
@@ -387,6 +398,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         StateText = DefectPresentation.StateLabel(state);
         NextStepText = DefectPresentation.NextStepFor(defect, state);
         Sentence = DefectSentence.Describe(defect);
+        ApplyUnitHeaders(defect.Unit);
         ApplyStepGuidance(defect, state, selectCurrent: newDefect);
 
         // Değişim satırı yalnızca rework sonrası gerçekten yeniden ölçüldüyse ("aynı kusur devam") gösterilir.
@@ -397,7 +409,7 @@ public sealed partial class InspectionViewModel : ObservableObject
             : null;
         DeltaText = reworkBefore is null
             ? ""
-            : "Rework sonrası yeniden ölçüldü. Rework öncesine göre: " + string.Join("   ·   ", MeasurementCompare.Lines(reworkBefore, defect));
+            : "Rework sonrası yeniden ölçüldü. Rework öncesine göre: " + string.Join("   ·   ", MeasurementCompare.Lines(reworkBefore, defect, defect.Unit));
         ShowDelta = reworkBefore is not null;
 
         // Rework'teyken ölçüm kutuları yerine ne yapılacağını anlatan kutu gösterilir.
@@ -409,14 +421,14 @@ public sealed partial class InspectionViewModel : ObservableObject
             var where = string.IsNullOrWhiteSpace(sent?.TargetOperation) ? "" : $" · {sent!.TargetOperation} operasyonunda yeniden muayene edilecek";
             AwaitTitle = (sent?.Decision == Decision.Reinspect ? "Yeniden kontrol bekliyor" : "Parça rework'te") + where;
             AwaitText = $"{(sent?.Decision == Decision.Reinspect ? "Önceki" : "Rework öncesi")} ölçümler: " +
-                        $"{DefectPresentation.SnapshotText(sent?.Snapshot ?? MeasurementEditor.Snapshot(defect))}. " +
+                        $"{DefectPresentation.SnapshotText(sent?.Snapshot ?? MeasurementEditor.Snapshot(defect), defect.Unit)}. " +
                         "Ölçümler kilitli. Parça geldiğinde aşağıdaki düğmeyle muayene sonucunu girin.";
         }
 
-        DepthText = DefectPresentation.Fmt(defect.Depth);
-        WidthText = DefectPresentation.Fmt(defect.Width);
-        LengthText = DefectPresentation.Fmt(defect.Length);
-        RadiusText = DefectPresentation.Fmt(defect.Radius);
+        DepthText = DefectPresentation.Fmt(defect.Depth, defect.Unit);
+        WidthText = DefectPresentation.Fmt(defect.Width, defect.Unit);
+        LengthText = DefectPresentation.Fmt(defect.Length, defect.Unit);
+        RadiusText = DefectPresentation.Fmt(defect.Radius, defect.Unit);
         AngleText = DefectPresentation.Fmt(defect.AngleDeg);
         ColorText = defect.Color ?? "";
         NotesText = defect.Notes ?? "";
@@ -436,6 +448,21 @@ public sealed partial class InspectionViewModel : ObservableObject
         // Fotoğraf kartları Current değişince çizilir; bu yüzden en son atanır.
         UpdatePhotos(defect);
         Current = defect;
+    }
+
+    private void ApplyUnitHeaders(LengthUnit unit)
+    {
+        DepthHeader = Units.Header("Derinlik", unit);
+        WidthHeader = Units.Header("Genişlik", unit);
+        LengthHeader = Units.Header("Uzunluk", unit);
+        RadiusHeader = Units.Header("Yarıçap", unit);
+    }
+
+    /// <summary>Ayar değişince kusur seçili değilse başlıklar yeni ayardaki birime döner (seçili kusur kendi birimini korur).</summary>
+    public void RefreshUnitHeaders()
+    {
+        if (Current is null)
+            ApplyUnitHeaders(_settings.Unit);
     }
 
     /// <summary>

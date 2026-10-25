@@ -33,7 +33,7 @@ public static class ReinspectForm
         };
 
     /// <summary>Canlı değişim satırı (artış / azalış). Ölçüm ya da high metal cevabı yoksa yönlendirir.</summary>
-    public static string DeltaText(MeasurementSnapshot before, MeasurementSnapshot merged, bool anyValue, bool highMetalAnswered)
+    public static string DeltaText(MeasurementSnapshot before, MeasurementSnapshot merged, bool anyValue, bool highMetalAnswered, LengthUnit unit = LengthUnit.Mm)
     {
         if (!anyValue && !highMetalAnswered)
             return "Değişimi görmek için ölçüm girin.";
@@ -43,6 +43,6 @@ public static class ReinspectForm
             Depth = merged.Depth, Width = merged.Width, Length = merged.Length, Radius = merged.Radius,
             AngleDeg = merged.AngleDeg, Color = merged.Color, HighMetal = merged.HighMetal,
         };
-        return string.Join("\n", MeasurementCompare.Lines(before, now));
+        return string.Join("\n", MeasurementCompare.Lines(before, now, unit));
     }
 }

@@ -15,7 +15,7 @@ public interface ISessionStore
 
     List<Defect> LoadDefects(string folder);
 
-    Defect AddDefect(string folder, string defectType, Action<Defect>? configure = null);
+    Defect AddDefect(string folder, string defectType, Action<Defect>? configure = null, LengthUnit unit = LengthUnit.Mm);
 
     Defect UpdateDefect(string folder, int defectId, Action<Defect> mutate);
 

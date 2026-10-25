@@ -23,6 +23,7 @@ public sealed record DecisionInput(string? Target, string? Reference, string? No
 
 /// <summary>Rework (ya da reinspect) sonrası muayene penceresi isteği.</summary>
 /// <param name="Fields">Ölçüm alanları: şablondakiler ve eski değeri olanlar (renk hariç).</param>
+/// <param name="Unit">Kusurun ölçü birimi; başlıklar ve karşılaştırma bununla yazılır.</param>
 public sealed record ReinspectRequest(
     int DefectId,
     string DefectType,
@@ -32,7 +33,8 @@ public sealed record ReinspectRequest(
     MeasurementSnapshot Before,
     IReadOnlyList<MeasureField> Fields,
     bool ShowColor,
-    IReadOnlyList<string> TypeNames);
+    IReadOnlyList<string> TypeNames,
+    LengthUnit Unit = LengthUnit.Mm);
 
 /// <summary>Rework sonrası muayenenin sonucu.</summary>
 public enum ReinspectOutcome

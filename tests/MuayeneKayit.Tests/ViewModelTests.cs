@@ -22,6 +22,7 @@ public static partial class ViewModelTests
         public required FakeFilePicker Picker { get; init; }
         public required FakeWindowService Windows { get; init; }
         public required FakePdfConverter Pdf { get; init; }
+        public required FakeUserSettings Settings { get; init; }
         public List<(string Message, StatusKind Kind)> Notes { get; } = new();
         public string Folder => Vm.Folder!;
 
@@ -53,15 +54,17 @@ public static partial class ViewModelTests
             var picker = new FakeFilePicker();
             var windows = new FakeWindowService();
             var pdf = new FakePdfConverter();
+            var settings = new FakeUserSettings();
             var ctx = new Ctx
             {
-                Vm = new InspectionViewModel(store, audit, SharedConfig.Defaults, dialogs, picker, windows, pdf),
+                Vm = new InspectionViewModel(store, audit, SharedConfig.Defaults, dialogs, picker, windows, pdf, settings),
                 Store = store,
                 Audit = audit,
                 Dialogs = dialogs,
                 Picker = picker,
                 Windows = windows,
                 Pdf = pdf,
+                Settings = settings,
             };
             ctx.Vm.Notify += (m, k) => ctx.Notes.Add((m, k));
             body(ctx);

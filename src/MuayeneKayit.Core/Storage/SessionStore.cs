@@ -73,14 +73,14 @@ public sealed class SessionStore : ISessionStore
     /// Yeni kusur ekler. Numara, mevcut tüm dosyalara bakılarak (void olanlar dahil) verilir,
     /// böylece hiçbir numara yeniden kullanılmaz.
     /// </summary>
-    public Defect AddDefect(string folder, string defectType, Action<Defect>? configure = null)
+    public Defect AddDefect(string folder, string defectType, Action<Defect>? configure = null, LengthUnit unit = LengthUnit.Mm)
     {
         using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
 
         var existing = LoadDefects(folder);
         var nextId = existing.Count == 0 ? 1 : existing.Max(d => d.Id) + 1;
 
-        var defect = new Defect { Id = nextId, DefectType = defectType };
+        var defect = new Defect { Id = nextId, DefectType = defectType, Unit = unit };
         configure?.Invoke(defect);
         WriteDefect(folder, defect);
         return defect;
@@ -144,7 +144,8 @@ public sealed class SessionStore : ISessionStore
 
         var parent = ReadJson<Defect>(parentPath);
         var nextId = LoadDefects(folder).Max(d => d.Id) + 1;
-        var child = new Defect { Id = nextId, DefectType = childType };
+        // Alt kusur ana kusurun birimini taşır.
+        var child = new Defect { Id = nextId, DefectType = childType, Unit = parent.Unit };
 
         DefectStateMachine.Apply(parent, Decision.AfterReworkNewDefect, source, decidedBy, note, reference);
         DefectStateMachine.Supersede(parent, child);

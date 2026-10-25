@@ -107,10 +107,10 @@ public static class ReportBuilder
             sb.Append($"<p class=\"link\">Rework sonrası bu kusur giderildi, ancak yeni bir kusur oluştu. Takip {to} numaralı kusur üzerinden yapılıyor.</p>");
 
         sb.Append("<h3>Ölçümler</h3><div class=\"meas\">");
-        sb.Append(MeasCell("Derinlik", Mm(d.Depth)));
-        sb.Append(MeasCell("Genişlik", Mm(d.Width)));
-        sb.Append(MeasCell("Uzunluk", Mm(d.Length)));
-        sb.Append(MeasCell("Yarıçap", Mm(d.Radius)));
+        sb.Append(MeasCell("Derinlik", Len(d.Depth, d.Unit)));
+        sb.Append(MeasCell("Genişlik", Len(d.Width, d.Unit)));
+        sb.Append(MeasCell("Uzunluk", Len(d.Length, d.Unit)));
+        sb.Append(MeasCell("Yarıçap", Len(d.Radius, d.Unit)));
         sb.Append(MeasCell("Açı", d.AngleDeg is double a ? $"{Num(a)}°" : "—"));
         sb.Append(MeasCell("Renk", string.IsNullOrWhiteSpace(d.Color) ? "—" : d.Color!));
         sb.Append("</div>");
@@ -145,7 +145,7 @@ public static class ReportBuilder
                   .Append($"<td>{E(DefectSentence.DecisionLabel(x))}</td>")
                   .Append($"<td>{E(x.Note)}</td>")
                   .Append($"<td>{E(x.Reference)}</td>")
-                  .Append($"<td>{E(SnapshotText(x.Snapshot))}</td>")
+                  .Append($"<td>{E(SnapshotText(x.Snapshot, d.Unit))}</td>")
                   .Append("</tr>");
             }
             sb.Append("</tbody></table>");
@@ -159,8 +159,8 @@ public static class ReportBuilder
                 sb.Append("<tr>")
                   .Append($"<td>{e.At:dd.MM.yyyy HH:mm}</td>")
                   .Append($"<td>{E(e.By)}</td>")
-                  .Append($"<td>{E(SnapshotText(e.Before))}</td>")
-                  .Append($"<td>{E(SnapshotText(e.After))}</td>")
+                  .Append($"<td>{E(SnapshotText(e.Before, d.Unit))}</td>")
+                  .Append($"<td>{E(SnapshotText(e.After, d.Unit))}</td>")
                   .Append("</tr>");
             }
             sb.Append("</tbody></table>");
@@ -227,23 +227,23 @@ public static class ReportBuilder
     private static string MeasCell(string label, string value) =>
         $"<div class=\"mc\"><div class=\"ml\">{E(label)}</div><div class=\"mv\">{E(value)}</div></div>";
 
-    private static string SnapshotText(MeasurementSnapshot? s)
+    private static string SnapshotText(MeasurementSnapshot? s, LengthUnit unit)
     {
         if (s is null)
             return "—";
 
         var parts = new List<string>();
-        if (s.Depth is double d) parts.Add($"D {Num(d)}");
-        if (s.Width is double w) parts.Add($"W {Num(w)}");
-        if (s.Length is double l) parts.Add($"L {Num(l)}");
-        if (s.Radius is double r) parts.Add($"R {Num(r)}");
+        if (s.Depth is double d) parts.Add($"D {Units.Format(d, unit)}");
+        if (s.Width is double w) parts.Add($"W {Units.Format(w, unit)}");
+        if (s.Length is double l) parts.Add($"L {Units.Format(l, unit)}");
+        if (s.Radius is double r) parts.Add($"R {Units.Format(r, unit)}");
         if (s.AngleDeg is double a) parts.Add($"A {Num(a)}°");
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
         if (s.HighMetal) parts.Add("High metal");
         return parts.Count == 0 ? "—" : string.Join(" · ", parts);
     }
 
-    private static string Mm(double? v) => v is double x ? $"{Num(x)} mm" : "—";
+    private static string Len(double? v, LengthUnit unit) => v is double x ? $"{Units.Format(x, unit)} {Units.Suffix(unit)}" : "—";
 
     private static string Num(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
 

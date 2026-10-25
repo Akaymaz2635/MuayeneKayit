@@ -86,21 +86,28 @@ public static class DefectPresentation
         return InspectionStep.Decision;
     }
 
-    public static string SnapshotText(MeasurementSnapshot s)
+    public static string SnapshotText(MeasurementSnapshot s) => SnapshotText(s, LengthUnit.Mm);
+
+    public static string SnapshotText(MeasurementSnapshot s, LengthUnit unit)
     {
         var parts = new List<string>();
-        if (s.Depth is double d) parts.Add($"D {Fmt(d)}");
-        if (s.Width is double w) parts.Add($"W {Fmt(w)}");
-        if (s.Length is double l) parts.Add($"L {Fmt(l)}");
-        if (s.Radius is double r) parts.Add($"R {Fmt(r)}");
+        if (s.Depth is double d) parts.Add($"D {Fmt(d, unit)}");
+        if (s.Width is double w) parts.Add($"W {Fmt(w, unit)}");
+        if (s.Length is double l) parts.Add($"L {Fmt(l, unit)}");
+        if (s.Radius is double r) parts.Add($"R {Fmt(r, unit)}");
         if (s.AngleDeg is double a) parts.Add($"A {Fmt(a)}°");
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
         if (s.HighMetal) parts.Add("High metal");
         return parts.Count == 0 ? "—" : string.Join(" ", parts);
     }
 
+    /// <summary>Birimsiz sayılar (açı vb.) için; en fazla 2 ondalık.</summary>
     public static string Fmt(double? value) =>
         value is double v ? v.ToString("0.##", CultureInfo.InvariantCulture) : "";
+
+    /// <summary>Uzunluk ölçüsü: mm en fazla 2, inch en fazla 4 ondalık ve ".123" biçiminde.</summary>
+    public static string Fmt(double? value, LengthUnit unit) =>
+        value is double v ? Units.Format(v, unit) : "";
 
     public static double? ParseOptional(string text, string label)
     {
@@ -128,12 +135,12 @@ public static class DefectPresentation
             };
             if (!string.IsNullOrWhiteSpace(x.Note)) parts.Add($"not: {x.Note}");
             if (!string.IsNullOrWhiteSpace(x.Reference)) parts.Add($"ref: {x.Reference}");
-            if (x.Snapshot is MeasurementSnapshot snap) parts.Add($"ölçüm: {SnapshotText(snap)}");
+            if (x.Snapshot is MeasurementSnapshot snap) parts.Add($"ölçüm: {SnapshotText(snap, defect.Unit)}");
             items.Add((x.DecidedAt, string.Join("   ", parts)));
         }
 
         foreach (var m in defect.MeasurementEdits)
-            items.Add((m.At, $"{m.At:dd.MM HH:mm}  {m.By}  ·  Ölçüm düzeltmesi: {SnapshotText(m.Before)}  →  {SnapshotText(m.After)}"));
+            items.Add((m.At, $"{m.At:dd.MM HH:mm}  {m.By}  ·  Ölçüm düzeltmesi: {SnapshotText(m.Before, defect.Unit)}  →  {SnapshotText(m.After, defect.Unit)}"));
 
         return items.Count == 0
             ? new[] { "Henüz karar ya da düzeltme yok." }

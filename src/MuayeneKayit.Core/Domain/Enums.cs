@@ -53,6 +53,13 @@ public enum ReworkScope
     HighMetalOnly,
 }
 
+/// <summary>Ölçü birimi. Kusur oluşturulurken o anki ayar kusura yazılır; sonradan dönüştürülmez.</summary>
+public enum LengthUnit
+{
+    Mm,
+    Inch,
+}
+
 public enum SessionStatus
 {
     Open,

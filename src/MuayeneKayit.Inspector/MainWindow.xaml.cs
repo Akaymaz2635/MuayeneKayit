@@ -19,14 +19,18 @@ public sealed partial class MainWindow : Window
     /// <summary>Dashboard'un süzgeçleri, özeti ve kartları.</summary>
     public DashboardViewModel Dash { get; }
 
+    /// <summary>Ayarlar sekmesi: ölçü birimi ve tema.</summary>
+    public UserSettingsViewModel Settings { get; }
+
     /// <summary>Sekme programla seçilirken SelectorBar olayları ViewModel'e geri yazılmaz.</summary>
     private bool _syncingTabs;
 
-    public MainWindow(InspectionViewModel vm, DashboardViewModel dash, WinUiDialogService dialogs,
-        WinUiFilePicker filePicker, WinUiWindowService windows)
+    public MainWindow(InspectionViewModel vm, DashboardViewModel dash, UserSettingsViewModel settings,
+        IUserSettings userSettings, WinUiDialogService dialogs, WinUiFilePicker filePicker, WinUiWindowService windows)
     {
         Vm = vm;
         Dash = dash;
+        Settings = settings;
         InitializeComponent();
         Title = "MuayeneKayit";
 
@@ -43,6 +47,11 @@ public sealed partial class MainWindow : Window
 
         DefectTypeBox.ItemsSource = Vm.TypeNames;
         DefectTypeBox.SelectedIndex = 0;
+
+        // Tema açılışta ayardan, değişince hemen uygulanır. Birim değişince boştaki ölçüm başlıkları yenilenir.
+        ApplyTheme(userSettings.Theme);
+        Settings.ThemeChanged += ApplyTheme;
+        Settings.UnitChanged += Vm.RefreshUnitHeaders;
 
         Nav.SelectedItem = Nav.MenuItems[0];
 
@@ -88,8 +97,21 @@ public sealed partial class MainWindow : Window
         var tag = (args.SelectedItem as NavigationViewItem)?.Tag as string;
         InspectPanel.Visibility = tag == "inspect" ? Visibility.Visible : Visibility.Collapsed;
         DashPanel.Visibility = tag == "dash" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
         if (tag == "dash")
             Dash.Refresh();
+    }
+
+    /// <summary>
+    /// Temayı kök öğeye (NavigationView) ve başlık çubuğuna uygular. Diyaloglar bu temayı kökten alır
+    /// (WinUiDialogService.NewDialog ayrıca ActualTheme'i aktarır).
+    /// </summary>
+    private void ApplyTheme(AppTheme theme)
+    {
+        Nav.RequestedTheme = theme == AppTheme.Dark ? ElementTheme.Dark : ElementTheme.Light;
+        AppWindow.TitleBar.PreferredTheme = theme == AppTheme.Dark
+            ? Microsoft.UI.Windowing.TitleBarTheme.Dark
+            : Microsoft.UI.Windowing.TitleBarTheme.Light;
     }
 
     // ───────────────────────── Oturum ─────────────────────────

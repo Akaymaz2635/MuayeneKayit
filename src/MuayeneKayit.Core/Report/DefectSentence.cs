@@ -5,7 +5,7 @@ namespace MuayeneKayit.Core;
 
 /// <summary>
 /// Kağıt raporda kusurun tek cümlelik özetini üretir. Örnek:
-/// "Defect 3: There is Dent on part with Depth: 0.12 mm, Width: 2.4 mm."
+/// "Defect 3: There is Dent on part with Depth: 0.12 mm, Width: 2.4 mm." (inch kusurda: "Depth: .123 in")
 /// "Disposition: Rework. Continues as Defect 5."
 /// </summary>
 public static class DefectSentence
@@ -16,10 +16,10 @@ public static class DefectSentence
         sb.Append($"Defect {defect.Id}: There is {TypeText(defect)} on part");
 
         var measurements = new List<string>();
-        AddMm(measurements, "Depth", defect.Depth);
-        AddMm(measurements, "Width", defect.Width);
-        AddMm(measurements, "Length", defect.Length);
-        AddMm(measurements, "Radius", defect.Radius);
+        AddLength(measurements, "Depth", defect.Depth, defect.Unit);
+        AddLength(measurements, "Width", defect.Width, defect.Unit);
+        AddLength(measurements, "Length", defect.Length, defect.Unit);
+        AddLength(measurements, "Radius", defect.Radius, defect.Unit);
         if (defect.AngleDeg is double angle)
             measurements.Add($"Angle: {Num(angle)}°");
         if (!string.IsNullOrWhiteSpace(defect.Color))
@@ -55,10 +55,10 @@ public static class DefectSentence
             ? "Rework / Reinspect (high metal only)"
             : DecisionLabel(d.Decision);
 
-    private static void AddMm(List<string> target, string label, double? value)
+    private static void AddLength(List<string> target, string label, double? value, LengthUnit unit)
     {
         if (value is double v)
-            target.Add($"{label}: {Num(v)} mm");
+            target.Add($"{label}: {Units.Format(v, unit)} {Units.Suffix(unit)}");
     }
 
     private static string Num(double value) =>

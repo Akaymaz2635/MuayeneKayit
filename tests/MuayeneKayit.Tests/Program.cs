@@ -111,6 +111,16 @@ var tests = new List<(string Name, Action Body)>
     ("Eşzamanlı: iki muayeneci aynı anda kusur ekler, numaralar tekil", ConcurrencyTests.ParallelAddDefectsGetUniqueIds),
     ("Eşzamanlı: aynı kusura paralel güncelleme kaybolmaz", ConcurrencyTests.ParallelUpdatesSameDefectLoseNothing),
     ("Eşzamanlı: paralel denetim kaydı zinciri bozmaz", ConcurrencyTests.ParallelAuditAppendsKeepChain),
+    ("Birim: inch .123 biçimi, mm 2 ondalık, ek ve başlık", UnitsFormatRules),
+    ("Birim: cümle inch/mm ve açı etkilenmez", UnitSentenceInchAndMm),
+    ("Birim: eski JSON mm okunur, inch yazılıp okunur", UnitJsonOldAndRoundTrip),
+    ("Birim: karşılaştırma inch biçimi", UnitCompareInch),
+    ("Birim VM: kusur ayardaki birimle açılır, mevcut kusur kalır", VmUnitFollowsSettingsPerDefect),
+    ("Birim VM: kusur yokken başlıklar ayara uyar", VmUnitHeadersFollowSettingsWhenNoDefect),
+    ("Birim: .123 ve ,123 (tr-TR) ayrıştırılır", ParseAcceptsLeadingDotAndComma),
+    ("Birim: alt kusur ana kusurun birimini alır", ChildDefectInheritsParentUnit),
+    ("Ayarlar VM: tema ve birim yazılır, olay gelir", UserSettingsViewModelWritesAndRaises),
+    ("Birim: rapor HTML inch değerleri gösterir", ReportShowsInchValues),
 };
 
 int failed = 0;

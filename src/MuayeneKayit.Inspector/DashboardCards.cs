@@ -7,18 +7,23 @@ namespace MuayeneKayit.Inspector;
 /// <summary>Dashboard özet ve sonuç kartlarının çizimi. Veri DashboardViewModel'den gelir.</summary>
 public static class DashboardCards
 {
+    private static Style Res(string key) => (Style)Application.Current.Resources[key];
+
     public static Border StatCard(SummaryCardData card)
     {
         var panel = new StackPanel { Spacing = 2 };
-        panel.Children.Add(new TextBlock { Text = card.Value, FontSize = 26, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = Brush(card.Accent) });
-        panel.Children.Add(new TextBlock { Text = card.Label, FontSize = 12, Foreground = Brush("#666666") });
+        var value = new TextBlock { Text = card.Value, FontSize = 26, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+        // Lacivert vurgu koyu temada okunmaz: kurumsal metin rengine eşlenir. Diğer vurgu renkleri sabit kalır.
+        if (string.Equals(card.Accent, "#1A3A5C", StringComparison.OrdinalIgnoreCase))
+            value.Style = Res("BrandTextStyle");
+        else
+            value.Foreground = Brush(card.Accent);
+        panel.Children.Add(value);
+        panel.Children.Add(new TextBlock { Text = card.Label, FontSize = 12, Style = Res("SecondaryTextStyle") });
 
         return new Border
         {
-            Background = Brush("#FFFFFF"),
-            BorderBrush = Brush("#DDE2EA"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
+            Style = Res("CardStyle"),
             Padding = new Thickness(16, 10, 16, 10),
             MinWidth = 160,
             Child = panel,
@@ -28,7 +33,7 @@ public static class DashboardCards
     public static TextBlock EmptyMessage(string text) => new()
     {
         Text = text,
-        Foreground = Brush("#666666"),
+        Style = Res("SecondaryTextStyle"),
         Margin = new Thickness(4, 12, 0, 0),
     };
 
@@ -46,16 +51,16 @@ public static class DashboardCards
             Text = r.Title,
             FontSize = 15,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Foreground = Brush("#1A3A5C"),
+            Style = Res("BrandTextStyle"),
         });
         title.Children.Add(Chip(r.Badge));
         left.Children.Add(title);
 
-        left.Children.Add(new TextBlock { Text = r.Meta, FontSize = 12, Foreground = Brush("#666666") });
+        left.Children.Add(new TextBlock { Text = r.Meta, FontSize = 12, Style = Res("SecondaryTextStyle") });
 
         var chips = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         if (r.DefectChips.Count == 0)
-            chips.Children.Add(new TextBlock { Text = "Kusur kaydı yok", FontSize = 12, Foreground = Brush("#888888") });
+            chips.Children.Add(new TextBlock { Text = "Kusur kaydı yok", FontSize = 12, Style = Res("TertiaryTextStyle") });
         foreach (var chip in r.DefectChips)
             chips.Children.Add(Chip(chip));
         left.Children.Add(new ScrollViewer
@@ -74,15 +79,16 @@ public static class DashboardCards
         Grid.SetColumn(button, 1);
         grid.Children.Add(button);
 
-        return new Border
+        var card = new Border
         {
-            Background = Brush("#FFFFFF"),
-            BorderBrush = r.HasOpenDefects ? Brush("#F5C26B") : Brush("#DDE2EA"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
+            Style = Res("CardStyle"),
             Padding = new Thickness(16, 12, 16, 12),
             Child = grid,
         };
+        // Açık kusurlu kartın çerçevesi sarı kalır; diğerleri tema çerçevesini kullanır.
+        if (r.HasOpenDefects)
+            card.BorderBrush = Brush("#F5C26B");
+        return card;
     }
 
     private static Border Chip(ChipData chip) => new()

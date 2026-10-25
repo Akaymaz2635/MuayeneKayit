@@ -1,6 +1,13 @@
 using MuayeneKayit.Core;
 using MuayeneKayit.Presentation;
 
+/// <summary>Bellek içi kullanıcı ayarları (dosya yazmaz).</summary>
+public sealed class FakeUserSettings : IUserSettings
+{
+    public LengthUnit Unit { get; set; } = LengthUnit.Mm;
+    public AppTheme Theme { get; set; } = AppTheme.Light;
+}
+
 /// <summary>Sıralı yollar veren sahte dosya seçici. Sıra boşsa vazgeçilmiş sayılır.</summary>
 public sealed class FakeFilePicker : IFilePicker
 {
