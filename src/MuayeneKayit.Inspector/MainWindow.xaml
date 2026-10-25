@@ -12,6 +12,7 @@
         IsBackButtonVisible="Collapsed"
         IsSettingsVisible="False"
         PaneDisplayMode="Left"
+        IsPaneOpen="False"
         OpenPaneLength="190"
         SelectionChanged="Nav_SelectionChanged">
 
