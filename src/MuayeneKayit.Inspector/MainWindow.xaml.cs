@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using MuayeneKayit.Core;
 using MuayeneKayit.Presentation;
 using Microsoft.UI.Xaml;
@@ -32,7 +32,7 @@ public sealed partial class MainWindow : Window
         Dash = dash;
         Settings = settings;
         InitializeComponent();
-        Title = "MuayeneKayit";
+        Title = $"MuayeneKayit {AppInfo.Version}";
 
         // Diyaloglar ana pencerenin kökünde açılır; dosya seçici ana pencereye bağlanır.
         dialogs.Attach(() => Nav.XamlRoot);

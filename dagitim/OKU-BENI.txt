@@ -1,0 +1,31 @@
+﻿MUAYENE KAYIT - AĞ KLASÖRÜ KURULUMU
+===================================
+
+Bu klasörün tamamı ağ paylaşımına kopyalanır, örneğin:
+    \\sunucu\MuayeneKayit\Program\
+
+1) İLK KURULUM (bir kez, BT / sorumlu kişi)
+   - "MuayeneKayit.settings.example.json" dosyasının bir kopyasını aynı klasörde
+     "MuayeneKayit.settings.json" adıyla oluşturun.
+   - İçindeki "rootPath" değerini ortak VERİ klasörü yapın (program klasörü değil), örneğin:
+         { "rootPath": "\\\\sunucu\\MuayeneKayit\\Veri" }
+     (JSON'da her ters bölü iki kez yazılır.)
+   - Kullanıcıların VERİ klasörüne okuma + yazma izni olmalı. Program klasörüne yalnızca okuma yeterli.
+
+2) KULLANICI BİLGİSAYARINA KURULUM (her bilgisayarda bir kez)
+   - Ağ klasöründeki "Kur.cmd" dosyasına çift tıklayın. Yönetici yetkisi gerekmez.
+   - Program bilgisayara kopyalanır, masaüstüne "Muayene Kayit" kısayolu gelir.
+   - Admin uygulaması (yalnızca yöneticiler): komut isteminde   Kur.cmd Admin
+
+3) GÜNCELLEME
+   - Yeni sürümün klasörlerini (Inspector-x64, Inspector-arm64, Admin-x64, Admin-arm64, Baslat.cmd)
+     ağ klasöründeki eskilerinin üzerine kopyalayın. "MuayeneKayit.settings.json" dosyasına dokunmayın.
+   - Kullanıcılar programı bir sonraki açışta yeni sürümü kendiliğinden alır (kısayol eşitler).
+   - Program açıkken güncelleme alınamaz; kapatıp yeniden açmak yeterli.
+   - Sürüm, pencere başlığında görünür (ör. "MuayeneKayit 1.0.0").
+
+NOTLAR
+   - Kişisel ayarlar (ölçü birimi, tema, son kamera) her kullanıcının kendi bilgisayarında saklanır:
+     %LOCALAPPDATA%\MuayeneKayit
+   - Ağ yoksa program yerel kopyadan yine açılır; veriler ortak klasörde olduğu için kayıt yapılamaz.
+   - Surface (ARM64) bilgisayarlar otomatik olarak ARM64 sürümünü alır.

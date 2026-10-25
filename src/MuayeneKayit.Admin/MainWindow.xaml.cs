@@ -1,3 +1,4 @@
+﻿using MuayeneKayit.Core;
 using System.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -25,7 +26,7 @@ public sealed partial class MainWindow : Window
     {
         Shell = shell;
         InitializeComponent();
-        Title = "MuayeneKayit Admin";
+        Title = $"MuayeneKayit Admin {AppInfo.Version}";
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 860));
 
         // Onay pencereleri ana pencerenin kökünde açılır; kaydetme seçicisi ana pencereye bağlanır.

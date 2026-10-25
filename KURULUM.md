@@ -1,29 +1,67 @@
 # MuayeneKayit — Kurulum
 
-## 1. Dosyalar
+## 0. İş bilgisayarında derleme (Visual Studio)
 
-| Klasör | Nereye |
+Hazır paket gerekiyorsa derlemeye gerek yok: GitHub deposunun **Releases** sayfasındaki `MuayeneKayit-<sürüm>.zip`
+doğrudan dağıtılabilir (bölüm 1). Kodu değiştirip yeniden derlemek için:
+
+**Bir kez kurulacaklar** — Visual Studio 2022 (17.12 ya da yeni; Community / Professional / Enterprise fark etmez).
+Visual Studio Installer > Değiştir > iş yükleri:
+- **.NET masaüstü geliştirme** (.NET Desktop Development)
+- **WinUI uygulama geliştirme** (WinUI application development; eski adı "Windows uygulama geliştirme").
+  Sağdaki ayrıntılarda **Windows App SDK C# Templates** seçili olsun.
+
+.NET 9 SDK bu iş yükleriyle gelir; ayrıca .NET, Windows App SDK ya da NuGet paketi kurmanız gerekmez.
+
+**Derleme**
+1. Visual Studio > **Depoyu kopyala** (Clone a repository) > GitHub adresi > Kopyala.
+2. `MuayeneKayit.sln` açılır. Üst çubukta **Release** ve **x64** seçin, **Derle > Çözümü Derle**.
+   İlk derlemede paketler (~240 MB) nuget.org'dan kendiliğinden iner.
+3. Yayın: Çözüm Gezgini'nde `MuayeneKayit.Inspector` > sağ tık > **Yayımla** > profil `win-x64` > **Yayımla**.
+   Çıktı: depo kökünde `publish\Inspector-x64\`. Admin için aynısı `MuayeneKayit.Admin` ile.
+   Tek komutla tüm paket: **Görünüm > Terminal** içinde `.\build-release.ps1` → `dist\MuayeneKayit-<sürüm>.zip`
+   (testler + Inspector / Admin, x64 + ARM64 + kurulum betikleri). Yalnızca x64 için: `.\build-release.ps1 -X64Only`.
+
+**Paketler inmiyorsa** (nuget.org'a erişim yok / proxy): Releases sayfasından `MuayeneKayit-paketler-offline.zip`'i depo
+köküne indirin, terminalde
+```powershell
+.\offline-paketler.ps1 -Kullan -Zip .\MuayeneKayit-paketler-offline.zip
+```
+çalıştırın, Visual Studio'yu kapatıp açın ve derleyin. Paketler internet yerine `packages-offline\` klasöründen alınır.
+
+**Sürüm numarası** `Directory.Build.props` > `<Version>` içindedir; yeni dağıtımdan önce artırın. Pencere başlığında görünür.
+
+## 1. Dağıtım (ağ klasörü + her bilgisayarda yerel kopya)
+
+Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğu gibi bir ağ klasörüne açılır, örneğin `\\SUNUCU\MuayeneKayit\Program\`:
+
+| Dosya / klasör | Ne işe yarar |
 |---|---|
-| `publish\Inspector` | Muayene notebook'ları ve Intel Surface (x64) |
-| `publish\Inspector-arm64` | Surface Pro 9 5G (SQ3, ARM64) |
-| `publish\Admin` / `publish\Admin-arm64` | Yalnızca admin bilgisayarı |
+| `Inspector-x64`, `Inspector-arm64` | Muayene programı (Surface Pro 9 5G / SQ3 ARM64 sürümünü kendiliğinden alır) |
+| `Admin-x64`, `Admin-arm64` | Admin programı (yalnızca yöneticiler) |
+| `Kur.cmd` | Kullanıcı bilgisayarına bir kez kurulum: yerel kopya + masaüstü kısayolu |
+| `Baslat.cmd` | Kısayolun çalıştırdığı başlatıcı: ağdaki yeni sürümü alır, programı yerelden açar |
+| `MuayeneKayit.settings.example.json` | Ortak ayar örneği |
+| `OKU-BENI.txt` | Bu bölümün kısa hâli |
 
-Klasörü olduğu gibi kopyalayın (ör. `C:\MuayeneKayit\`). Kurulum, yönetici hakkı ve internet gerekmez.
-Her klasördeki `MuayeneKayit.settings.json` dosyasına ortak klasör yolunu yazın:
+1. Örnekten aynı klasörde `MuayeneKayit.settings.json` oluşturup **veri** klasörünü yazın (program klasörü değil):
+   ```json
+   { "rootPath": "\\\\SUNUCU\\MuayeneKayit\\Veri" }
+   ```
+2. Her kullanıcı bilgisayarında ağ klasöründeki `Kur.cmd` bir kez çalıştırılır (yönetici hakkı gerekmez).
+   Program `%LOCALAPPDATA%\Programs\MuayeneKayit` altına kopyalanır, masaüstüne **Muayene Kayit** kısayolu gelir.
+   Admin için komut isteminde: `Kur.cmd Admin`.
+3. **Güncelleme:** yeni paketin klasörlerini ağdakilerin üzerine kopyalayın (`MuayeneKayit.settings.json`'a dokunmayın).
+   Kullanıcılar bir sonraki açılışta yeni sürümü kendiliğinden alır (yalnızca değişen dosyalar kopyalanır).
 
-```json
-{ "rootPath": "\\\\SUNUCU\\Muayene" }
-```
+Neden yerel kopya: program ~210 MB / ~520 dosyadır; ağdan her açılışta okunması yavaştır (özellikle Wi-Fi) ve
+paylaşımdaki exe açıkken güncelleme kopyalanamaz. Ağ yoksa program yerel kopyadan yine açılır.
 
-Muayene exe'sindeki **Ayarlar** sekmesi aynı dosyaya `unit` (`"mm"` / `"inch"`) ve `theme` (`"light"` / `"dark"`) alanlarını yazar;
-bu ayarlar o bilgisayara özeldir, `rootPath` korunur. Alanlar yoksa mm ve açık tema kullanılır. Elle de yazılabilir:
+Kişisel ayarlar (Ayarlar sekmesi: ölçü birimi, tema; son kullanılan kamera) her kullanıcının kendi bilgisayarında,
+`%LOCALAPPDATA%\MuayeneKayit` altında saklanır; program klasörüne yazılmaz.
 
-```json
-{ "rootPath": "\\\\SUNUCU\\Muayene", "unit": "inch", "theme": "dark" }
-```
-
-Exe'yi ağ paylaşımından çalıştırmak yerine her bilgisayara kopyalayın. Paylaşımdaki exe kilitlenir, güncelleme zorlaşır.
-Güncelleme: yeni klasörü kopyalayın. Program kendini güncellemez.
+**Muayeneci kimliği:** Admin > Ayarlar > *Muayeneci kimliği* açılırsa muayeneci adı elle yazılmaz; Windows'a giriş yapan
+kullanıcıdan alınır (Active Directory'deki ad + sicil no, ör. `Ali Kaymaz (12345)`). Tüm bilgisayarlara uygulanır.
 
 ## 2. İlk açılış
 

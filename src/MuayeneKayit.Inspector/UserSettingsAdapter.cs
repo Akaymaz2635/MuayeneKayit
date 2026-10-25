@@ -6,13 +6,18 @@ using MuayeneKayit.Presentation;
 namespace MuayeneKayit.Inspector;
 
 /// <summary>
-/// Kullanıcı ayarlarını (ölçü birimi, tema) exe'nin yanındaki MuayeneKayit.settings.json dosyasında saklar.
-/// Dosya bu bilgisayara özeldir. Yazarken dosya JsonNode olarak okunur ve yalnızca "unit" / "theme" değişir;
-/// rootPath ve diğer alanlar korunur. Yazma hatası uygulamayı düşürmez, bellekteki değer geçerli kalır.
+/// Kullanıcı ayarlarını (ölçü birimi, tema) kullanıcının kendi klasöründe (%LOCALAPPDATA%\MuayeneKayit) saklar.
+/// Program klasörüne yazılmaz: program ağdan dağıtıldığında ya da güncellendiğinde ayarlar ezilmez, kullanıcılar
+/// birbirinin ayarını değiştirmez. Eski sürümde exe'nin yanındaki dosyaya yazılan seçim ilk açılışta oradan okunur.
+/// Yazma hatası uygulamayı düşürmez, bellekteki değer geçerli kalır.
 /// </summary>
 internal sealed class UserSettingsAdapter : IUserSettings
 {
-    private static string FilePath => Path.Combine(AppContext.BaseDirectory, AppSettings.FileName);
+    private static readonly string FilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MuayeneKayit", "user-settings.json");
+
+    /// <summary>Eski sürümlerin birim / tema yazdığı yer (exe'nin yanındaki kurulum ayarı).</summary>
+    private static string LegacyPath => Path.Combine(AppContext.BaseDirectory, AppSettings.FileName);
 
     private LengthUnit _unit;
     private AppTheme _theme;
@@ -52,7 +57,8 @@ internal sealed class UserSettingsAdapter : IUserSettings
 
         try
         {
-            if (File.Exists(FilePath) && JsonNode.Parse(File.ReadAllText(FilePath)) is JsonObject obj)
+            var path = File.Exists(FilePath) ? FilePath : LegacyPath;
+            if (File.Exists(path) && JsonNode.Parse(File.ReadAllText(path)) is JsonObject obj)
             {
                 if (string.Equals(obj["unit"]?.GetValue<string>(), "inch", StringComparison.OrdinalIgnoreCase))
                     unit = LengthUnit.Inch;
@@ -73,18 +79,21 @@ internal sealed class UserSettingsAdapter : IUserSettings
     {
         try
         {
-            var obj = new JsonObject();
-            if (File.Exists(FilePath) && JsonNode.Parse(File.ReadAllText(FilePath)) is JsonObject existing)
-                obj = existing;
-
+            // İlk yazmada diğer ayar da (eski yerden) taşınır: yalnızca değişen anahtar yazılıp öbürü kaybolmasın.
+            var (unit, theme) = Load();
+            var obj = new JsonObject
+            {
+                ["unit"] = unit == LengthUnit.Inch ? "inch" : "mm",
+                ["theme"] = theme == AppTheme.Dark ? "dark" : "light",
+            };
             obj[key] = value;
+            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
             AtomicFile.WriteAllText(FilePath, obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException
                                     or InvalidOperationException or FormatException)
         {
-            // Salt okunur klasör ya da bozuk dosya: ayar bu oturumda bellekte geçerli kalır, uygulama kapanmaz.
-            // Bozuk dosya üzerine yazılmaz (rootPath kaybolmasın).
+            // Yazılamayan klasör: ayar bu oturumda bellekte geçerli kalır, uygulama kapanmaz.
         }
     }
 }

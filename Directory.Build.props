@@ -1,0 +1,24 @@
+<Project>
+
+  <!-- Tüm projeler için ortak ayarlar. Sürüm numarası yalnızca buradan değiştirilir. -->
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <Product>MuayeneKayit</Product>
+    <!-- Sürüm metnine commit kimliği eklenmesin ("1.0.0+abc123" yerine "1.0.0"). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <!--
+    WinUI derlemesi Visual Studio'nun paketleme araçlarına (AppxPackage) ihtiyaç duyar.
+    Visual Studio içinden derlenince bu yolu VS kendisi verir. Komut satırından (dotnet build / build-release.ps1)
+    derlenince kurulu Visual Studio 2022 sürümünden bulunur: Enterprise, Professional, Community ya da Build Tools.
+  -->
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core' and '$(AppxMSBuildToolsPath)' == ''">
+    <_VsAppx>MSBuild\Microsoft\VisualStudio\v17.0\AppxPackage\</_VsAppx>
+    <AppxMSBuildToolsPath Condition="'$(AppxMSBuildToolsPath)' == '' and Exists('$(ProgramW6432)\Microsoft Visual Studio\2022\Enterprise\$(_VsAppx)')">$(ProgramW6432)\Microsoft Visual Studio\2022\Enterprise\$(_VsAppx)</AppxMSBuildToolsPath>
+    <AppxMSBuildToolsPath Condition="'$(AppxMSBuildToolsPath)' == '' and Exists('$(ProgramW6432)\Microsoft Visual Studio\2022\Professional\$(_VsAppx)')">$(ProgramW6432)\Microsoft Visual Studio\2022\Professional\$(_VsAppx)</AppxMSBuildToolsPath>
+    <AppxMSBuildToolsPath Condition="'$(AppxMSBuildToolsPath)' == '' and Exists('$(ProgramW6432)\Microsoft Visual Studio\2022\Community\$(_VsAppx)')">$(ProgramW6432)\Microsoft Visual Studio\2022\Community\$(_VsAppx)</AppxMSBuildToolsPath>
+    <AppxMSBuildToolsPath Condition="'$(AppxMSBuildToolsPath)' == '' and Exists('$(MSBuildProgramFiles32)\Microsoft Visual Studio\2022\BuildTools\$(_VsAppx)')">$(MSBuildProgramFiles32)\Microsoft Visual Studio\2022\BuildTools\$(_VsAppx)</AppxMSBuildToolsPath>
+  </PropertyGroup>
+
+</Project>

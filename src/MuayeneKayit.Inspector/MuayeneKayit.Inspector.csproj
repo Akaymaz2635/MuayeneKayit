@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -17,15 +17,19 @@
     <SelfContained>true</SelfContained>
     <!-- Otomatik güncelleme yok, dağıtım yalnızca bu çıktı klasörüyle yapılır. -->
     <EnableMsixTooling>false</EnableMsixTooling>
-    <!-- Paketleme araçları Visual Studio 2022 kurulumundan alınır (dotnet SDK'sında bulunmaz). -->
-    <AppxMSBuildToolsPath>C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VisualStudio\v17.0\AppxPackage\</AppxMSBuildToolsPath>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Geliştirme ayarı (demo klasörü) yalnızca derleme çıktısına gider. Yayına örnek dosya girer: kurulumdaki
+         gerçek ayar (ortak klasör yolu) güncellemede ezilmez. -->
     <None Update="MuayeneKayit.settings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
+    <None Update="MuayeneKayit.settings.example.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>

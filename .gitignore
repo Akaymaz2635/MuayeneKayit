@@ -5,3 +5,5 @@ publish-*/
 packages/
 *.user
 .vs/
+dist/
+packages-offline/
