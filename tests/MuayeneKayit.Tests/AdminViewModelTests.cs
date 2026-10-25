@@ -130,6 +130,24 @@ public static class AdminViewModelTests
         Check(!c.Login.IsFirstRun && c.Login.ButtonText == "Giriş" && c.Login.Hint == "Devam etmek için admin PIN'ini girin.", "PIN varken normal giriş ekranı");
     });
 
+    public static void WindowsUserSwitchSavesSharedSetting() => With(c =>
+    {
+        c.SignIn();
+        Check(!c.SettingsVm.UseWindowsUser, "Varsayılan kapalı");
+
+        c.SettingsVm.UseWindowsUser = true;
+        Check(SharedConfig.LoadUseWindowsUser(c.Root), "Açınca ortak alana yazılmalı");
+        Check(c.AuditActions().Contains("admin.identity"), "Denetim satırı beklenir");
+
+        // Yeniden yükleme anahtarı dosyadan alır ve tekrar yazmaz.
+        var count = c.AuditActions().Count(a => a == "admin.identity");
+        c.SettingsVm.Load();
+        Check(c.SettingsVm.UseWindowsUser && c.AuditActions().Count(a => a == "admin.identity") == count, "Yükleme yazmamalı");
+
+        c.SettingsVm.UseWindowsUser = false;
+        Check(!SharedConfig.LoadUseWindowsUser(c.Root), "Kapatınca ortak alana yazılmalı");
+    });
+
     public static void ShortPinShowsRuleError() => With(c =>
     {
         c.Login.Pin = c.Login.PinRepeat = "123";

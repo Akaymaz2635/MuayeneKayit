@@ -187,6 +187,36 @@ public static class SharedConfig
         AtomicFile.WriteAllText(Path.Combine(Folder(root), DecisionTextsFile), JsonSerializer.Serialize(clean, SessionStore.JsonOptions));
     }
 
+    // ───── Muayeneci kimliği ─────
+
+    private const string IdentityFile = "inspector_identity.json";
+
+    private sealed record IdentitySettings(bool UseWindowsUser);
+
+    /// <summary>
+    /// Açıksa muayeneci adı elle yazılmaz; Windows oturumundaki kullanıcıdan (sicil no + AD'deki ad) alınır.
+    /// Admin panelinden açılıp kapatılır. Dosya yoksa ya da bozuksa kapalı sayılır.
+    /// </summary>
+    public static bool LoadUseWindowsUser(string root)
+    {
+        try
+        {
+            var path = Path.Combine(Folder(root), IdentityFile);
+            return File.Exists(path) && SessionStore.ReadJson<IdentitySettings>(path).UseWindowsUser;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    public static void SaveUseWindowsUser(string root, bool value)
+    {
+        Directory.CreateDirectory(Folder(root));
+        AtomicFile.WriteAllText(Path.Combine(Folder(root), IdentityFile),
+            JsonSerializer.Serialize(new IdentitySettings(value), SessionStore.JsonOptions));
+    }
+
     // ───── Admin PIN ─────
 
     public static bool HasPin(string root) => File.Exists(Path.Combine(Folder(root), PinFile));

@@ -49,6 +49,9 @@ public partial class App : Application
         services.AddSingleton<IUserSettings, UserSettingsAdapter>();
         services.AddSingleton<UserSettingsViewModel>();
 
+        // Muayeneci Windows oturumundan alınabilir (admin panelinden açılır).
+        services.AddSingleton<IWindowsUser, WindowsUserAdapter>();
+
         services.AddSingleton<InspectionViewModel>();
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<MainWindow>();

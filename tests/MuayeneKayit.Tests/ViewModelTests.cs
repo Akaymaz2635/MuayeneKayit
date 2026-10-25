@@ -23,6 +23,7 @@ public static partial class ViewModelTests
         public required FakeWindowService Windows { get; init; }
         public required FakePdfConverter Pdf { get; init; }
         public required FakeUserSettings Settings { get; init; }
+        public required FakeWindowsUser WindowsUser { get; init; }
         public List<(string Message, StatusKind Kind)> Notes { get; } = new();
         public string Folder => Vm.Folder!;
 
@@ -55,9 +56,11 @@ public static partial class ViewModelTests
             var windows = new FakeWindowService();
             var pdf = new FakePdfConverter();
             var settings = new FakeUserSettings();
+            var windowsUser = new FakeWindowsUser();
             var ctx = new Ctx
             {
-                Vm = new InspectionViewModel(store, audit, SharedConfig.Defaults, dialogs, picker, windows, pdf, settings),
+                Vm = new InspectionViewModel(store, audit, SharedConfig.Defaults, dialogs, picker, windows, pdf, settings, windowsUser),
+                WindowsUser = windowsUser,
                 Store = store,
                 Audit = audit,
                 Dialogs = dialogs,
@@ -423,6 +426,34 @@ public static partial class ViewModelTests
         Check(StateOf(c, 1) == DefectState.Voided, "Void olmalı");
         Check(Load(c, 1).Dispositions.Last().Note == "yanlış tip", "Gerekçe kırpılmalı");
         Check(c.Audit.Entries.Any(e => e.EndsWith("|defect.void|#1 yanlış tip")), "Denetim satırı beklenir");
+    });
+
+    public static void VmInspectorFromWindowsUser() => With(c =>
+    {
+        // Kapalıyken (varsayılan) elle yazılır.
+        Check(!c.Vm.IsInspectorFromWindows && c.Vm.InspectorHeader == "Muayeneci", "Varsayılan elle giriş");
+
+        // Admin açtı: muayene seçimine dönünce ad Windows oturumundan gelir, kutu salt okunur.
+        SharedConfig.SaveUseWindowsUser(c.Store.Root, true);
+        c.Vm.ChangeSession();
+        Check(c.Vm.IsInspectorFromWindows && c.Vm.InspectorName == "Ali Kaymaz (12345)", $"Windows adı: {c.Vm.InspectorName}");
+
+        // Kutuya başka ad yazılsa da oturum Windows kullanıcısıyla açılır ve denetim kaydına o yazılır.
+        c.Vm.PartNumber = "PD170"; c.Vm.OperationNumber = "OP40"; c.Vm.SerialNumber = "SN001";
+        c.Vm.InspectorName = "Başkası";
+        c.Vm.OpenSession();
+        Check(c.Vm.User == "Ali Kaymaz (12345)" && c.Vm.Session!.Inspector == "Ali Kaymaz (12345)", $"Kullanıcı: {c.Vm.User}");
+        Check(c.Audit.Entries.Any(e => e.StartsWith("Ali Kaymaz (12345)|session.open")), "Denetim satırı Windows kullanıcısıyla");
+
+        // AD adı yoksa yalnızca sicil no.
+        c.WindowsUser.DisplayName = null;
+        c.Vm.ChangeSession();
+        Check(c.Vm.InspectorName == "12345", "Görünen ad yoksa sicil no");
+
+        // Admin kapattı: kutu boşalır ve yeniden elle yazılır.
+        SharedConfig.SaveUseWindowsUser(c.Store.Root, false);
+        c.Vm.ChangeSession();
+        Check(!c.Vm.IsInspectorFromWindows && c.Vm.InspectorName == "" && c.Vm.InspectorHeader == "Muayeneci", "Kapalıyken elle giriş");
     });
 
     public static void VmAutoSaveMergesAndKeepsStep() => With(c =>

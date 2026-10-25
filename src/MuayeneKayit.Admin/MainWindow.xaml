@@ -242,6 +242,13 @@
                     </Border>
                     <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
                         <StackPanel Spacing="10">
+                            <TextBlock Text="Muayeneci kimliği" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <TextBlock Text="Açıkken muayeneci adı elle yazılmaz; muayene bilgisayarında Windows'a giriş yapan kullanıcıdan alınır (sicil no ve Active Directory'deki ad, ör. 'Ali Kaymaz (12345)'). Tüm muayene bilgisayarlarına uygulanır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+                            <ToggleSwitch x:Name="WindowsUserSwitch" IsOn="{x:Bind Shell.Settings.UseWindowsUser, Mode=TwoWay}" OnContent="Windows oturumundan al" OffContent="Elle yazılır" AutomationProperties.AutomationId="WindowsUserSwitch" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
+                        <StackPanel Spacing="10">
                             <TextBlock Text="Admin PIN'i değiştir" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
                             <PasswordBox x:Name="OldPin" Password="{x:Bind Shell.Settings.OldPin, Mode=TwoWay}" Header="Mevcut PIN" Width="240" HorizontalAlignment="Left" MaxLength="12" />
                             <PasswordBox x:Name="NewPin" Password="{x:Bind Shell.Settings.NewPin, Mode=TwoWay}" Header="Yeni PIN (6-12 rakam)" Width="240" HorizontalAlignment="Left" MaxLength="12" />

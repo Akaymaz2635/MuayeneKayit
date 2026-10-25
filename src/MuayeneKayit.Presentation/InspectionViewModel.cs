@@ -19,6 +19,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     private readonly IWindowService _windows;
     private readonly IPdfConverter _pdf;
     private readonly IUserSettings _settings;
+    private readonly IWindowsUser? _windowsUser;
 
     private string? _folder;
     private Session? _session;
@@ -42,8 +43,9 @@ public sealed partial class InspectionViewModel : ObservableObject
     private static readonly TimeSpan MeasurementMergeWindow = TimeSpan.FromMinutes(10);
 
     public InspectionViewModel(ISessionStore store, IAuditTrail audit, IReadOnlyList<DefectTypeTemplate> types, IDialogService dialogs,
-        IFilePicker filePicker, IWindowService windows, IPdfConverter pdf, IUserSettings settings)
+        IFilePicker filePicker, IWindowService windows, IPdfConverter pdf, IUserSettings settings, IWindowsUser? windowsUser = null)
     {
+        _windowsUser = windowsUser;
         _store = store;
         _audit = audit;
         _types = types;
@@ -55,6 +57,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         Defects = new ObservableCollection<DefectItemViewModel>();
         ApplyDecisionState(null);
         ApplyUnitHeaders(settings.Unit);
+        RefreshIdentity();
     }
 
     // ───────────────────────── Bağımlılıklar (View kullanır) ─────────────────────────
@@ -77,6 +80,31 @@ public sealed partial class InspectionViewModel : ObservableObject
     [ObservableProperty] private string _operationNumber = "";
     [ObservableProperty] private string _serialNumber = "";
     [ObservableProperty] private string _inspectorName = "";
+
+    /// <summary>Admin panelinde açıksa muayeneci Windows oturumundan gelir; kutu salt okunur olur.</summary>
+    [ObservableProperty] private bool _isInspectorFromWindows;
+    [ObservableProperty] private string _inspectorHeader = "Muayeneci";
+
+    /// <summary>"Ali Kaymaz (12345)"; görünen ad yoksa yalnızca sicil no.</summary>
+    public static string WindowsInspectorText(string userName, string? displayName) =>
+        string.IsNullOrWhiteSpace(displayName) || string.Equals(displayName.Trim(), userName, StringComparison.OrdinalIgnoreCase)
+            ? userName
+            : $"{displayName.Trim()} ({userName})";
+
+    /// <summary>
+    /// Kimlik ayarını ortak alandan okur (açılışta ve muayene seçimine dönünce): açıksa muayeneci adı Windows
+    /// oturumundan doldurulur, kapalıysa elle yazılır.
+    /// </summary>
+    public void RefreshIdentity()
+    {
+        var fromWindows = _windowsUser is not null && SharedConfig.LoadUseWindowsUser(_store.Root);
+        if (fromWindows)
+            InspectorName = WindowsInspectorText(_windowsUser!.UserName, _windowsUser.DisplayName);
+        else if (IsInspectorFromWindows)
+            InspectorName = "";
+        IsInspectorFromWindows = fromWindows;
+        InspectorHeader = fromWindows ? "Muayeneci (Windows oturumu)" : "Muayeneci";
+    }
 
     // ───────────────────────── Oturum ─────────────────────────
 
@@ -179,6 +207,8 @@ public sealed partial class InspectionViewModel : ObservableObject
 
     public void OpenSession() => Run(() =>
     {
+        // Windows kimliği açıksa kutudaki değere güvenilmez; ad oturumdan yeniden alınır.
+        RefreshIdentity();
         var input = new Session
         {
             PartNumber = PartNumber.Trim(),
@@ -221,6 +251,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         HasDefects = false;
         IsSessionOpen = false;
         IsSessionClosed = true;
+        RefreshIdentity();
     }
 
     public void RequireSession()

@@ -8,6 +8,13 @@ public sealed class FakeUserSettings : IUserSettings
     public AppTheme Theme { get; set; } = AppTheme.Light;
 }
 
+/// <summary>Sahte Windows kullanıcısı (sicil no + AD'deki ad).</summary>
+public sealed class FakeWindowsUser : IWindowsUser
+{
+    public string UserName { get; set; } = "12345";
+    public string? DisplayName { get; set; } = "Ali Kaymaz";
+}
+
 /// <summary>Sıralı yollar veren sahte dosya seçici. Sıra boşsa vazgeçilmiş sayılır.</summary>
 public sealed class FakeFilePicker : IFilePicker
 {

@@ -24,8 +24,41 @@ public sealed partial class SettingsViewModel : AdminViewModelBase
     [ObservableProperty] private string _newPin = "";
     [ObservableProperty] private string _newPinRepeat = "";
 
-    /// <summary>Kök kutusunu geçerli köke ayarlar (giriş sonrası).</summary>
-    public void Load() => RootText = _ctx.Root;
+    /// <summary>Muayeneci adı Windows oturumundan (sicil no + AD'deki ad) alınsın mı; tüm muayene bilgisayarlarına uygulanır.</summary>
+    [ObservableProperty] private bool _useWindowsUser;
+
+    private bool _loading;
+
+    /// <summary>Kök kutusunu geçerli köke, kimlik anahtarını ortak alandaki ayara getirir (giriş sonrası).</summary>
+    public void Load()
+    {
+        RootText = _ctx.Root;
+        _loading = true;
+        try
+        {
+            UseWindowsUser = SharedConfig.LoadUseWindowsUser(_ctx.Root);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Anahtar değişince hemen kaydedilir; muayene ekranları bir sonraki muayene seçiminde uygular.</summary>
+    partial void OnUseWindowsUserChanged(bool value)
+    {
+        if (_loading)
+            return;
+
+        Run(() =>
+        {
+            SharedConfig.SaveUseWindowsUser(_ctx.Root, value);
+            _ctx.Audit.Append("admin", "admin.identity", value ? "windows" : "manual");
+            Say(value
+                ? "Muayeneci artık Windows oturumundan alınacak (sicil no + ad). Muayene ekranları bir sonraki muayene seçiminde uygular."
+                : "Muayeneci adı yeniden elle yazılacak.", StatusKind.Success);
+        });
+    }
 
     public void SaveRoot() => Run(() =>
     {
