@@ -9,13 +9,22 @@ public static class DashboardCards
 {
     private static Style Res(string key) => (Style)Application.Current.Resources[key];
 
+    private static readonly Dictionary<string, string> StatStyles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["#1A3A5C"] = "BrandTextStyle",
+        ["#B45309"] = "WarnTextStyle",
+        ["#6D28D9"] = "MrbTextStyle",
+        ["#1D4ED8"] = "ReworkTextStyle",
+        ["#15803D"] = "DoneTextStyle",
+    };
+
     public static Border StatCard(SummaryCardData card)
     {
         var panel = new StackPanel { Spacing = 2 };
         var value = new TextBlock { Text = card.Value, FontSize = 26, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
-        // Lacivert vurgu koyu temada okunmaz: kurumsal metin rengine eşlenir. Diğer vurgu renkleri sabit kalır.
-        if (string.Equals(card.Accent, "#1A3A5C", StringComparison.OrdinalIgnoreCase))
-            value.Style = Res("BrandTextStyle");
+        // Koyu vurgu renkleri koyu temada okunmaz: temaya göre değişen metin stillerine eşlenir.
+        if (StatStyles.TryGetValue(card.Accent, out var styleKey))
+            value.Style = Res(styleKey);
         else
             value.Foreground = Brush(card.Accent);
         panel.Children.Add(value);

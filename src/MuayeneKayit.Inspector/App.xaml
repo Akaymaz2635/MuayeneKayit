@@ -12,14 +12,26 @@
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="BrandTextBrush" Color="#1A3A5C" />
                     <SolidColorBrush x:Key="WarnTextBrush" Color="#B45309" />
+                    <SolidColorBrush x:Key="MrbTextBrush" Color="#6D28D9" />
+                    <SolidColorBrush x:Key="ReworkTextBrush" Color="#1D4ED8" />
+                    <SolidColorBrush x:Key="DoneTextBrush" Color="#15803D" />
+                    <SolidColorBrush x:Key="PaneBackgroundBrush" Color="#FFFFFF" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="BrandTextBrush" Color="#9CB8DA" />
                     <SolidColorBrush x:Key="WarnTextBrush" Color="#F5B25A" />
+                    <SolidColorBrush x:Key="MrbTextBrush" Color="#C4B5FD" />
+                    <SolidColorBrush x:Key="ReworkTextBrush" Color="#93C5FD" />
+                    <SolidColorBrush x:Key="DoneTextBrush" Color="#86EFAC" />
+                    <SolidColorBrush x:Key="PaneBackgroundBrush" Color="#1C1C1C" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="BrandTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="WarnTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="MrbTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="ReworkTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="DoneTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="PaneBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
@@ -46,6 +58,15 @@
             </Style>
             <Style x:Key="WarnTextStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{ThemeResource WarnTextBrush}" />
+            </Style>
+            <Style x:Key="MrbTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource MrbTextBrush}" />
+            </Style>
+            <Style x:Key="ReworkTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource ReworkTextBrush}" />
+            </Style>
+            <Style x:Key="DoneTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource DoneTextBrush}" />
             </Style>
             <Style x:Key="SubtleCardStyle" TargetType="Border">
                 <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />

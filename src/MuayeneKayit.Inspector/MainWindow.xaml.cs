@@ -103,12 +103,12 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Temayı kök öğeye (NavigationView) ve başlık çubuğuna uygular. Diyaloglar bu temayı kökten alır
+    /// Temayı kök öğeye (gezinme bölmesinin zemini dahil) ve başlık çubuğuna uygular. Diyaloglar bu temayı kökten alır
     /// (WinUiDialogService.NewDialog ayrıca ActualTheme'i aktarır).
     /// </summary>
     private void ApplyTheme(AppTheme theme)
     {
-        Nav.RequestedTheme = theme == AppTheme.Dark ? ElementTheme.Dark : ElementTheme.Light;
+        Root.RequestedTheme = theme == AppTheme.Dark ? ElementTheme.Dark : ElementTheme.Light;
         AppWindow.TitleBar.PreferredTheme = theme == AppTheme.Dark
             ? Microsoft.UI.Windowing.TitleBarTheme.Dark
             : Microsoft.UI.Windowing.TitleBarTheme.Light;

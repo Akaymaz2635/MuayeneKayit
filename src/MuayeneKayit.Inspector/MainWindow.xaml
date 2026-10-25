@@ -5,6 +5,8 @@
     xmlns:local="using:MuayeneKayit.Inspector"
     xmlns:pres="using:MuayeneKayit.Presentation">
 
+    <!-- Kök: tema buraya uygulanır. Gezinme bölmesi saydam olduğundan arkasındaki zemin temaya göre değişir. -->
+    <Grid x:Name="Root" Background="{ThemeResource PaneBackgroundBrush}">
     <NavigationView
         x:Name="Nav"
         IsBackButtonVisible="Collapsed"
@@ -379,4 +381,5 @@
 
         </Grid>
     </NavigationView>
+    </Grid>
 </Window>
