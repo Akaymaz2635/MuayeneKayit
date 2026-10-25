@@ -425,6 +425,74 @@ public static partial class ViewModelTests
         Check(c.Audit.Entries.Any(e => e.EndsWith("|defect.void|#1 yanlış tip")), "Denetim satırı beklenir");
     });
 
+    public static void VmAutoSaveMergesAndKeepsStep() => With(c =>
+    {
+        c.Open();
+        c.Vm.AddDefect("Dent");
+
+        // Derinlik yazılıp kutudan çıkılır: kaydedilir, sekme ölçümde kalır.
+        c.Vm.DepthText = "2";
+        c.Vm.AutoSave();
+        Check(Load(c, 1).Depth == 2 && c.Vm.SelectedStep == InspectionStep.Measure, "Otomatik kayıt yazmalı, sekme değişmemeli");
+        Check(c.Vm.AutoSaveText.StartsWith("Otomatik kaydedildi"), "Kayıt saati gösterilmeli");
+
+        // Genişlik ve High metal: aynı kişi kısa sürede → geçmişte tek satır.
+        c.Vm.WidthText = "4";
+        c.Vm.AutoSave();
+        c.Vm.HighMetal = true;
+        var d = Load(c, 1);
+        Check(d.Width == 4 && d.HighMetal, "Genişlik ve High metal kaydedilmeli");
+        Check(d.MeasurementEdits.Count == 1 && d.MeasurementEdits[0].Before.Depth is null && d.MeasurementEdits[0].After.Width == 4,
+            "Kısa sürede yapılan girişler tek satırda birleşmeli");
+
+        // Değişiklik yoksa yazılmaz; geçersiz değer kaydedilmez.
+        var audits = c.Audit.Entries.Count;
+        c.Vm.AutoSave();
+        Check(c.Audit.Entries.Count == audits, "Değişiklik yoksa yazılmamalı");
+        c.Vm.DepthText = "abc";
+        c.Vm.AutoSave();
+        Check(Load(c, 1).Depth == 2 && c.Notes.Last().Kind == StatusKind.Error, "Geçersiz değer kaydedilmemeli, hata bildirilmeli");
+    });
+
+    public static void VmAutoSaveOnDefectSwitch() => With(c =>
+    {
+        c.Open();
+        c.Vm.AddDefect("Dent");
+        c.Vm.DepthText = "1.5";
+        c.Vm.NotesText = "kenar";
+        // Kutudan çıkmadan yeni kusur eklenir: önceki kusurun formu kaybolmaz.
+        c.Vm.AddDefect("Dent");
+        Check(Load(c, 1).Depth == 1.5 && Load(c, 1).Notes == "kenar", "Kusur eklenirken önceki form kaydedilmeli");
+
+        c.Vm.DepthText = "3";
+        c.Vm.Select(1);
+        Check(Load(c, 2).Depth == 3 && c.Vm.DepthText == "1.5", "Kusur değişirken önceki form kaydedilmeli, yeni kusur yüklenmeli");
+    });
+
+    public static void MeasurementEditMergeRules()
+    {
+        var t0 = new DateTime(2026, 10, 25, 10, 0, 0);
+        var window = TimeSpan.FromMinutes(10);
+        var d = new Defect { Id = 1, DefectType = "Dent" };
+        MeasurementEditor.Apply(d, new MeasurementSnapshot(1, null, null, null, null, null), "A", t0, window);
+        MeasurementEditor.Apply(d, new MeasurementSnapshot(1, 2, null, null, null, null), "A", t0.AddMinutes(1), window);
+        Check(d.MeasurementEdits.Count == 1 && d.MeasurementEdits[0].Before.Depth is null, "Aynı kişi, süre içinde: birleşir");
+
+        MeasurementEditor.Apply(d, new MeasurementSnapshot(1, 3, null, null, null, null), "B", t0.AddMinutes(2), window);
+        Check(d.MeasurementEdits.Count == 2, "Başka kişi: yeni satır");
+
+        MeasurementEditor.Apply(d, new MeasurementSnapshot(1, 4, null, null, null, null), "B", t0.AddMinutes(30), window);
+        Check(d.MeasurementEdits.Count == 3, "Süre dışında: yeni satır");
+
+        d.Dispositions.Add(new Disposition { Decision = Decision.SubmitMrb, DecidedAt = t0.AddMinutes(31) });
+        MeasurementEditor.Apply(d, new MeasurementSnapshot(1, 5, null, null, null, null), "B", t0.AddMinutes(32), window);
+        Check(d.MeasurementEdits.Count == 4, "Araya karar girdiyse: yeni satır");
+
+        // Değer son satırın öncesine dönerse satır kalkar.
+        MeasurementEditor.Apply(d, new MeasurementSnapshot(1, 4, null, null, null, null), "B", t0.AddMinutes(33), window);
+        Check(d.MeasurementEdits.Count == 3 && d.Width == 4, "Geri dönüşte satır kalkmalı");
+    }
+
     public static void VmPhotoStepWithoutMeasurementAsks() => With(c =>
     {
         c.Open();

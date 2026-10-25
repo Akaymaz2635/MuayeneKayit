@@ -16,12 +16,25 @@ public static class MeasurementEditor
     public static MeasurementSnapshot Snapshot(Defect d) =>
         new(d.Depth, d.Width, d.Length, d.Radius, d.AngleDeg, d.Color, d.HighMetal);
 
+    /// <param name="mergeWithin">
+    /// Verilirse: aynı kişinin bu süre içindeki son düzeltmesi (arada karar yoksa) yeni satır eklenmeden güncellenir.
+    /// Otomatik kayıtta her alan için ayrı geçmiş satırı oluşmaz; değer ilk hâline dönerse satır kalkar.
+    /// </param>
     /// <returns>Ölçüm değiştiyse true.</returns>
-    public static bool Apply(Defect defect, MeasurementSnapshot values, string by, DateTime? at = null)
+    public static bool Apply(Defect defect, MeasurementSnapshot values, string by, DateTime? at = null, TimeSpan? mergeWithin = null)
     {
         var before = Snapshot(defect);
         if (before == values)
             return false;
+
+        var now = at ?? DateTime.Now;
+        var last = defect.MeasurementEdits.LastOrDefault();
+        if (mergeWithin is TimeSpan window && last is not null && last.By == by && now - last.At <= window
+            && !defect.Dispositions.Any(x => x.DecidedAt >= last.At))
+        {
+            defect.MeasurementEdits.RemoveAt(defect.MeasurementEdits.Count - 1);
+            before = last.Before;
+        }
 
         defect.Depth = values.Depth;
         defect.Width = values.Width;
@@ -31,7 +44,8 @@ public static class MeasurementEditor
         defect.Color = values.Color;
         defect.HighMetal = values.HighMetal;
 
-        defect.MeasurementEdits.Add(new MeasurementEdit(at ?? DateTime.Now, by, before, values));
+        if (before != values)
+            defect.MeasurementEdits.Add(new MeasurementEdit(now, by, before, values));
         return true;
     }
 }

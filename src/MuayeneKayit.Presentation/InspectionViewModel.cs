@@ -35,6 +35,12 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// <summary>Liste yenilenirken ListView'in ara seçim olayları yok sayılır (sekme ve seçim korunur).</summary>
     private bool _refreshing;
 
+    /// <summary>Seçili kusurun değerleri forma yazılırken otomatik kayıt çalışmaz.</summary>
+    private bool _loadingForm;
+
+    /// <summary>Otomatik kayıtta aynı kişinin bu süre içindeki ölçüm düzeltmeleri geçmişte tek satırda birleşir.</summary>
+    private static readonly TimeSpan MeasurementMergeWindow = TimeSpan.FromMinutes(10);
+
     public InspectionViewModel(ISessionStore store, IAuditTrail audit, IReadOnlyList<DefectTypeTemplate> types, IDialogService dialogs,
         IFilePicker filePicker, IWindowService windows, IPdfConverter pdf, IUserSettings settings)
     {
@@ -126,6 +132,11 @@ public sealed partial class InspectionViewModel : ObservableObject
     [ObservableProperty] private string _notesText = "";
     [ObservableProperty] private bool _highMetal;
 
+    /// <summary>Son otomatik kaydın saati ("Otomatik kaydedildi 14:32"); başka kusura geçilince boşalır.</summary>
+    [ObservableProperty] private string _autoSaveText = "";
+
+    partial void OnHighMetalChanged(bool value) => AutoSave();
+
     [ObservableProperty] private bool _showDepth = true;
     [ObservableProperty] private bool _showWidth = true;
     [ObservableProperty] private bool _showLength = true;
@@ -197,6 +208,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// <summary>Başka bir parça / seri açmak için muayene seçimine döner. Kayıtlar zaten diske yazılmıştır.</summary>
     public void ChangeSession()
     {
+        AutoSave(reload: false);
         ClearSelection();
         _session = null;
         _folder = null;
@@ -234,6 +246,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         {
             RequireSession();
             var name = type ?? throw new InvalidOperationException("Kusur tipi seçin.");
+            AutoSave(reload: false);
 
             var spec = _types.FirstOrDefault(t => t.Name == name)?.SpecName;
             // Birim o anki ayardan alınır ve kusura yazılır; ayar sonradan değişse de bu kusur aynı birimde kalır.
@@ -267,6 +280,9 @@ public sealed partial class InspectionViewModel : ObservableObject
                 return;
             }
         }
+
+        // Önceki kusurun kaydedilmemiş form değerleri, yeni kusur yüklenmeden yazılır (liste birazdan zaten yenilenir).
+        AutoSave(reload: false);
 
         if (value is not null && _folder is not null)
         {
@@ -425,14 +441,24 @@ public sealed partial class InspectionViewModel : ObservableObject
                         "Ölçümler kilitli. Parça geldiğinde aşağıdaki düğmeyle muayene sonucunu girin.";
         }
 
-        DepthText = DefectPresentation.Fmt(defect.Depth, defect.Unit);
-        WidthText = DefectPresentation.Fmt(defect.Width, defect.Unit);
-        LengthText = DefectPresentation.Fmt(defect.Length, defect.Unit);
-        RadiusText = DefectPresentation.Fmt(defect.Radius, defect.Unit);
-        AngleText = DefectPresentation.Fmt(defect.AngleDeg);
-        ColorText = defect.Color ?? "";
-        NotesText = defect.Notes ?? "";
-        HighMetal = defect.HighMetal;
+        _loadingForm = true;
+        try
+        {
+            DepthText = DefectPresentation.Fmt(defect.Depth, defect.Unit);
+            WidthText = DefectPresentation.Fmt(defect.Width, defect.Unit);
+            LengthText = DefectPresentation.Fmt(defect.Length, defect.Unit);
+            RadiusText = DefectPresentation.Fmt(defect.Radius, defect.Unit);
+            AngleText = DefectPresentation.Fmt(defect.AngleDeg);
+            ColorText = defect.Color ?? "";
+            NotesText = defect.Notes ?? "";
+            HighMetal = defect.HighMetal;
+        }
+        finally
+        {
+            _loadingForm = false;
+        }
+        if (newDefect)
+            AutoSaveText = "";
 
         ApplyTemplateFields(defect);
 
@@ -471,6 +497,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// </summary>
     public async Task<bool> GoToPhotoStepAsync()
     {
+        AutoSave();
         if (IsSkippingMeasurement && !await _dialogs.ConfirmSkipMeasurementAsync(SelectedId!.Value))
             return false;
         SelectedStep = InspectionStep.Photo;
@@ -560,23 +587,49 @@ public sealed partial class InspectionViewModel : ObservableObject
 
     // ───────────────────────── Ölçüm ve oturum kapanışı ─────────────────────────
 
-    public void SaveMeasurements() => Run(() =>
-    {
-        RequireSelection();
+    /// <summary>
+    /// Ölçüm formunu (değerler, High metal, not) kaydedilmiş hâlinden farklıysa sessizce kaydeder; aynıysa hiçbir şey yazmaz.
+    /// Kutudan çıkınca, High metal değişince ve sekme / kusur / oturum değişmeden önce çağrılır.
+    /// Geçersiz değerde uyarı verir, kaydetmez. Sekme değişmez (sıradaki adıma yalnızca 'Ölçümleri kaydet' geçer).
+    /// </summary>
+    public void AutoSave() => AutoSave(reload: true);
 
-        var values = new MeasurementSnapshot(
+    private void AutoSave(bool reload)
+    {
+        if (_loadingForm || _folder is null || Current is not Defect shown || shown.Id != SelectedId || !IsEditable)
+            return;
+
+        Run(() =>
+        {
+            var (values, notes) = ReadForm();
+            if (values == MeasurementEditor.Snapshot(shown) && notes == shown.Notes)
+                return;
+
+            StoreForm(shown.Id, values, notes);
+            AutoSaveText = $"Otomatik kaydedildi {DateTime.Now:HH:mm}";
+            if (reload)
+                Refresh(shown.Id);
+        });
+    }
+
+    private (MeasurementSnapshot Values, string? Notes) ReadForm() => (
+        new MeasurementSnapshot(
             DefectPresentation.ParseOptional(DepthText, "Derinlik"),
             DefectPresentation.ParseOptional(WidthText, "Genişlik"),
             DefectPresentation.ParseOptional(LengthText, "Uzunluk"),
             DefectPresentation.ParseOptional(RadiusText, "Yarıçap"),
             DefectPresentation.ParseOptional(AngleText, "Açı"),
             string.IsNullOrWhiteSpace(ColorText) ? null : ColorText.Trim(),
-            HighMetal);
-        var notes = string.IsNullOrWhiteSpace(NotesText) ? null : NotesText.Trim();
+            HighMetal),
+        string.IsNullOrWhiteSpace(NotesText) ? null : NotesText.Trim());
+
+    /// <summary>Formu kusura yazar (doğrulama, düzeltme geçmişi, denetim satırı). Ölçüm değiştiyse true.</summary>
+    private bool StoreForm(int id, MeasurementSnapshot values, string? notes)
+    {
         var by = _user;
         var changed = false;
 
-        _store.UpdateDefect(_folder!, SelectedId!.Value, d =>
+        _store.UpdateDefect(_folder!, id, d =>
         {
             var probe = new Defect
             {
@@ -590,11 +643,20 @@ public sealed partial class InspectionViewModel : ObservableObject
             if (errors.Count > 0)
                 throw new InvalidOperationException(string.Join(" ", errors));
 
-            changed = MeasurementEditor.Apply(d, values, by);
+            changed = MeasurementEditor.Apply(d, values, by, mergeWithin: MeasurementMergeWindow);
             d.Notes = notes;
         });
 
-        _audit.Append(by, "defect.measure", $"#{SelectedId}");
+        _audit.Append(by, "defect.measure", $"#{id}");
+        return changed;
+    }
+
+    public void SaveMeasurements() => Run(() =>
+    {
+        RequireSelection();
+
+        var (values, notes) = ReadForm();
+        var changed = StoreForm(SelectedId!.Value, values, notes);
         Refresh(SelectedId);
 
         // Ölçüm bitti, fotoğraf yoksa sıradaki adıma geç.
@@ -602,13 +664,14 @@ public sealed partial class InspectionViewModel : ObservableObject
             SelectedStep = InspectionStep.Photo;
         Send(changed
                 ? $"#{SelectedId} ölçümleri güncellendi, düzeltme geçmişe yazıldı."
-                : $"#{SelectedId} için ölçüm değişmedi (not kaydedildi).",
+                : $"#{SelectedId} ölçümleri kayıtlı.",
             StatusKind.Success);
     });
 
     public void Complete() => Run(() =>
     {
         RequireSession();
+        AutoSave();
         var defects = _store.LoadDefects(_folder!);
         var blocking = SessionGate.BlockingDefects(defects);
 

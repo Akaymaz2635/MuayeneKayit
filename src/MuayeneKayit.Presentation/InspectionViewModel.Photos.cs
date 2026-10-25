@@ -48,6 +48,7 @@ public sealed partial class InspectionViewModel
     public Task AddPhotoFromFileAsync() => RunAsync(async () =>
     {
         RequireSelection();
+        AutoSave();
 
         var path = await _filePicker.PickImageAsync();
         if (path is null)
@@ -72,6 +73,7 @@ public sealed partial class InspectionViewModel
     public void OpenCamera() => Run(() =>
     {
         RequireSelection();
+        AutoSave();
 
         var id = SelectedId!.Value;
         var folder = _folder!;
@@ -192,6 +194,7 @@ public sealed partial class InspectionViewModel
     /// </summary>
     public Task CreateReportAsync() => RunAsync(async () =>
     {
+        AutoSave();
         try
         {
             RequireSession();

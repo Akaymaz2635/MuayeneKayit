@@ -56,7 +56,11 @@ public sealed partial class MainWindow : Window
         Nav.SelectedItem = Nav.MenuItems[0];
 
         // Ana pencere kapanınca açık kamera penceresi de kapanır (kamera serbest kalır).
-        Closed += (_, _) => windows.CloseAll();
+        Closed += (_, _) =>
+        {
+            Vm.AutoSave();
+            windows.CloseAll();
+        };
     }
 
     private void Notify(string message, StatusKind kind) => Show(message, SeverityFor(kind));
@@ -128,6 +132,9 @@ public sealed partial class MainWindow : Window
         sender.IsSuggestionListOpen = false;
         Vm.OpenSession();
     }
+
+    /// <summary>Ölçüm ya da not kutusundan çıkınca form otomatik kaydedilir (değişiklik yoksa hiçbir şey yazılmaz).</summary>
+    private void MeasureBox_LostFocus(object sender, RoutedEventArgs e) => Vm.AutoSave();
 
     private void InspectorBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
@@ -223,17 +230,22 @@ public sealed partial class MainWindow : Window
         if (_syncingTabs)
             return;
 
+        // Tıklanan sekme önce alınır: aşağıdaki kayıt ekranı yeniler ve seçimi bir an eski sekmeye çekebilir.
+        var clicked = sender.SelectedItem as SelectorBarItem ?? MeasureTabItem;
+
+        // Ölçüm kutusundan doğrudan sekmeye tıklanınca kutunun LostFocus'u sonra gelebilir: bekleyen değerler önce yazılır.
+        Vm.AutoSave();
+
         // Ölçüm girilmeden fotoğrafa geçilmek istenirse: sekme önce geri alınır, uyarı kabul edilirse fotoğrafa geçilir.
-        if (ReferenceEquals(sender.SelectedItem, PhotoTabItem) && Vm.IsSkippingMeasurement)
+        if (ReferenceEquals(clicked, PhotoTabItem) && Vm.IsSkippingMeasurement)
         {
             ShowTab(TabFor(Vm.SelectedStep));
             await Vm.GoToPhotoStepAsync();
             return;
         }
 
-        ShowPanels(sender.SelectedItem ?? MeasureTabItem);
-        if (sender.SelectedItem is SelectorBarItem item)
-            Vm.SelectedStep = StepOf(item);
+        Vm.SelectedStep = StepOf(clicked);
+        ShowTab(clicked);
     }
 
     /// <summary>

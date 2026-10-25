@@ -14,6 +14,8 @@ public sealed partial class InspectionViewModel
     /// </summary>
     public Task GiveDecisionAsync(DecisionOption option) => RunAsync(async () =>
     {
+        // Karar anındaki ölçüm görüntüsü kayıtlı değerlerden alınır: bekleyen form değerleri önce yazılır.
+        AutoSave();
         if (Current is null)
             return;
 
