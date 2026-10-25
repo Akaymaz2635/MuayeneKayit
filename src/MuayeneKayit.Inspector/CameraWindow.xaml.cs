@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using MuayeneKayit.Core;
 using MuayeneKayit.Presentation;
 using Microsoft.UI.Xaml;
@@ -22,7 +22,8 @@ namespace MuayeneKayit.Inspector;
 /// notebook + harici kamera (C920) ve Surface Pro 9 (arka kamera).
 /// Seçim sırası: son kullanılan → adında C920 olan → harici → arka kamera.
 /// Yalnızca ön (selfie) kamera varsa otomatik seçilmez, kullanıcı listeden seçer.
-/// Zoom yalnızca görüntülemek içindir; fotoğraf kameranın tam çözünürlüğünde kaydedilir.
+/// Dokunmatik ekran için telefon kamerası gibi çalışır: iki parmakla zoom, çift dokunma 1× / 2×, dokunarak odak.
+/// Zoom dijitaldir; fotoğraf ekranda görülen alan kadar (ortadan) kırpılarak kaydedilir.
 /// </summary>
 public sealed partial class CameraWindow : Window
 {
@@ -43,7 +44,6 @@ public sealed partial class CameraWindow : Window
 
     private MediaCapture? _capture;
     private InMemoryRandomAccessStream? _lastPhoto;
-    private bool _syncingZoom;
     private bool _closed;
 
     private static readonly string PrefsPath = Path.Combine(
@@ -60,6 +60,7 @@ public sealed partial class CameraWindow : Window
         FrameSizeSlider.Value = _frameFraction;
         FrameSizeSlider.IsEnabled = _frameOn;
         FrameSizeText.Text = $"%{_frameFraction * 100:0}";
+        SetZoom(1);
 
         Title = $"Kamera — {target}";
         TargetText.Text = target;
@@ -208,7 +209,8 @@ public sealed partial class CameraWindow : Window
             ResolutionText.Text = $"Kayıt: {format.VideoFormat.Width}×{format.VideoFormat.Height}";
             _videoWidth = (int)format.VideoFormat.Width;
             _videoHeight = (int)format.VideoFormat.Height;
-            DrawFrame(FrameOverlay, PreviewHost.Width, PreviewHost.Height, _videoWidth, _videoHeight);
+            UpdatePreviewClip();
+            DrawFrame(FrameOverlay, PreviewArea.ActualWidth, PreviewArea.ActualHeight, _videoWidth, _videoHeight);
             SetupFocus(capture);
             SaveDeviceId(deviceId);
 
@@ -295,13 +297,187 @@ public sealed partial class CameraWindow : Window
         }
     }
 
-    // ───────────────────────── Zoom (yalnızca görüntü) ─────────────────────────
+    // ───────────────────────── Zoom (telefon kamerası gibi) ─────────────────────────
 
-    private void PreviewScroll_SizeChanged(object sender, SizeChangedEventArgs e)
+    /// <summary>
+    /// Dijital zoom: görüntü her zaman ortaya doğru büyür, kaydırma yoktur. Çekilen fotoğraf aynı oranda ortadan
+    /// kırpılır; ekranda görülen (genişlik yönünde) çekilir. Kusur çerçevesi ekranda sabittir ve kırpılmış fotoğrafa denk gelir.
+    /// </summary>
+    private const double MaxZoom = 5;
+
+    private double _zoom = 1;
+
+    private void SetZoom(double value)
     {
-        Preview.Width = PreviewHost.Width = e.NewSize.Width;
-        Preview.Height = PreviewHost.Height = e.NewSize.Height;
+        _zoom = Math.Clamp(value, 1, MaxZoom);
+        PreviewScale.ScaleX = PreviewScale.ScaleY = _zoom;
+        ZoomText.Text = $"{_zoom:0.0}×";
+
+        // Seçili hızlı düğme vurgulu (telefondaki gibi).
+        foreach (var button in new[] { Zoom1Button, Zoom2Button, Zoom4Button })
+        {
+            var preset = double.Parse((string)button.Tag, System.Globalization.CultureInfo.InvariantCulture);
+            button.Style = (Style)Application.Current.Resources[Math.Abs(_zoom - preset) < 0.05 ? "AccentButtonStyle" : "DefaultButtonStyle"];
+        }
+    }
+
+    private void ZoomPreset_Click(object sender, RoutedEventArgs e) =>
+        SetZoom(double.Parse((string)((Button)sender).Tag, System.Globalization.CultureInfo.InvariantCulture));
+
+    /// <summary>İki parmakla açıp kapatma (pinch).</summary>
+    private void PreviewArea_ManipulationDelta(object sender, Microsoft.UI.Xaml.Input.ManipulationDeltaRoutedEventArgs e)
+    {
+        if (e.Delta.Scale > 0)
+            SetZoom(_zoom * e.Delta.Scale);
+        e.Handled = true;
+    }
+
+    /// <summary>Çift dokunma: 1× ↔ 2×.</summary>
+    private void PreviewArea_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        SetZoom(_zoom < 1.5 ? 2 : 1);
+        e.Handled = true;
+    }
+
+    /// <summary>Fare tekerleği: her çentik yaklaşık %10.</summary>
+    private void PreviewArea_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var delta = e.GetCurrentPoint(PreviewArea).Properties.MouseWheelDelta;
+        SetZoom(_zoom * Math.Pow(1.1, delta / 120.0));
+        e.Handled = true;
+    }
+
+    private void PreviewArea_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdatePreviewClip();
         DrawFrame(FrameOverlay, e.NewSize.Width, e.NewSize.Height, _videoWidth, _videoHeight);
+    }
+
+    /// <summary>
+    /// Büyütülen görüntü, görüntünün 1×'teki dikdörtgeninin dışına taşmaz (yan boşluklara yayılmaz).
+    /// Böylece ekranda görülen, ortadan kırpılarak çekilen fotoğrafla birebir aynıdır.
+    /// </summary>
+    private void UpdatePreviewClip()
+    {
+        double areaW = PreviewArea.ActualWidth, areaH = PreviewArea.ActualHeight;
+        if (areaW <= 0 || areaH <= 0)
+            return;
+
+        var rect = new Windows.Foundation.Rect(0, 0, areaW, areaH);
+        if (_videoWidth > 0 && _videoHeight > 0)
+        {
+            var scale = Math.Min(areaW / _videoWidth, areaH / _videoHeight);
+            double shownW = _videoWidth * scale, shownH = _videoHeight * scale;
+            rect = new Windows.Foundation.Rect((areaW - shownW) / 2, (areaH - shownH) / 2, shownW, shownH);
+        }
+        PreviewArea.Clip = new RectangleGeometry { Rect = rect };
+    }
+
+    /// <summary>
+    /// Dokunarak odak: dokunulan noktaya odak halkası çizilir; kamera destekliyorsa o bölgeye odaklanır.
+    /// "Odak sabit" seçiliyse odak değiştirilmez.
+    /// </summary>
+    private async void PreviewArea_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        var capture = _capture;
+        var focus = capture?.VideoDeviceController.FocusControl;
+        if (capture is null || focus is null || !focus.Supported || !AutoFocusToggle.IsOn)
+            return;
+
+        var point = e.GetPosition(PreviewArea);
+        ShowFocusRing(point);
+        try
+        {
+            var roi = capture.VideoDeviceController.RegionsOfInterestControl;
+            if (roi.AutoFocusSupported && roi.MaxRegions > 0 && TryMapToFrame(point, out var nx, out var ny))
+            {
+                const double size = 0.12;
+                var region = new RegionOfInterest
+                {
+                    AutoFocusEnabled = true,
+                    BoundsNormalized = true,
+                    Bounds = new Windows.Foundation.Rect(Math.Clamp(nx - size / 2, 0, 1 - size), Math.Clamp(ny - size / 2, 0, 1 - size), size, size),
+                    Type = RegionOfInterestType.Unknown,
+                    Weight = 100,
+                };
+                await roi.SetRegionsAsync(new[] { region }, true);
+            }
+            await focus.FocusAsync();
+        }
+        catch (Exception)
+        {
+            // Bazı kameralar bölgeye odaklamayı desteklemez; görüntü etkilenmez.
+        }
+    }
+
+    /// <summary>Ekrandaki noktayı (zoom dahil) kare içindeki 0..1 konuma çevirir; görüntü dışındaysa false.</summary>
+    private bool TryMapToFrame(Windows.Foundation.Point point, out double nx, out double ny)
+    {
+        nx = ny = 0;
+        double areaW = PreviewArea.ActualWidth, areaH = PreviewArea.ActualHeight;
+        if (_videoWidth <= 0 || _videoHeight <= 0 || areaW <= 0 || areaH <= 0)
+            return false;
+
+        var scale = Math.Min(areaW / _videoWidth, areaH / _videoHeight);
+        double shownW = _videoWidth * scale, shownH = _videoHeight * scale;
+        var x = areaW / 2 + (point.X - areaW / 2) / _zoom;
+        var y = areaH / 2 + (point.Y - areaH / 2) / _zoom;
+        nx = (x - (areaW - shownW) / 2) / shownW;
+        ny = (y - (areaH - shownH) / 2) / shownH;
+        return nx is >= 0 and <= 1 && ny is >= 0 and <= 1;
+    }
+
+    private void ShowFocusRing(Windows.Foundation.Point point)
+    {
+        FocusOverlay.Children.Clear();
+        const double size = 72;
+        var ring = new Microsoft.UI.Xaml.Shapes.Ellipse
+        {
+            Width = size,
+            Height = size,
+            Stroke = new SolidColorBrush(Microsoft.UI.Colors.Gold),
+            StrokeThickness = 2,
+        };
+        Canvas.SetLeft(ring, point.X - size / 2);
+        Canvas.SetTop(ring, point.Y - size / 2);
+        FocusOverlay.Children.Add(ring);
+
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromSeconds(1.2);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) => FocusOverlay.Children.Remove(ring);
+        timer.Start();
+    }
+
+    /// <summary>Fotoğrafı zoom oranında ortadan kırpar (ekranda görülen alan); yeni JPEG akışı döner.</summary>
+    private static async Task<InMemoryRandomAccessStream> CropCenterAsync(InMemoryRandomAccessStream source, double zoom)
+    {
+        var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(source);
+        uint width = decoder.OrientedPixelWidth, height = decoder.OrientedPixelHeight;
+        var cropW = Math.Max(1u, (uint)Math.Round(width / zoom));
+        var cropH = Math.Max(1u, (uint)Math.Round(height / zoom));
+
+        var transform = new Windows.Graphics.Imaging.BitmapTransform
+        {
+            Bounds = new Windows.Graphics.Imaging.BitmapBounds { X = (width - cropW) / 2, Y = (height - cropH) / 2, Width = cropW, Height = cropH },
+        };
+        var pixels = await decoder.GetPixelDataAsync(
+            Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8, Windows.Graphics.Imaging.BitmapAlphaMode.Ignore, transform,
+            Windows.Graphics.Imaging.ExifOrientationMode.RespectExifOrientation, Windows.Graphics.Imaging.ColorManagementMode.DoNotColorManage);
+
+        var output = new InMemoryRandomAccessStream();
+        var options = new Windows.Graphics.Imaging.BitmapPropertySet
+        {
+            { "ImageQuality", new Windows.Graphics.Imaging.BitmapTypedValue(0.95, Windows.Foundation.PropertyType.Single) },
+        };
+        var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.JpegEncoderId, output, options);
+        encoder.SetPixelData(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8, Windows.Graphics.Imaging.BitmapAlphaMode.Ignore,
+            cropW, cropH, decoder.DpiX, decoder.DpiY, pixels.DetachPixelData());
+        await encoder.FlushAsync();
+
+        source.Dispose();
+        output.Seek(0);
+        return output;
     }
 
     private void FrameSize_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
@@ -311,7 +487,7 @@ public sealed partial class CameraWindow : Window
             return;
         _frameFraction = e.NewValue;
         FrameSizeText.Text = $"%{e.NewValue * 100:0}";
-        DrawFrame(FrameOverlay, PreviewHost.Width, PreviewHost.Height, _videoWidth, _videoHeight);
+        DrawFrame(FrameOverlay, PreviewArea.ActualWidth, PreviewArea.ActualHeight, _videoWidth, _videoHeight);
         DrawFrame(ReviewOverlay, ReviewHost.ActualWidth, ReviewHost.ActualHeight, _photoWidth, _photoHeight);
     }
 
@@ -325,7 +501,7 @@ public sealed partial class CameraWindow : Window
             return;
         _frameOn = FrameToggle.IsOn;
         FrameSizeSlider.IsEnabled = FrameToggle.IsOn;
-        DrawFrame(FrameOverlay, PreviewHost.Width, PreviewHost.Height, _videoWidth, _videoHeight);
+        DrawFrame(FrameOverlay, PreviewArea.ActualWidth, PreviewArea.ActualHeight, _videoWidth, _videoHeight);
         DrawFrame(ReviewOverlay, ReviewHost.ActualWidth, ReviewHost.ActualHeight, _photoWidth, _photoHeight);
     }
 
@@ -374,26 +550,6 @@ public sealed partial class CameraWindow : Window
         canvas.Children.Add(tag);
     }
 
-    private void ZoomSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (_syncingZoom || PreviewScroll is null || ZoomText is null)
-            return;
-
-        PreviewScroll.ChangeView(null, null, (float)e.NewValue);
-        ZoomText.Text = $"{e.NewValue:0.0}×";
-    }
-
-    private void PreviewScroll_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
-    {
-        _syncingZoom = true;
-        ZoomSlider.Value = PreviewScroll.ZoomFactor;
-        ZoomText.Text = $"{PreviewScroll.ZoomFactor:0.0}×";
-        _syncingZoom = false;
-    }
-
-    private void ZoomReset_Click(object sender, RoutedEventArgs e) =>
-        PreviewScroll.ChangeView(0, 0, 1f);
-
     // ───────────────────────── Çek / kaydet ─────────────────────────
 
     private async void Capture_Click(object sender, RoutedEventArgs e)
@@ -408,6 +564,10 @@ public sealed partial class CameraWindow : Window
             await _capture.CapturePhotoToStreamAsync(ImageEncodingProperties.CreateJpeg(), stream);
             stream.Seek(0);
 
+            // Telefon kamerası gibi: zoom yapıldıysa ekranda görülen alan (ortadan) çekilir.
+            if (_zoom > 1.01)
+                stream = await CropCenterAsync(stream, _zoom);
+
             var bitmap = new BitmapImage();
             await bitmap.SetSourceAsync(stream);
 
@@ -419,7 +579,7 @@ public sealed partial class CameraWindow : Window
             _photoHeight = bitmap.PixelHeight;
             ReviewHost.Visibility = Visibility.Visible;
             DrawFrame(ReviewOverlay, ReviewHost.ActualWidth, ReviewHost.ActualHeight, _photoWidth, _photoHeight);
-            PreviewScroll.Visibility = Visibility.Collapsed;
+            PreviewArea.Visibility = Visibility.Collapsed;
             CaptureButton.Visibility = Visibility.Collapsed;
             SaveButton.Visibility = Visibility.Visible;
             RetakeButton.Visibility = Visibility.Visible;
@@ -474,7 +634,7 @@ public sealed partial class CameraWindow : Window
         _lastPhoto = null;
         Review.Source = null;
         ReviewHost.Visibility = Visibility.Collapsed;
-        PreviewScroll.Visibility = Visibility.Visible;
+        PreviewArea.Visibility = Visibility.Visible;
         SaveButton.Visibility = Visibility.Collapsed;
         RetakeButton.Visibility = Visibility.Collapsed;
         CaptureButton.Visibility = Visibility.Visible;

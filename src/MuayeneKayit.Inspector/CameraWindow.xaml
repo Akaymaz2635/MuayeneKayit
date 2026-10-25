@@ -23,23 +23,28 @@
 
         <!-- Görüntü alanı: canlı görüntü ya da çekilen fotoğrafın önizlemesi -->
         <Grid Grid.Row="1">
-            <ScrollViewer
-                x:Name="PreviewScroll"
-                ZoomMode="Enabled"
-                MinZoomFactor="1"
-                MaxZoomFactor="5"
-                HorizontalScrollMode="Enabled"
-                VerticalScrollMode="Enabled"
-                HorizontalScrollBarVisibility="Auto"
-                VerticalScrollBarVisibility="Auto"
-                SizeChanged="PreviewScroll_SizeChanged"
-                ViewChanged="PreviewScroll_ViewChanged">
-                <Grid x:Name="PreviewHost">
+            <!-- Canlı görüntü (telefon kamerası gibi): iki parmakla zoom, çift dokunma 1× / 2×, dokunarak odak, tekerlekle zoom.
+                 Zoom her zaman ortaya doğrudur; çekilen fotoğraf ekranda görünen alan kadar kırpılır. -->
+            <Grid
+                x:Name="PreviewArea"
+                Background="Transparent"
+                ManipulationMode="Scale"
+                ManipulationDelta="PreviewArea_ManipulationDelta"
+                DoubleTapped="PreviewArea_DoubleTapped"
+                Tapped="PreviewArea_Tapped"
+                PointerWheelChanged="PreviewArea_PointerWheelChanged"
+                SizeChanged="PreviewArea_SizeChanged"
+                AutomationProperties.AutomationId="PreviewArea">
+                <Grid x:Name="PreviewHost" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False">
+                    <Grid.RenderTransform>
+                        <ScaleTransform x:Name="PreviewScale" ScaleX="1" ScaleY="1" />
+                    </Grid.RenderTransform>
                     <MediaPlayerElement x:Name="Preview" AutoPlay="True" Stretch="Uniform" />
-                    <!-- Kusur çerçevesi: görüntüyle birlikte zoom yapar -->
-                    <Canvas x:Name="FrameOverlay" IsHitTestVisible="False" />
                 </Grid>
-            </ScrollViewer>
+                <!-- Kusur çerçevesi ve odak halkası ekranda sabittir (zoom'la büyümez): çerçeve kırpılmış fotoğraftaki işaretle örtüşür. -->
+                <Canvas x:Name="FrameOverlay" IsHitTestVisible="False" />
+                <Canvas x:Name="FocusOverlay" IsHitTestVisible="False" />
+            </Grid>
             <Grid x:Name="ReviewHost" Visibility="Collapsed" SizeChanged="ReviewHost_SizeChanged">
                 <Image x:Name="Review" Stretch="Uniform" />
                 <Canvas x:Name="ReviewOverlay" IsHitTestVisible="False" />
@@ -64,10 +69,11 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Zoom" Foreground="#AAAAAA" VerticalAlignment="Center" />
-                <Slider x:Name="ZoomSlider" Minimum="1" Maximum="5" StepFrequency="0.1" Value="1" Width="200" VerticalAlignment="Center" ValueChanged="ZoomSlider_ValueChanged" />
-                <TextBlock x:Name="ZoomText" Text="1.0×" Foreground="White" VerticalAlignment="Center" Width="40" />
-                <Button Content="1×" Click="ZoomReset_Click" />
+                <!-- Telefon kamerası gibi hızlı zoom düğmeleri (dokunmatik için büyük); ara değerler iki parmakla. -->
+                <Button x:Name="Zoom1Button" Content="1×" Tag="1" Click="ZoomPreset_Click" Width="56" Height="48" CornerRadius="24" AutomationProperties.AutomationId="Zoom1Button" />
+                <Button x:Name="Zoom2Button" Content="2×" Tag="2" Click="ZoomPreset_Click" Width="56" Height="48" CornerRadius="24" AutomationProperties.AutomationId="Zoom2Button" />
+                <Button x:Name="Zoom4Button" Content="4×" Tag="4" Click="ZoomPreset_Click" Width="56" Height="48" CornerRadius="24" AutomationProperties.AutomationId="Zoom4Button" />
+                <TextBlock x:Name="ZoomText" Text="1.0×" Foreground="White" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Width="48" AutomationProperties.AutomationId="ZoomText" />
                 <TextBlock x:Name="FrameSizeLabel" Text="Çerçeve" Foreground="#AAAAAA" VerticalAlignment="Center" Margin="16,0,0,0" />
                 <Slider x:Name="FrameSizeSlider" Minimum="0.05" Maximum="0.9" StepFrequency="0.05" Width="180" VerticalAlignment="Center"
                         ValueChanged="FrameSize_ValueChanged" ToolTipService.ToolTip="Çerçevenin boyutu (görüntünün kısa kenarına oranı)" />
