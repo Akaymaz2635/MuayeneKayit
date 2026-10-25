@@ -1,3 +1,4 @@
+﻿using MuayeneKayit.Core;
 using System.Diagnostics;
 using MuayeneKayit.Presentation;
 
@@ -48,8 +49,7 @@ public sealed class WinUiWindowService : IWindowService
         editor.Activate();
     }
 
-    public void OpenFile(string path) =>
-        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+    public void OpenFile(string path) => EdgeBrowser.OpenFile(path);
 
     /// <summary>Ana pencere kapanınca açık kamera ve düzenleyici kapatılır (kamera serbest kalır).</summary>
     public void CloseAll()

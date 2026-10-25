@@ -15,7 +15,7 @@ public sealed class EdgePdfConverter : IPdfConverter
     /// <summary>Başarılıysa null, değilse kısa hata açıklaması döner.</summary>
     public async Task<string?> TryConvertAsync(string htmlPath, string pdfPath)
     {
-        var edge = FindEdge();
+        var edge = EdgeBrowser.Find();
         if (edge is null)
             return "Microsoft Edge bulunamadı";
 
@@ -69,17 +69,6 @@ public sealed class EdgePdfConverter : IPdfConverter
             TryDelete(() => File.Delete(temp));
             TryDelete(() => Directory.Delete(profile, recursive: true));
         }
-    }
-
-    private static string? FindEdge()
-    {
-        foreach (var folder in new[] { Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.ProgramFiles })
-        {
-            var path = Path.Combine(Environment.GetFolderPath(folder), "Microsoft", "Edge", "Application", "msedge.exe");
-            if (File.Exists(path))
-                return path;
-        }
-        return null;
     }
 
     private static void TryDelete(Action delete)
