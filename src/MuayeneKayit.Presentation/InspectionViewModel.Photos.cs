@@ -213,6 +213,11 @@ public sealed partial class InspectionViewModel
             Send($"Rapor v{version} hazırlanıyor (PDF)...", StatusKind.Info);
             var pdfError = await _pdf.TryConvertAsync(htmlPath, pdfPath);
 
+            // PDF asıl kayıttır (fotoğraflar içinde). HTML yalnızca ara dosya: PDF oluştuysa silinir,
+            // oluşmadıysa yedek olarak kalır ve açılır.
+            if (pdfError is null)
+                ReportFiles.DeleteHtml(htmlPath);
+
             _audit.Append(_user, "report.create", $"Rapor_v{version}{(pdfError is null ? " (pdf)" : "")}");
             _windows.OpenFile(pdfError is null ? pdfPath : htmlPath);
             if (pdfError is null)

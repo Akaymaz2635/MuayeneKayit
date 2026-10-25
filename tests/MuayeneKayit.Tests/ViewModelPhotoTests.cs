@@ -171,17 +171,18 @@ public static partial class ViewModelTests
 
         Wait(c.Vm.CreateReportAsync());
         var html = Path.Combine(c.Folder, "reports", "Rapor_v1.html");
-        Check(File.Exists(html), "HTML yazılmalı");
-        Check(c.Pdf.Calls.Single() == (html, Path.Combine(c.Folder, "reports", "Rapor_v1.pdf")), "PDF dönüştürücü çağrılmalı");
+        Check(c.Pdf.Calls.Single() == (html, Path.Combine(c.Folder, "reports", "Rapor_v1.pdf")), "PDF dönüştürücü HTML'den çağrılmalı");
+        Check(!File.Exists(html) && File.Exists(Path.ChangeExtension(html, ".pdf")), "PDF oluşunca HTML ara dosyası silinmeli");
         Check(c.Windows.OpenedFiles.Single() == Path.Combine(c.Folder, "reports", "Rapor_v1.pdf"), "PDF açılmalı");
         Check(c.Audit.Entries.Any(e => e.EndsWith("|report.create|Rapor_v1 (pdf)")), "Rapor denetim satırı");
         Check(!c.Notes.Any(n => n.Kind == StatusKind.Warning || n.Kind == StatusKind.Error), "PDF başarılıysa uyarı yok");
         Check(c.Notes.Last().Message == "Rapor v1 hazırlanıyor (PDF)...", "Hazırlanıyor bildirimi");
         Check(c.Vm.CanCreateReport && !c.Vm.IsReportRunning, "Düğme yeniden açılmalı");
 
-        // İkinci rapor sürümü artırır.
+        // İkinci rapor sürümü artırır (HTML silinmiş olsa da sürüm PDF'ten sayılır).
         Wait(c.Vm.CreateReportAsync());
-        Check(File.Exists(Path.Combine(c.Folder, "reports", "Rapor_v2.html")), "Sürüm artmalı");
+        Check(File.Exists(Path.Combine(c.Folder, "reports", "Rapor_v2.pdf")) && File.Exists(Path.Combine(c.Folder, "reports", "Rapor_v1.pdf")),
+            "Sürüm artmalı, eski PDF korunmalı");
     });
 
     public static void VmReportFallsBackToHtml() => With(c =>
@@ -191,7 +192,7 @@ public static partial class ViewModelTests
 
         Wait(c.Vm.CreateReportAsync());
         var html = Path.Combine(c.Folder, "reports", "Rapor_v1.html");
-        Check(c.Windows.OpenedFiles.Single() == html, "HTML açılmalı");
+        Check(c.Windows.OpenedFiles.Single() == html && File.Exists(html), "PDF yoksa HTML kalmalı ve açılmalı");
         Check(c.Notes.Last() == ("Rapor v1 HTML olarak açıldı (PDF üretilemedi: Microsoft Edge bulunamadı). Tarayıcıdan 'PDF olarak kaydet' ile yazdırabilirsiniz.", StatusKind.Warning),
             $"Uyarı: {c.Notes.Last().Message}");
         Check(c.Audit.Entries.Any(e => e.EndsWith("|report.create|Rapor_v1")), "PDF'siz denetim satırı");

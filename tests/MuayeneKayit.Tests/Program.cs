@@ -818,6 +818,16 @@ static void ReportVersionRules()
         File.WriteAllText(Path.Combine(root, "reports", "Rapor_v2.html"), "x");
         File.WriteAllText(Path.Combine(root, "reports", "Rapor_v2.pdf"), "x");
         Expect(ReportFiles.LatestVersion(root) == 2, "Son sürüm 2 olmalı");
+
+        // Yalnızca PDF'i olan sürüm de sayılır (HTML silinmiş).
+        File.WriteAllText(Path.Combine(root, "reports", "Rapor_v3.pdf"), "x");
+        Expect(ReportFiles.LatestVersion(root) == 3, "HTML'siz PDF sürümü sayılmalı");
+
+        // Temizlik: PDF'i olan HTML silinir, PDF'i olmayan (v1) yedek olarak kalır.
+        Expect(ReportFiles.CleanupHtml(root) == 1, "Yalnızca v2 HTML silinmeli");
+        Expect(File.Exists(Path.Combine(root, "reports", "Rapor_v1.html")) && !File.Exists(Path.Combine(root, "reports", "Rapor_v2.html")),
+            "v1 HTML kalmalı, v2 HTML silinmeli");
+        Expect(ReportFiles.LatestVersion(root) == 3, "Temizlikten sonra sürüm değişmemeli");
     }
     finally { Directory.Delete(root, true); }
 }
