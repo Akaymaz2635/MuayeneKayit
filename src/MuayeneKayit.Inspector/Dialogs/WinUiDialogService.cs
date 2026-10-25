@@ -376,4 +376,19 @@ public sealed class WinUiDialogService : IDialogService
             "Kaldır", "Vazgeç");
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
+
+    public async Task<bool> ConfirmSkipMeasurementAsync(int defectId)
+    {
+        var dialog = NewDialog(
+            "Ölçüm girilmedi",
+            new TextBlock
+            {
+                Width = 440,
+                TextWrapping = TextWrapping.Wrap,
+                Text = $"#{defectId} kusuru için henüz ölçüm kaydedilmedi. Ölçüm adımı atlanmamalıdır; " +
+                       "ölçümleri girip 'Ölçümleri kaydet' ile kaydedin.\n\nYine de fotoğraf adımına geçmek istiyor musunuz?",
+            },
+            "Yine de fotoğrafa geç", "Ölçüme dön");
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
 }

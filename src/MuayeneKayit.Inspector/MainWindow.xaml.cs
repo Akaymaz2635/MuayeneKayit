@@ -118,6 +118,25 @@ public sealed partial class MainWindow : Window
 
     private void OpenSession_Click(object sender, RoutedEventArgs e) => Vm.OpenSession();
 
+    /// <summary>
+    /// Öneri kutusunda Enter: listeden bir öneri seçildiyse yalnızca o seçilir; seçilmediyse muayene oluşturulur.
+    /// </summary>
+    private void Suggest_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (args.ChosenSuggestion is not null)
+            return;
+        sender.IsSuggestionListOpen = false;
+        Vm.OpenSession();
+    }
+
+    private void InspectorBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter)
+            return;
+        e.Handled = true;
+        Vm.OpenSession();
+    }
+
     // ───────────────────────── Öneriler ─────────────────────────
 
     private void Suggest_GotFocus(object sender, RoutedEventArgs e)
@@ -199,10 +218,18 @@ public sealed partial class MainWindow : Window
         : ReferenceEquals(item, HistoryTabItem) ? InspectionStep.History
         : InspectionStep.Measure;
 
-    private void DetailTabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    private async void DetailTabs_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
         if (_syncingTabs)
             return;
+
+        // Ölçüm girilmeden fotoğrafa geçilmek istenirse: sekme önce geri alınır, uyarı kabul edilirse fotoğrafa geçilir.
+        if (ReferenceEquals(sender.SelectedItem, PhotoTabItem) && Vm.IsSkippingMeasurement)
+        {
+            ShowTab(TabFor(Vm.SelectedStep));
+            await Vm.GoToPhotoStepAsync();
+            return;
+        }
 
         ShowPanels(sender.SelectedItem ?? MeasureTabItem);
         if (sender.SelectedItem is SelectorBarItem item)

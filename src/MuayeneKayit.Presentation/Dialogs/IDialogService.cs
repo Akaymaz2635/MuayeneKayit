@@ -25,4 +25,7 @@ public interface IDialogService
 
     /// <summary>Fotoğrafı kaldırma onayı.</summary>
     Task<bool> ConfirmRemovePhotoAsync(int defectId, string photo);
+
+    /// <summary>Ölçüm girilmeden fotoğraf adımına geçme onayı; true = yine de geç.</summary>
+    Task<bool> ConfirmSkipMeasurementAsync(int defectId);
 }

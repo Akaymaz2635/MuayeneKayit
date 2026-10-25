@@ -75,6 +75,7 @@ var tests = new List<(string Name, Action Body)>
     ("VM: child devrini geri alma child'ı void eder", VmUndoChildTransferVoidsChild),
     ("VM: void gerekçe ister", VmVoidNeedsReason),
     ("VM: fotoğraf kaldırma onay ister", VmRemovePhotoConfirmation),
+    ("VM: ölçümsüz fotoğraf adımına geçişte uyarı", VmPhotoStepWithoutMeasurementAsks),
     ("VM: reopen'da not zorunlu", VmReopenRequiresNote),
     ("Diyalog kuralları: Merge, CanSave, DeltaText, DecisionForm", DialogFormRules),
     ("VM: fotoğraf kartları etiket, temiz kopya ve bilgi metni", VmPhotoCardsShowLabelsAndCleanCopy),

@@ -56,10 +56,10 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <AutoSuggestBox x:Name="PartBox" Text="{x:Bind Vm.PartNumber, Mode=TwoWay}" Header="Parça no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="PartBox" />
-                                <AutoSuggestBox x:Name="OpBox" Grid.Column="1" Text="{x:Bind Vm.OperationNumber, Mode=TwoWay}" Header="Operasyon" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="OpBox" />
-                                <AutoSuggestBox x:Name="SerialBox" Grid.Row="1" Text="{x:Bind Vm.SerialNumber, Mode=TwoWay}" Header="Seri no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" AutomationProperties.AutomationId="SerialBox" />
-                                <TextBox x:Name="InspectorBox" Grid.Row="1" Grid.Column="1" Text="{x:Bind Vm.InspectorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Muayeneci" PlaceholderText="Adınız" AutomationProperties.AutomationId="InspectorBox" />
+                                <AutoSuggestBox x:Name="PartBox" Text="{x:Bind Vm.PartNumber, Mode=TwoWay}" Header="Parça no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="PartBox" />
+                                <AutoSuggestBox x:Name="OpBox" Grid.Column="1" Text="{x:Bind Vm.OperationNumber, Mode=TwoWay}" Header="Operasyon" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="OpBox" />
+                                <AutoSuggestBox x:Name="SerialBox" Grid.Row="1" Text="{x:Bind Vm.SerialNumber, Mode=TwoWay}" Header="Seri no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="SerialBox" />
+                                <TextBox x:Name="InspectorBox" Grid.Row="1" Grid.Column="1" Text="{x:Bind Vm.InspectorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Muayeneci" PlaceholderText="Adınız" KeyDown="InspectorBox_KeyDown" AutomationProperties.AutomationId="InspectorBox" />
                             </Grid>
                             <Button Content="Muayene oluştur" Click="OpenSession_Click" Height="48" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="OpenSessionButton" />
                         </StackPanel>

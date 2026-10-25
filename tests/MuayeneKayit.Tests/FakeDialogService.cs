@@ -48,6 +48,15 @@ public sealed class FakeDialogService : IDialogService
         return Task.FromResult(VoidReasons.Count > 0 ? VoidReasons.Dequeue() : null);
     }
 
+    public Queue<bool> SkipConfirms { get; } = new();
+    public List<int> SkipRequests { get; } = new();
+
+    public Task<bool> ConfirmSkipMeasurementAsync(int defectId)
+    {
+        SkipRequests.Add(defectId);
+        return Task.FromResult(SkipConfirms.Count > 0 && SkipConfirms.Dequeue());
+    }
+
     public Task<bool> ConfirmRemovePhotoAsync(int defectId, string photo)
     {
         PhotoRequests.Add((defectId, photo));

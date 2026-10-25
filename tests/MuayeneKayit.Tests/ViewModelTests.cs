@@ -266,6 +266,8 @@ public static partial class ViewModelTests
 
     private static void Wait(Task task) => task.GetAwaiter().GetResult();
 
+    private static T Wait<T>(Task<T> task) => task.GetAwaiter().GetResult();
+
     private static DecisionOption Option(Ctx c, Decision decision) =>
         c.Vm.DecisionOptions.First(o => o.Decision == decision);
 
@@ -421,6 +423,29 @@ public static partial class ViewModelTests
         Check(StateOf(c, 1) == DefectState.Voided, "Void olmalı");
         Check(Load(c, 1).Dispositions.Last().Note == "yanlış tip", "Gerekçe kırpılmalı");
         Check(c.Audit.Entries.Any(e => e.EndsWith("|defect.void|#1 yanlış tip")), "Denetim satırı beklenir");
+    });
+
+    public static void VmPhotoStepWithoutMeasurementAsks() => With(c =>
+    {
+        c.Open();
+        c.Vm.AddDefect("Dent");
+        Check(c.Vm.IsSkippingMeasurement, "Ölçümsüz açık kusurda atlama sayılmalı");
+
+        // Uyarıda "Ölçüme dön": sekme ölçümde kalır.
+        Check(!Wait(c.Vm.GoToPhotoStepAsync()), "Vazgeçince false");
+        Check(c.Vm.SelectedStep == InspectionStep.Measure && c.Dialogs.SkipRequests.SequenceEqual(new[] { 1 }), "Ölçümde kalmalı, bir kez sorulmalı");
+
+        // "Yine de fotoğrafa geç".
+        c.Dialogs.SkipConfirms.Enqueue(true);
+        Check(Wait(c.Vm.GoToPhotoStepAsync()) && c.Vm.SelectedStep == InspectionStep.Photo, "Kabul edince fotoğrafa geçmeli");
+
+        // Ölçüm kaydedildikten sonra sorulmaz.
+        c.Vm.SelectedStep = InspectionStep.Measure;
+        c.Vm.DepthText = "1";
+        c.Vm.SaveMeasurements();
+        var asked = c.Dialogs.SkipRequests.Count;
+        Check(!c.Vm.IsSkippingMeasurement && Wait(c.Vm.GoToPhotoStepAsync()), "Ölçüm varken doğrudan geçmeli");
+        Check(c.Dialogs.SkipRequests.Count == asked, "Ölçüm varken sorulmamalı");
     });
 
     public static void VmRemovePhotoConfirmation() => With(c =>

@@ -458,6 +458,25 @@ public sealed partial class InspectionViewModel : ObservableObject
         RadiusHeader = Units.Header("Yarıçap", unit);
     }
 
+    /// <summary>
+    /// Ölçüm adımı atlanıyor mu: düzenlenebilir kusurun şablonunda ölçüm alanı var ama kaydedilmiş ölçüm yok.
+    /// </summary>
+    public bool IsSkippingMeasurement =>
+        Current is Defect d && IsEditable && !DefectPresentation.HasMeasurement(d)
+        && (ShowDepth || ShowWidth || ShowLength || ShowRadius || ShowAngle || ShowColor);
+
+    /// <summary>
+    /// Fotoğraf adımına geçmek istenince çağrılır. Ölçüm girilmemişse uyarı sorulur; kullanıcı kabul ederse
+    /// (ya da ölçüm varsa) sekme fotoğrafa geçer ve true döner.
+    /// </summary>
+    public async Task<bool> GoToPhotoStepAsync()
+    {
+        if (IsSkippingMeasurement && !await _dialogs.ConfirmSkipMeasurementAsync(SelectedId!.Value))
+            return false;
+        SelectedStep = InspectionStep.Photo;
+        return true;
+    }
+
     /// <summary>Ayar değişince kusur seçili değilse başlıklar yeni ayardaki birime döner (seçili kusur kendi birimini korur).</summary>
     public void RefreshUnitHeaders()
     {
