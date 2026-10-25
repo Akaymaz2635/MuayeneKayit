@@ -32,9 +32,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MuayeneKayit.Core\MuayeneKayit.Core.csproj" />
+    <ProjectReference Include="..\MuayeneKayit.Presentation\MuayeneKayit.Presentation.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.9169" />
   </ItemGroup>
