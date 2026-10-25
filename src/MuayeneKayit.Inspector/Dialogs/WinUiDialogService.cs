@@ -1,6 +1,8 @@
 using System.Globalization;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using MuayeneKayit.Core;
 using MuayeneKayit.Presentation;
 using static MuayeneKayit.Presentation.DefectPresentation;
@@ -28,7 +30,7 @@ public sealed class WinUiDialogService : IDialogService
     private ContentDialog NewDialog(string title, object content, string primary, string close, bool primaryEnabled = true)
     {
         var xamlRoot = _xamlRoot?.Invoke() ?? throw new InvalidOperationException("Pencere henüz hazır değil.");
-        return new ContentDialog
+        var dialog = new ContentDialog
         {
             Title = title,
             Content = content,
@@ -41,6 +43,28 @@ public sealed class WinUiDialogService : IDialogService
             // Pencere kökündeki tema (Açık / Koyu) diyaloğa da uygulanır.
             RequestedTheme = (xamlRoot.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Default,
         };
+
+        // İçerikte odaklanacak kutu yoksa ilk odak onay düğmesine düşer ve Enter onaylar (ör. fotoğraf kaldırılır).
+        // Odak onay düğmesindeyse vazgeç düğmesine taşınır: Enter / Space güvenli seçeneği seçer.
+        dialog.Opened += (_, _) => dialog.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            if (FocusManager.GetFocusedElement(xamlRoot) is Button { Name: "PrimaryButton" })
+                FindButton(dialog, "CloseButton")?.Focus(FocusState.Programmatic);
+        });
+        return dialog;
+    }
+
+    private static Button? FindButton(DependencyObject parent, string name)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is Button { } b && b.Name == name)
+                return b;
+            if (FindButton(child, name) is Button found)
+                return found;
+        }
+        return null;
     }
 
     // ───────────────────────── Karar ─────────────────────────
@@ -377,18 +401,30 @@ public sealed class WinUiDialogService : IDialogService
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
+    /// <summary>
+    /// Güvenli seçenek ("Ölçüme dön") vurgulu ve varsayılandır: Enter ve Esc ölçümde bırakır.
+    /// Atlamak için ikincil düğmeye bilerek basılmalıdır.
+    /// </summary>
     public async Task<bool> ConfirmSkipMeasurementAsync(int defectId)
     {
-        var dialog = NewDialog(
-            "Ölçüm girilmedi",
-            new TextBlock
+        var xamlRoot = _xamlRoot?.Invoke() ?? throw new InvalidOperationException("Pencere henüz hazır değil.");
+        var dialog = new ContentDialog
+        {
+            Title = "Ölçüm girilmedi",
+            Content = new TextBlock
             {
                 Width = 440,
                 TextWrapping = TextWrapping.Wrap,
                 Text = $"#{defectId} kusuru için henüz ölçüm kaydedilmedi. Ölçüm adımı atlanmamalıdır; " +
-                       "ölçümleri girip 'Ölçümleri kaydet' ile kaydedin.\n\nYine de fotoğraf adımına geçmek istiyor musunuz?",
+                       "ölçümleri girip kaydedin.\n\nYine de fotoğraf adımına geçmek istiyor musunuz?",
             },
-            "Yine de fotoğrafa geç", "Ölçüme dön");
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+            PrimaryButtonText = "Ölçüme dön",
+            SecondaryButtonText = "Yine de fotoğrafa geç",
+            DefaultButton = ContentDialogButton.Primary,
+            PrimaryButtonStyle = ConfirmButtonStyle,
+            XamlRoot = xamlRoot,
+            RequestedTheme = (xamlRoot.Content as FrameworkElement)?.ActualTheme ?? ElementTheme.Default,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Secondary;
     }
 }
