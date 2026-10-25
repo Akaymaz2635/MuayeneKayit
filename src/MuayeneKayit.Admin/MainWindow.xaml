@@ -129,12 +129,12 @@
                             <TextBox x:Name="TypeSpec" Text="{x:Bind Shell.Types.SpecName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Spec adı (isteğe bağlı)" Width="320" HorizontalAlignment="Left" MaxLength="60" />
                             <TextBlock Text="Ölçüm alanları" FontWeight="SemiBold" />
                             <StackPanel Orientation="Horizontal" Spacing="12">
-                                <CheckBox x:Name="FieldDepth" IsChecked="{x:Bind Shell.Types.FieldDepth, Mode=TwoWay}" Content="Derinlik" />
-                                <CheckBox x:Name="FieldWidth" IsChecked="{x:Bind Shell.Types.FieldWidth, Mode=TwoWay}" Content="Genişlik" />
-                                <CheckBox x:Name="FieldLength" IsChecked="{x:Bind Shell.Types.FieldLength, Mode=TwoWay}" Content="Uzunluk" />
-                                <CheckBox x:Name="FieldRadius" IsChecked="{x:Bind Shell.Types.FieldRadius, Mode=TwoWay}" Content="Yarıçap" />
-                                <CheckBox x:Name="FieldAngle" IsChecked="{x:Bind Shell.Types.FieldAngle, Mode=TwoWay}" Content="Açı" />
-                                <CheckBox x:Name="FieldColor" IsChecked="{x:Bind Shell.Types.FieldColor, Mode=TwoWay}" Content="Renk" />
+                                <CheckBox x:Name="FieldDepth" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldDepth, Mode=TwoWay}" Content="Derinlik" />
+                                <CheckBox x:Name="FieldWidth" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldWidth, Mode=TwoWay}" Content="Genişlik" />
+                                <CheckBox x:Name="FieldLength" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldLength, Mode=TwoWay}" Content="Uzunluk" />
+                                <CheckBox x:Name="FieldRadius" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldRadius, Mode=TwoWay}" Content="Yarıçap" />
+                                <CheckBox x:Name="FieldAngle" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldAngle, Mode=TwoWay}" Content="Açı" />
+                                <CheckBox x:Name="FieldColor" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldColor, Mode=TwoWay}" Content="Renk" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button Content="Şablonu uygula" Click="{x:Bind Shell.Types.Apply}" />

@@ -10,8 +10,8 @@ Veritabanı, bulut, telemetri ve otomatik güncelleme yoktur.
 | `src/MuayeneKayit.Core` | Alan modeli ve kurallar (durum makinesi, karar geçmişi, geçit), depolama, index, denetim, rapor, arka plan kaldırma, admin ayarları. Portlar: `ISessionStore`, `IAuditTrail`, `IPdfConverter`. Yalnızca .NET BCL. | Hepsi |
 | `src/MuayeneKayit.Presentation` | Muayene ekranının ViewModel'leri (MVVM, `CommunityToolkit.Mvvm`): sıradaki adım, sekme/vurgu kuralları, karar ve rework akışları, fotoğraflar, rapor, dashboard. Pencere ve dosya seçimi portları: `IDialogService`, `IWindowService`, `IFilePicker`. WinUI'ye bağlı değil, test edilir. | Muayene exe'si |
 | `src/MuayeneKayit.Inspector` | Muayene exe'si (WinUI 3): görünüm (XAML + `x:Bind`), portların WinUI uygulamaları (diyaloglar, kamera, fotoğraf düzenleyici, Edge PDF), DI kurulumu | Muayeneci |
-| `src/MuayeneKayit.Admin` | Admin exe'si (WinUI 3): PIN girişi, kusur tipi şablonları, karar açıklamaları, tüm kayıtlar, CSV, bakım, ayarlar | Admin |
-| `tests/MuayeneKayit.Tests` | Bağımlılıksız test koşucusu: Core kuralları, senaryolar ve ViewModel testleri (sahte portlarla) | Geliştirici |
+| `src/MuayeneKayit.Admin` | Admin exe'si (WinUI 3): PIN girişi, kusur tipi şablonları, karar açıklamaları, tüm kayıtlar, CSV, bakım, ayarlar. ViewModel'leri `Presentation/Admin` altında (aynı MVVM + portlar yapısı) | Admin |
+| `tests/MuayeneKayit.Tests` | Bağımlılıksız test koşucusu: Core kuralları, senaryolar, eşzamanlı yazma ve ViewModel testleri (sahte portlarla) | Geliştirici |
 
 Mimari: **MVVM + Ports & Adapters (hexagonal) + DI** (`Microsoft.Extensions.DependencyInjection`).
 Yeni bir servis (ör. MES aktarımı, etiket yazıcısı) Core'da bir arayüz ve ayrı bir uygulamayla eklenir; ekran kodu değişmez.
@@ -115,12 +115,11 @@ Sınır: ortak klasöre yazma yetkisi olan biri dosya silebilir; program engelle
 | 4 | Kamera (C920, Surface arka kamera, zoom, odak, kusur çerçevesi) | Tamam, sahada canlı test bekliyor |
 | 5 | Fotoğraf işaretleme (taşı/boyutlandır), arka plan kaldırma | Tamam |
 | 6 | Admin exe: PIN, şablonlar, karar açıklamaları, kayıtlar, CSV, bakım | Tamam, kullanıcı testi bekliyor |
-| 7 | Yeni tasarım (Fluent, adım yönlendirmesi) ve MVVM + DI dönüşümü (muayene ekranı) | Tamam |
-| 8 | Gerçek ağ paylaşımında çok kullanıcılı deneme | Sahada yapılacak |
+| 7 | Yeni tasarım (Fluent, adım yönlendirmesi) ve MVVM + DI dönüşümü (muayene ve admin) | Tamam |
+| 8 | Çok kullanıcılı yazma: kilit ve atomik yazma eşzamanlılık testleriyle doğrulandı; gerçek ağ paylaşımında deneme | Sahada yapılacak |
 
 ## 8. Açık konular
 
 1. Kamera: notebook + C920 ve Surface Pro 9 üzerinde canlı deneme.
 2. Ağ paylaşımında iki muayenecinin aynı anda aynı seride çalışması (kilit davranışı) sahada denenmeli.
 3. CTP'nin tam anlamı netleştirilmeli; kayıtta yalnızca kaynak olarak tutuluyor.
-4. Admin exe henüz code-behind; gerekirse aynı MVVM yapısına taşınır.
