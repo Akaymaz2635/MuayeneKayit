@@ -5,7 +5,7 @@ namespace MuayeneKayit.Core;
 
 /// <summary>
 /// Kağıt raporda kusurun tek cümlelik özetini üretir. Örnek:
-/// "Defect 3: There is Dent on part with Depth: 0.12 mm, Width: 2.4 mm." (inch kusurda: "Depth: .123 in")
+/// "Defect 3: There is a Dent on part: D 0.12 mm, W 2.4 mm." (inch kusurda: "D .123 in")
 /// "Disposition: Rework. Continues as Defect 5."
 /// </summary>
 public static class DefectSentence
@@ -19,22 +19,7 @@ public static class DefectSentence
     public static string Describe(Defect defect, IReadOnlyList<Defect>? all)
     {
         var sb = new StringBuilder();
-        sb.Append($"Defect {defect.Id}: There is {TypeText(defect)} on part");
-
-        var measurements = new List<string>();
-        AddLength(measurements, "Depth", defect.Depth, defect.Unit);
-        AddLength(measurements, "Width", defect.Width, defect.Unit);
-        AddLength(measurements, "Length", defect.Length, defect.Unit);
-        // Alan adı Radius kalır (JSON uyumu); kullanıcı metninde Çap = Diameter.
-        AddLength(measurements, "Diameter", defect.Radius, defect.Unit);
-        if (defect.AngleDeg is double angle)
-            measurements.Add($"Angle: {Num(angle)}°");
-        if (!string.IsNullOrWhiteSpace(defect.Color))
-            measurements.Add($"Color: {defect.Color}");
-
-        if (measurements.Count > 0)
-            sb.Append(" with ").Append(string.Join(", ", measurements));
-        sb.Append('.');
+        sb.Append($"Defect {defect.Id}: ").Append(Statement(defect));
 
         if (!string.IsNullOrWhiteSpace(defect.SpecName))
             sb.Append($" Spec: {defect.SpecName}.");
@@ -63,6 +48,43 @@ public static class DefectSentence
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Açıklama cümlesi (önek ve disposition olmadan): "There is a Dent with high metal on parts 1–5 and 8: D 0.5 mm, W 2.4 mm, L 6 mm, Ø 3 mm, A 15°, color gray."
+    /// Ekranda ve raporun "Uygunsuzluk açıklaması" bölümünde aynı cümle kullanılır. Ölçü yoksa iki nokta ve liste yazılmaz.
+    /// </summary>
+    public static string Statement(Defect defect)
+    {
+        var type = defect.DefectType ?? "";
+        var sb = new StringBuilder();
+        sb.Append("There is ").Append(Article(type)).Append(' ').Append(type);
+        if (defect.HighMetal)
+            sb.Append(" with high metal");
+        sb.Append(' ').Append(PartList.Describe(PartList.TryParse(defect.AffectedParts)));
+
+        var measurements = new List<string>();
+        AddLength(measurements, "D", defect.Depth, defect.Unit);
+        AddLength(measurements, "W", defect.Width, defect.Unit);
+        AddLength(measurements, "L", defect.Length, defect.Unit);
+        // Alan adı Radius kalır (JSON uyumu); kullanıcı metninde Çap = Diameter (Ø).
+        AddLength(measurements, "Ø", defect.Radius, defect.Unit);
+        if (defect.AngleDeg is double angle)
+            measurements.Add($"A {Num(angle)}°");
+        if (!string.IsNullOrWhiteSpace(defect.Color))
+            measurements.Add($"color {defect.Color.Trim()}");
+
+        if (measurements.Count > 0)
+            sb.Append(": ").Append(string.Join(", ", measurements));
+        sb.Append('.');
+        return sb.ToString();
+    }
+
+    /// <summary>Belirsiz artikel: sesli harfle başlayan tipte "an", değilse "a". Tip adı değiştirilmez.</summary>
+    private static string Article(string type)
+    {
+        var first = type.TrimStart().FirstOrDefault();
+        return first != default && "aeiouAEIOU".IndexOf(first) >= 0 ? "an" : "a";
+    }
+
     /// <summary>"Dent" ya da yan kusurla "Dent with high metal".</summary>
     public static string TypeText(Defect defect) =>
         defect.HighMetal ? $"{defect.DefectType} with high metal" : defect.DefectType;
@@ -76,7 +98,7 @@ public static class DefectSentence
     private static void AddLength(List<string> target, string label, double? value, LengthUnit unit)
     {
         if (value is double v)
-            target.Add($"{label}: {Units.Format(v, unit)} {Units.Suffix(unit)}");
+            target.Add($"{label} {Units.Format(v, unit)} {Units.Suffix(unit)}");
     }
 
     private static string Num(double value) =>

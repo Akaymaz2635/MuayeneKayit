@@ -33,6 +33,12 @@ public sealed class Defect
 
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// Kusurun görüldüğü lot parça numaraları, normalize metin ("1-5, 8"). Boş = tüm parça / tek parça.
+    /// Eski kayıtlarda alan yoktur (null). Ayrıştırma ve cümle için <see cref="PartList"/>.
+    /// </summary>
+    public string? AffectedParts { get; set; }
+
     /// <summary>Mühendis kabul kağıdındaki spec adı.</summary>
     public string? SpecName { get; set; }
 

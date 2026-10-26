@@ -11,7 +11,7 @@ public static class CsvExport
     public static string Build(IEnumerable<IndexRow> rows)
     {
         var sb = new StringBuilder();
-        sb.AppendLine(Line("Parça", "Operasyon", "Seri", "Durum", "Inspector", "Açılış", "Kusur", "Açık", "Kusur no", "Hata tipi", "Kusur durumu", "Son karar"));
+        sb.AppendLine(Line("Parça", "Operasyon", "Seri", "Durum", "Inspector", "Açılış", "Kusur", "Açık", "Kusur no", "Hata tipi", "Kusur durumu", "Son karar", "Etkilenen parçalar"));
 
         foreach (var r in rows)
         {
@@ -19,14 +19,14 @@ public static class CsvExport
             if (r.Defects.Count == 0)
             {
                 sb.AppendLine(Line(r.Part, r.Operation, r.Serial, r.Status, r.Inspector, created,
-                    r.TotalDefects.ToString(), r.OpenDefects.ToString(), "", "", "", ""));
+                    r.TotalDefects.ToString(), r.OpenDefects.ToString(), "", "", "", "", ""));
                 continue;
             }
 
             foreach (var d in r.Defects)
             {
                 sb.AppendLine(Line(r.Part, r.Operation, r.Serial, r.Status, r.Inspector, created,
-                    r.TotalDefects.ToString(), r.OpenDefects.ToString(), d.Id.ToString(), d.Type, d.State, d.LastDecision));
+                    r.TotalDefects.ToString(), r.OpenDefects.ToString(), d.Id.ToString(), d.Type, d.State, d.LastDecision, d.AffectedParts));
             }
         }
         return sb.ToString();

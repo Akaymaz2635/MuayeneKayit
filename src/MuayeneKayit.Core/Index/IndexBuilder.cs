@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace MuayeneKayit.Core;
 
 /// <summary>Bir operasyondaki tek kusurun özeti. Dashboard ağacında kullanılır.</summary>
-public sealed record IndexDefect(int Id, string Type, string State, int Photos, string LastDecision = "");
+public sealed record IndexDefect(int Id, string Type, string State, int Photos, string LastDecision = "", string AffectedParts = "");
 
 /// <summary>Bir seri numarasının bir operasyondaki özeti. Dashboard bu satırları okur.</summary>
 public sealed record IndexRow(
@@ -61,7 +61,8 @@ public static class IndexBuilder
                         d.DefectType,
                         DefectStateMachine.GetState(d).ToString(),
                         d.Photos.Count,
-                        LastDecisionLabel(d))).ToList(),
+                        LastDecisionLabel(d),
+                        d.AffectedParts ?? "")).ToList(),
                     Inspector: session.Inspector,
                     CreatedAt: session.CreatedAt));
             }

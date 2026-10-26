@@ -162,6 +162,8 @@ public sealed class SessionStore : ISessionStore
                 Unit = parent.Unit,
                 SupersedesId = parent.Id,
                 FoundAtPhoto = n.FoundAtPhoto,
+                // Parent'la aynı parçalarda bulunduğu varsayılır; kullanıcı sonradan değiştirebilir.
+                AffectedParts = parent.AffectedParts,
             })
             .ToList();
 

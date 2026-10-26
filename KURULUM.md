@@ -118,7 +118,11 @@ Paylaşım için düzenli yedek (gölge kopya ya da gece yedeği) alın.
 - Surface Pro 9: arka kamera seçilir.
 - Windows: Ayarlar > Gizlilik ve güvenlik > Kamera > "Masaüstü uygulamalarının kameranıza erişmesine izin verin" açık olmalı.
 
-## 5. PDF
+## 5. Lot parça numaraları (isteğe bağlı)
+
+Inspector'da her kusurun Ölçüm sekmesinde **Etkilenen parçalar** kutusu vardır (örn. `1-5, 8`; boş = tüm parça). Kutudan çıkınca otomatik kaydedilir, geçersiz girdi kaydedilmez. Değer açıklama cümlesinde ("on parts 1–5 and 8"), raporda ve CSV'de ("Etkilenen parçalar" sütunu) görünür. Eski kayıtlar etkilenmez.
+
+## 6. PDF
 
 Rapor, Windows ile gelen Microsoft Edge ile yerelde PDF'e çevrilir (ağ kullanılmaz).
 Edge yoksa ya da çeviri başarısız olursa rapor HTML olarak açılır; tarayıcıdan "PDF olarak kaydet" ile yazdırılabilir.

@@ -36,6 +36,8 @@ public static class ReportText
     public static readonly string DispositionHistory = Bi("Karar geçmişi", "Disposition history");
     public static readonly string MeasurementCorrections = Bi("Ölçüm düzeltmeleri", "Measurement corrections");
     public static readonly string Note = Bi("Not", "Note");
+    public static readonly string Nonconformance = Bi("Uygunsuzluk açıklaması", "Nonconformance description");
+    public static readonly string AffectedParts = Bi("Etkilenen parçalar", "Affected parts");
 
     public static readonly string Depth = Bi("Derinlik", "Depth");
     public static readonly string Width = Bi("Genişlik", "Width");

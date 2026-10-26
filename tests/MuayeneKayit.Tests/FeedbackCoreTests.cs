@@ -420,7 +420,7 @@ public static class FeedbackCoreTests
         Expect(html.Contains("&#199;ap / Diameter"), "Rapor hücresi Çap / Diameter olmalı");
 
         var d = new Defect { Id = 1, DefectType = "Braze Void", Radius = 2 };
-        Expect(DefectSentence.Describe(d).Contains("with Diameter: 2 mm.") && !DefectSentence.Describe(d).Contains("Radius"), DefectSentence.Describe(d));
+        Expect(DefectSentence.Describe(d).Contains("Ø 2 mm.") && !DefectSentence.Describe(d).Contains("Radius"), DefectSentence.Describe(d));
         Expect(DefectValidator.Validate(new Defect { DefectType = "Dent", Radius = -1 }).Any(e => e.StartsWith("Çap")), "Doğrulama mesajı Çap");
         Expect(MeasurementCompare.Lines(new MeasurementSnapshot(null, null, null, 2, null, null), new Defect { Radius = 3 }).Any(l => l.StartsWith("Çap: 2 → 3 mm")),
             "Karşılaştırma satırı Çap");

@@ -25,13 +25,13 @@ public static partial class ViewModelTests
     {
         var inch = new Defect { Id = 1, DefectType = "Dent", Depth = 0.123, Unit = LengthUnit.Inch };
         var text = DefectSentence.Describe(inch);
-        Check(text.Contains("There is Dent on part with Depth: .123 in."), text);
+        Check(text.Contains("There is a Dent on part: D .123 in."), text);
 
         var mm = new Defect { Id = 2, DefectType = "Dent", Depth = 12 };
-        Check(DefectSentence.Describe(mm).Contains("There is Dent on part with Depth: 12 mm."), "mm cümlesi değişmemeli");
+        Check(DefectSentence.Describe(mm).Contains("There is a Dent on part: D 12 mm."), "mm cümlesi değişmemeli");
 
         var angle = new Defect { Id = 3, DefectType = "Dent", AngleDeg = 0.5, Unit = LengthUnit.Inch };
-        Check(DefectSentence.Describe(angle).Contains("Angle: 0.5°"), "Açı birimden etkilenmemeli");
+        Check(DefectSentence.Describe(angle).Contains("A 0.5°"), "Açı birimden etkilenmemeli");
     }
 
     public static void UnitJsonOldAndRoundTrip()
@@ -71,7 +71,7 @@ public static partial class ViewModelTests
         c.Vm.DepthText = "0.123";
         c.Vm.SaveMeasurements();
         Check(c.Vm.DepthText == ".123", $"Kutu inch biçiminde olmalı: '{c.Vm.DepthText}'");
-        Check(c.Vm.Sentence.Contains("Depth: .123 in"), c.Vm.Sentence);
+        Check(c.Vm.Sentence.Contains("D .123 in"), c.Vm.Sentence);
 
         // Ayar mm'ye dönünce mevcut kusur inch kalır, yeni kusur mm olur.
         c.Settings.Unit = LengthUnit.Mm;

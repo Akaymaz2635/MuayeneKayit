@@ -139,6 +139,10 @@ public static class ReportBuilder
         if (d.Photos.Count > 1 && DefectRegions.HasRegionData(d))
             sb.Append($"<p class=\"link region\">{E(RegionLine(d, d.Photos[photoIndex], state, all))}</p>");
 
+        // Açıklama cümlesi yalnızca kusurun ilk sayfasında (çok fotoğraflı kusurda tekrarlanmaz).
+        if (first)
+            sb.Append($"<h3>{E(ReportText.Nonconformance)}</h3><p class=\"note\">{E(DefectSentence.Statement(d))}</p>");
+
         sb.Append($"<h3>{E(ReportText.Measurements)}</h3><div class=\"meas\">");
         sb.Append(MeasCell(ReportText.Depth, Len(d.Depth, d.Unit)));
         sb.Append(MeasCell(ReportText.Width, Len(d.Width, d.Unit)));
@@ -147,6 +151,9 @@ public static class ReportBuilder
         sb.Append(MeasCell(ReportText.Angle, d.AngleDeg is double a ? $"{Num(a)}°" : "—"));
         sb.Append(MeasCell(ReportText.Color, string.IsNullOrWhiteSpace(d.Color) ? "—" : d.Color!));
         sb.Append("</div>");
+
+        if (!string.IsNullOrWhiteSpace(d.AffectedParts))
+            sb.Append($"<p class=\"note\"><strong>{E(ReportText.AffectedParts)}:</strong> {E(d.AffectedParts)}</p>");
 
         if (!string.IsNullOrWhiteSpace(d.Notes))
             sb.Append($"<p class=\"note\"><strong>{E(ReportText.Note)}:</strong> {E(d.Notes)}</p>");

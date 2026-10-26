@@ -158,6 +158,8 @@ public sealed partial class InspectionViewModel : ObservableObject
     [ObservableProperty] private string _radiusHeader = "";
     [ObservableProperty] private string _colorText = "";
     [ObservableProperty] private string _notesText = "";
+    /// <summary>Etkilenen lot parçaları ("1-5, 8"); boş = tümü. Ölçümler gibi otomatik kaydedilir.</summary>
+    [ObservableProperty] private string _affectedPartsText = "";
     [ObservableProperty] private bool _highMetal;
 
     /// <summary>Son otomatik kaydın saati ("Otomatik kaydedildi 14:32"); başka kusura geçilince boşalır.</summary>
@@ -486,6 +488,7 @@ public sealed partial class InspectionViewModel : ObservableObject
             AngleText = DefectPresentation.Fmt(defect.AngleDeg);
             ColorText = defect.Color ?? "";
             NotesText = defect.Notes ?? "";
+            AffectedPartsText = defect.AffectedParts ?? "";
             HighMetal = defect.HighMetal;
         }
         finally
@@ -636,18 +639,19 @@ public sealed partial class InspectionViewModel : ObservableObject
 
         Run(() =>
         {
-            var (values, notes) = ReadForm();
-            if (values == MeasurementEditor.Snapshot(shown) && notes == shown.Notes)
+            // Geçersiz parça listesi burada ArgumentException fırlatır: hiçbir şey kaydedilmez, hata bildirilir.
+            var (values, notes, parts) = ReadForm();
+            if (values == MeasurementEditor.Snapshot(shown) && notes == shown.Notes && parts == shown.AffectedParts)
                 return;
 
-            StoreForm(shown.Id, values, notes);
+            StoreForm(shown.Id, values, notes, parts);
             AutoSaveText = $"Otomatik kaydedildi {DateTime.Now:HH:mm}";
             if (reload)
                 Refresh(shown.Id);
         });
     }
 
-    private (MeasurementSnapshot Values, string? Notes) ReadForm() => (
+    private (MeasurementSnapshot Values, string? Notes, string? Parts) ReadForm() => (
         new MeasurementSnapshot(
             DefectPresentation.ParseOptional(DepthText, "Derinlik"),
             DefectPresentation.ParseOptional(WidthText, "Genişlik"),
@@ -656,10 +660,11 @@ public sealed partial class InspectionViewModel : ObservableObject
             DefectPresentation.ParseOptional(AngleText, "Açı"),
             string.IsNullOrWhiteSpace(ColorText) ? null : ColorText.Trim(),
             HighMetal),
-        string.IsNullOrWhiteSpace(NotesText) ? null : NotesText.Trim());
+        string.IsNullOrWhiteSpace(NotesText) ? null : NotesText.Trim(),
+        PartList.Normalize(AffectedPartsText) is { Length: > 0 } normalized ? normalized : null);
 
     /// <summary>Formu kusura yazar (doğrulama, düzeltme geçmişi, denetim satırı). Ölçüm değiştiyse true.</summary>
-    private bool StoreForm(int id, MeasurementSnapshot values, string? notes)
+    private bool StoreForm(int id, MeasurementSnapshot values, string? notes, string? parts)
     {
         var by = _user;
         var changed = false;
@@ -680,6 +685,8 @@ public sealed partial class InspectionViewModel : ObservableObject
 
             changed = MeasurementEditor.Apply(d, values, by, mergeWithin: MeasurementMergeWindow);
             d.Notes = notes;
+            // Not gibi: ölçüm düzeltme geçmişine yazılmaz.
+            d.AffectedParts = parts;
         });
 
         _audit.Append(by, "defect.measure", $"#{id}");
@@ -690,8 +697,8 @@ public sealed partial class InspectionViewModel : ObservableObject
     {
         RequireSelection();
 
-        var (values, notes) = ReadForm();
-        var changed = StoreForm(SelectedId!.Value, values, notes);
+        var (values, notes, parts) = ReadForm();
+        var changed = StoreForm(SelectedId!.Value, values, notes, parts);
         Refresh(SelectedId);
 
         // Ölçüm bitti, fotoğraf yoksa sıradaki adıma geç.
