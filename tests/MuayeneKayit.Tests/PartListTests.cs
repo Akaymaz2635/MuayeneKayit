@@ -15,37 +15,37 @@ public static class PartListTests
     public static void StatementArticleAndMeasurements()
     {
         var d = new Defect { Id = 1, DefectType = "Dent", Depth = 0.5, Width = 2.4, Length = 6, Radius = 3, AngleDeg = 15, Color = "gray" };
-        Expect(DefectSentence.Statement(d) == "There is a Dent on part: D 0.5 mm, W 2.4 mm, L 6 mm, Ø 3 mm, A 15°, color gray.", DefectSentence.Statement(d));
+        Expect(DefectSentence.Statement(d) == "There is a Dent on the part: D 0.5 mm, W 2.4 mm, L 6 mm, Ø 3 mm, A 15°, color gray.", DefectSentence.Statement(d));
 
         // Sesli harf → "an"; tip adı olduğu gibi (küçük harfe çevrilmez).
-        Expect(DefectSentence.Statement(new Defect { DefectType = "undercut" }) == "There is an undercut on part.", "an undercut");
-        Expect(DefectSentence.Statement(new Defect { DefectType = "Undercut" }) == "There is an Undercut on part.", "an Undercut");
-        Expect(DefectSentence.Statement(new Defect { DefectType = "Crack" }) == "There is a Crack on part.", "Ölçüsüz: iki nokta ve liste yok");
+        Expect(DefectSentence.Statement(new Defect { DefectType = "undercut" }) == "There is an undercut on the part.", "an undercut");
+        Expect(DefectSentence.Statement(new Defect { DefectType = "Undercut" }) == "There is an Undercut on the part.", "an Undercut");
+        Expect(DefectSentence.Statement(new Defect { DefectType = "Crack" }) == "There is a Crack on the part.", "Ölçüsüz: iki nokta ve liste yok");
 
         // High metal.
-        Expect(DefectSentence.Statement(new Defect { DefectType = "Dent", HighMetal = true, Depth = 12 }) == "There is a Dent with high metal on part: D 12 mm.", "high metal");
+        Expect(DefectSentence.Statement(new Defect { DefectType = "Dent", HighMetal = true, Depth = 12 }) == "There is a Dent with high metal on the part: D 12 mm.", "high metal");
 
         // inch: baştaki sıfır yok, birim in.
         var inch = new Defect { DefectType = "Dent", Depth = 0.012, Unit = LengthUnit.Inch };
-        Expect(DefectSentence.Statement(inch) == "There is a Dent on part: D .012 in.", DefectSentence.Statement(inch));
+        Expect(DefectSentence.Statement(inch) == "There is a Dent on the part: D .012 in.", DefectSentence.Statement(inch));
 
         // Yalnızca renk.
-        Expect(DefectSentence.Statement(new Defect { DefectType = "Stain", Color = "blue" }) == "There is a Stain on part: color blue.", "renk");
+        Expect(DefectSentence.Statement(new Defect { DefectType = "Stain", Color = "blue" }) == "There is a Stain on the part: color blue.", "renk");
 
         // Ekranda önek ve ikinci satır; ilk satır aynı cümle.
         var full = DefectSentence.Describe(new Defect { Id = 7, DefectType = "Dent", Depth = 1 });
-        Expect(full.StartsWith("Defect 7: There is a Dent on part: D 1 mm.\nDisposition: Pending."), full);
+        Expect(full.StartsWith("Defect 7: There is a Dent on the part: D 1 mm.\nDisposition: Pending."), full);
     }
 
     public static void StatementPartScopeAndOldRecord()
     {
         Expect(DefectSentence.Statement(new Defect { DefectType = "Dent", AffectedParts = "3" }) == "There is a Dent on part 3.", "tek parça");
         Expect(DefectSentence.Statement(new Defect { DefectType = "Dent", AffectedParts = "1-5, 8", Depth = 2 }) == "There is a Dent on parts 1–5 and 8: D 2 mm.", "aralık + tek");
-        Expect(DefectSentence.Statement(new Defect { DefectType = "Dent", AffectedParts = "bozuk" }) == "There is a Dent on part.", "Bozuk kayıtlı değer cümleyi bozmamalı");
+        Expect(DefectSentence.Statement(new Defect { DefectType = "Dent", AffectedParts = "bozuk" }) == "There is a Dent on the part.", "Bozuk kayıtlı değer cümleyi bozmamalı");
 
-        // Eski JSON: alan yok → null, cümle "on part".
+        // Eski JSON: alan yok → null, cümle "on the part".
         var old = JsonSerializer.Deserialize<Defect>("{\"id\":1,\"defectType\":\"Dent\",\"depth\":0.1}", SessionStore.JsonOptions)!;
-        Expect(old.AffectedParts is null && DefectSentence.Statement(old) == "There is a Dent on part: D 0.1 mm.", DefectSentence.Statement(old));
+        Expect(old.AffectedParts is null && DefectSentence.Statement(old) == "There is a Dent on the part: D 0.1 mm.", DefectSentence.Statement(old));
         var round = JsonSerializer.Deserialize<Defect>(JsonSerializer.Serialize(new Defect { Id = 2, DefectType = "Dent", AffectedParts = "1-5, 8" }, SessionStore.JsonOptions), SessionStore.JsonOptions)!;
         Expect(round.AffectedParts == "1-5, 8", "AffectedParts yazılıp okunmalı");
     }
@@ -61,7 +61,7 @@ public static class PartListTests
         Expect(PartList.Normalize("8, 1-5") == "1-5, 8", "Normalize sıralar");
         Expect(PartList.Normalize("4,5") == "4, 5" && PartList.Normalize("7") == "7" && PartList.Normalize("") == "", "Normalize kısa durumlar");
 
-        Expect(PartList.Describe(Array.Empty<int>()) == "on part", "boş");
+        Expect(PartList.Describe(Array.Empty<int>()) == "on the part", "boş");
         Expect(Desc("3") == "on part 3", Desc("3"));
         Expect(Desc("1, 2, 5") == "on parts 1, 2 and 5", Desc("1, 2, 5"));
         Expect(Desc("1, 2") == "on parts 1 and 2", Desc("1, 2"));
@@ -124,7 +124,7 @@ public static class PartListTests
 
         var plain = ReportBuilder.Build(session, new[] { new Defect { Id = 2, DefectType = "Dent" } }, 1);
         Expect(!plain.Contains("Affected parts"), "Boşsa satır gösterilmez");
-        Expect(plain.Contains("There is a Dent on part."), "Açıklama yine de yazılır");
+        Expect(plain.Contains("There is a Dent on the part."), "Açıklama yine de yazılır");
     }
 
     public static void CsvHasAffectedPartsColumn()

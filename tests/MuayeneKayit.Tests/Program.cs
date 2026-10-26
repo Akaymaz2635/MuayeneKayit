@@ -337,7 +337,7 @@ static void SentenceFormat()
     DefectStateMachine.Apply(d, Decision.Rework, DecisionSource.Engineer, "M. Kaya", targetOperation: "SAME");
 
     var text = DefectSentence.Describe(d);
-    Expect(text.StartsWith("Defect 3: There is a Dent on part: D 0.12 mm, W 2.4 mm."),
+    Expect(text.StartsWith("Defect 3: There is a Dent on the part: D 0.12 mm, W 2.4 mm."),
         $"Başlık beklenenden farklı: {text}");
     Expect(text.Contains("Disposition: Rework / Reinspect."), "Disposition satırı eksik");
     Expect(text.Contains("Acceptance: KAB-2026-0042."), "Kabul numarası eksik");
@@ -625,9 +625,9 @@ static void HighMetalSentenceAndReport()
 {
     var d = NewDefect(4, "Dent");
     d.Depth = 12;
-    Expect(DefectSentence.Describe(d).Contains("There is a Dent on part: D 12 mm."), "High metal yokken cümle değişmemeli");
+    Expect(DefectSentence.Describe(d).Contains("There is a Dent on the part: D 12 mm."), "High metal yokken cümle değişmemeli");
     d.HighMetal = true;
-    Expect(DefectSentence.Describe(d).Contains("There is a Dent with high metal on part: D 12 mm."), "High metal cümlede yazılmalı");
+    Expect(DefectSentence.Describe(d).Contains("There is a Dent with high metal on the part: D 12 mm."), "High metal cümlede yazılmalı");
 
     var html = ReportBuilder.Build(SampleSession("SN-HM"), new[] { d }, 1);
     Expect(html.Contains("Dent with high metal"), "Rapor başlığında high metal görünmeli");
@@ -670,7 +670,7 @@ static void Scenario5_HighMetalOnlyRework()
     Trace("2. High metal giderildi, Dent devam", d);
 
     Expect(DefectStateMachine.GetState(d) == DefectState.Open, "Ana kusur açık kalmalı");
-    Expect(DefectSentence.Describe(d).Contains("There is a Dent on part: D 12 mm."), "Cümlede high metal kalmamalı");
+    Expect(DefectSentence.Describe(d).Contains("There is a Dent on the part: D 12 mm."), "Cümlede high metal kalmamalı");
     var lines = MeasurementCompare.Lines(d.Dispositions[0].Snapshot, d);
     Expect(lines.Contains("High metal: var → giderildi") && lines.Any(l => l.StartsWith("Derinlik: 12 → 12")),
         "Değişim: high metal giderildi, derinlik aynı");

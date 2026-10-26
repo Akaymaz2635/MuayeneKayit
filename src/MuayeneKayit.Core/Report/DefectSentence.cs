@@ -5,7 +5,7 @@ namespace MuayeneKayit.Core;
 
 /// <summary>
 /// Kağıt raporda kusurun tek cümlelik özetini üretir. Örnek:
-/// "Defect 3: There is a Dent on part: D 0.12 mm, W 2.4 mm." (inch kusurda: "D .123 in")
+/// "Defect 3: There is a Dent on the part: D 0.12 mm, W 2.4 mm." (inch kusurda: "D .123 in")
 /// "Disposition: Rework. Continues as Defect 5."
 /// </summary>
 public static class DefectSentence

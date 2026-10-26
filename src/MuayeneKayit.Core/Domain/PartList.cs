@@ -69,13 +69,13 @@ public static partial class PartList
     }
 
     /// <summary>
-    /// İngilizce cümle parçası: "on part" (boş), "on part 3", "on parts 1, 2 and 5", "on parts 1–5 and 8".
+    /// İngilizce cümle parçası: "on the part" (boş), "on part 3", "on parts 1, 2 and 5", "on parts 1–5 and 8".
     /// Üç ve daha uzun ardışık diziler en dash ile sıkıştırılır.
     /// </summary>
     public static string Describe(IReadOnlyList<int> parts)
     {
         if (parts.Count == 0)
-            return "on part";
+            return "on the part";
 
         var ordered = parts.Distinct().OrderBy(n => n).ToList();
         if (ordered.Count == 1)

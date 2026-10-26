@@ -27,7 +27,7 @@ public static partial class ViewModelTests
         // Boşaltılınca temizlenir (tüm parça).
         c.Vm.AffectedPartsText = "";
         c.Vm.AutoSave();
-        Check(Load(c, 1).AffectedParts is null && c.Vm.Sentence.Contains("on part."), "Boş = tümü");
+        Check(Load(c, 1).AffectedParts is null && c.Vm.Sentence.Contains("on the part."), "Boş = tümü");
 
         // Kusur değişirken kaydedilir.
         c.Vm.AffectedPartsText = "7";
