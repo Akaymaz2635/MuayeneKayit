@@ -22,7 +22,7 @@ public static class ReportBuilder
         // Her fotoğraf kendi sayfasında (6.1, 6.2 ...); fotoğrafsız kusur tek sayfa.
         var total = Math.Max(1, defects.Sum(d => Math.Max(1, d.Photos.Count)));
         var sb = new StringBuilder();
-        var status = session.Status == SessionStatus.Completed ? "Tamamlandı" : "Taslak, muayene henüz tamamlanmadı";
+        var opened = ReportDates.Day(session.CreatedAt);
 
         sb.Append("<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"/>");
         sb.Append($"<title>Rapor v{version} — {E(session.PartNumber)} / {E(session.SerialNumber)}</title>");
@@ -33,9 +33,9 @@ public static class ReportBuilder
         if (defects.Count == 0)
         {
             sb.Append("<section class=\"page\">");
-            sb.Append(Header(session, version, status));
-            sb.Append("<p class=\"muted\">Kusur kaydı yok.</p>");
-            sb.Append($"<footer><span>Parça {E(session.PartNumber)} · Seri {E(session.SerialNumber)}</span><span>Sayfa 1 / 1</span></footer>");
+            sb.Append(Header(session));
+            sb.Append($"<p class=\"muted\">{E(ReportText.NoDefects)}</p>");
+            sb.Append($"<footer><span>{E(ReportText.Part)} {E(session.PartNumber)} · {E(ReportText.Serial)} {E(session.SerialNumber)} · {E(opened)}</span><span>{E(ReportText.Page)} 1 / 1</span></footer>");
             sb.Append("</section>");
         }
 
@@ -48,9 +48,9 @@ public static class ReportBuilder
                 index++;
                 var label = PageLabel(d, photo);
                 sb.Append("<section class=\"page\">");
-                sb.Append(Header(session, version, status));
+                sb.Append(Header(session));
                 sb.Append(DefectPage(d, photo, allDefects));
-                sb.Append($"<footer><span>Kusur {label} · {E(d.DefectType)}</span><span>Sayfa {index} / {total}</span></footer>");
+                sb.Append($"<footer><span>{E(ReportText.Defect)} {label} · {E(d.DefectType)} · {E(opened)}</span><span>{E(ReportText.Page)} {index} / {total}</span></footer>");
                 sb.Append("</section>");
             }
         }
@@ -59,9 +59,13 @@ public static class ReportBuilder
         return sb.ToString();
     }
 
-    private static string Header(Session s, int version, string status) =>
-        $"<div class=\"hdr\"><div><strong>Parça {E(s.PartNumber)}</strong> &nbsp; Operasyon {E(s.OperationNumber)} &nbsp; Seri {E(s.SerialNumber)}</div>" +
-        $"<div>Proje {E(s.Project)} · Inspector {E(s.Inspector)} · {s.CreatedAt:dd.MM.yyyy} · Rapor v{version} · {E(status)}</div></div>";
+    /// <summary>Tek satırlık iki dilli başlık: parça / operasyon / seri.</summary>
+    private static string Header(Session s) =>
+        $"<div class=\"hdr\"><div><strong>{E(ReportText.Part)} {E(s.PartNumber)}</strong> &nbsp; {E(ReportText.Operation)} {E(s.OperationNumber)} &nbsp; {E(ReportText.Serial)} {E(s.SerialNumber)}</div></div>";
+
+    /// <summary>Bağlantı satırı: Türkçe cümle, altında biraz soluk İngilizcesi. Metinler kodlanmış olarak verilir.</summary>
+    private static string Link(string trEncoded, string enEncoded) =>
+        $"<p class=\"link\">{trEncoded}<span class=\"en\">{enEncoded}</span></p>";
 
     /// <summary>Tek fotoğrafta "#6", birden fazlada "#6.1", "#6.2".</summary>
     private static string PageLabel(Defect d, int photo) =>
@@ -79,8 +83,8 @@ public static class ReportBuilder
 
         sb.Append("<div class=\"defect-bar\">")
           .Append($"<span class=\"id\">{PageLabel(d, photoIndex)}</span>")
-          .Append($"<span class=\"type\">{E(DefectSentence.TypeText(d))}{(d.Photos.Count > 1 ? $" <span class=\"muted\">· Fotoğraf {photoIndex + 1} / {d.Photos.Count}</span>" : "")}</span>")
-          .Append($"<span class=\"state st-{CssClass(state)}\">{E(StateText(state))}</span>")
+          .Append($"<span class=\"type\">{E(DefectSentence.TypeText(d))}{(d.Photos.Count > 1 ? $" <span class=\"muted\">· {E(ReportText.Photo)} {photoIndex + 1} / {d.Photos.Count}</span>" : "")}</span>")
+          .Append($"<span class=\"state st-{CssClass(state)}\">{E(ReportText.State(state))}</span>")
           .Append("</div>");
 
         sb.Append("<div class=\"body\">");
@@ -89,7 +93,7 @@ public static class ReportBuilder
         sb.Append("<div class=\"photos\">");
         if (d.Photos.Count == 0)
         {
-            sb.Append("<div class=\"no-photo\">Fotoğraf yok</div>");
+            sb.Append($"<div class=\"no-photo\">{E(ReportText.NoPhoto)}</div>");
         }
         else
         {
@@ -106,8 +110,10 @@ public static class ReportBuilder
         {
             var region = DefectRegions.FoundAtLabel(d, all);
             sb.Append(region.Length == 0
-                ? $"<p class=\"link\">Bu kusur, {from} numaralı kusurun rework'ünden sonra yapılan muayenede bulundu.</p>"
-                : $"<p class=\"link\">Bu kusur, {from} numaralı kusurun {E(region)} bölgesinde, rework sonrası muayenede bulundu.</p>");
+                ? Link($"Bu kusur, {from} numaralı kusurun rework'ünden sonra yapılan muayenede bulundu.",
+                       $"Found during inspection after rework of defect {from}.")
+                : Link($"Bu kusur, {from} numaralı kusurun {E(region)} bölgesinde, rework sonrası muayenede bulundu.",
+                       $"Found at region {E(region)} of defect {from} during inspection after rework."));
         }
 
         var children = DefectRegions.ActiveChildIds(d, all);
@@ -117,56 +123,60 @@ public static class ReportBuilder
             var plural = children.Count > 1;
             if (state == DefectState.Superseded)
                 sb.Append(plural
-                    ? $"<p class=\"link\">Rework sonrası bu kusur giderildi, ancak yeni kusurlar oluştu. Takip {list} numaralı kusurlar üzerinden yapılıyor.</p>"
-                    : $"<p class=\"link\">Rework sonrası bu kusur giderildi, ancak yeni bir kusur oluştu. Takip {list} numaralı kusur üzerinden yapılıyor.</p>");
+                    ? Link($"Rework sonrası bu kusur giderildi, ancak yeni kusurlar oluştu. Takip {list} numaralı kusurlar üzerinden yapılıyor.",
+                           $"This defect was resolved after rework, but new defects arose. Follow-up continues under defects {list}.")
+                    : Link($"Rework sonrası bu kusur giderildi, ancak yeni bir kusur oluştu. Takip {list} numaralı kusur üzerinden yapılıyor.",
+                           $"This defect was resolved after rework, but a new defect arose. Follow-up continues under defect {list}."));
             else
                 sb.Append(plural
-                    ? $"<p class=\"link\">Rework sonrası muayenede yeni kusurlar da bulundu: {list} numaralı kusurlar ayrıca takip ediliyor.</p>"
-                    : $"<p class=\"link\">Rework sonrası muayenede yeni bir kusur da bulundu: {list} numaralı kusur ayrıca takip ediliyor.</p>");
+                    ? Link($"Rework sonrası muayenede yeni kusurlar da bulundu: {list} numaralı kusurlar ayrıca takip ediliyor.",
+                           $"New defects were also found during inspection after rework: defects {list} are tracked separately.")
+                    : Link($"Rework sonrası muayenede yeni bir kusur da bulundu: {list} numaralı kusur ayrıca takip ediliyor.",
+                           $"A new defect was also found during inspection after rework: defect {list} is tracked separately."));
         }
 
         // Çok fotoğraflı kusurda bu sayfanın bölgesinin durumu (yalnızca bölge sonuçları kaydedildiyse).
         if (d.Photos.Count > 1 && DefectRegions.HasRegionData(d))
             sb.Append($"<p class=\"link region\">{E(RegionLine(d, d.Photos[photoIndex], state, all))}</p>");
 
-        sb.Append("<h3>Ölçümler</h3><div class=\"meas\">");
-        sb.Append(MeasCell("Derinlik", Len(d.Depth, d.Unit)));
-        sb.Append(MeasCell("Genişlik", Len(d.Width, d.Unit)));
-        sb.Append(MeasCell("Uzunluk", Len(d.Length, d.Unit)));
-        sb.Append(MeasCell("Çap", Len(d.Radius, d.Unit)));
-        sb.Append(MeasCell("Açı", d.AngleDeg is double a ? $"{Num(a)}°" : "—"));
-        sb.Append(MeasCell("Renk", string.IsNullOrWhiteSpace(d.Color) ? "—" : d.Color!));
+        sb.Append($"<h3>{E(ReportText.Measurements)}</h3><div class=\"meas\">");
+        sb.Append(MeasCell(ReportText.Depth, Len(d.Depth, d.Unit)));
+        sb.Append(MeasCell(ReportText.Width, Len(d.Width, d.Unit)));
+        sb.Append(MeasCell(ReportText.Length, Len(d.Length, d.Unit)));
+        sb.Append(MeasCell(ReportText.Diameter, Len(d.Radius, d.Unit)));
+        sb.Append(MeasCell(ReportText.Angle, d.AngleDeg is double a ? $"{Num(a)}°" : "—"));
+        sb.Append(MeasCell(ReportText.Color, string.IsNullOrWhiteSpace(d.Color) ? "—" : d.Color!));
         sb.Append("</div>");
 
         if (!string.IsNullOrWhiteSpace(d.Notes))
-            sb.Append($"<p class=\"note\"><strong>Not:</strong> {E(d.Notes)}</p>");
+            sb.Append($"<p class=\"note\"><strong>{E(ReportText.Note)}:</strong> {E(d.Notes)}</p>");
 
         // Geri alınan kararlar ve geri alma kayıtları raporda gösterilmez (ham dosyada ve denetim kaydında kalır).
         var history = DefectStateMachine.Effective(d);
-        sb.Append("<h3>Karar geçmişi</h3>");
+        sb.Append($"<h3>{E(ReportText.DispositionHistory)}</h3>");
         if (!first)
         {
-            sb.Append($"<p class=\"muted\">Karar geçmişi ve ölçüm düzeltmeleri {PageLabel(d, 0)} sayfasında.</p>");
+            sb.Append($"<p class=\"muted\">Karar geçmişi ve ölçüm düzeltmeleri {PageLabel(d, 0)} sayfasında. / Disposition history and corrections on page {PageLabel(d, 0)}.</p>");
             sb.Append("</div></div>");
             return sb.ToString();
         }
         if (history.Count == 0)
         {
-            sb.Append("<p class=\"muted\">Henüz karar yok.</p>");
+            sb.Append($"<p class=\"muted\">{E(ReportText.NoDecisionYet)}</p>");
         }
         else
         {
-            sb.Append("<table class=\"hist\"><thead><tr><th>#</th><th>Tarih</th><th>Kim</th><th>Karar</th><th>Not</th><th>Referans</th><th>Ölçüm (karar anı)</th></tr></thead><tbody>");
+            sb.Append($"<table class=\"hist\"><thead><tr><th>#</th><th>{E(ReportText.Date)}</th><th>{E(ReportText.By)}</th><th>{E(ReportText.DecisionHeader)}</th><th>{E(ReportText.Note)}</th><th>{E(ReportText.Reference)}</th><th>{E(ReportText.MeasurementAtDecision)}</th></tr></thead><tbody>");
             var row = 0;
             foreach (var x in history)
             {
                 row++;
                 sb.Append("<tr>")
                   .Append($"<td>{row}</td>")
-                  .Append($"<td>{x.DecidedAt:dd.MM.yyyy HH:mm}</td>")
+                  .Append($"<td>{E(ReportDates.DayTime(x.DecidedAt))}</td>")
                   .Append($"<td>{E(x.DecidedBy)}</td>")
-                  .Append($"<td>{E(DefectSentence.DecisionLabel(x))}</td>")
-                  .Append($"<td>{E(x.Note)}</td>")
+                  .Append($"<td>{E(ReportText.DecisionName(x))}</td>")
+                  .Append($"<td>{E(ReportText.SystemNote(x.Note))}</td>")
                   .Append($"<td>{E(x.Reference)}</td>")
                   .Append($"<td>{E(SnapshotText(x.Snapshot, d.Unit))}</td>")
                   .Append("</tr>");
@@ -176,11 +186,11 @@ public static class ReportBuilder
 
         if (d.MeasurementEdits.Count > 0)
         {
-            sb.Append("<h3>Ölçüm düzeltmeleri</h3><table class=\"hist\"><thead><tr><th>Tarih</th><th>Kim</th><th>Önce</th><th>Sonra</th></tr></thead><tbody>");
+            sb.Append($"<h3>{E(ReportText.MeasurementCorrections)}</h3><table class=\"hist\"><thead><tr><th>{E(ReportText.Date)}</th><th>{E(ReportText.By)}</th><th>{E(ReportText.Before)}</th><th>{E(ReportText.After)}</th></tr></thead><tbody>");
             foreach (var e in d.MeasurementEdits)
             {
                 sb.Append("<tr>")
-                  .Append($"<td>{e.At:dd.MM.yyyy HH:mm}</td>")
+                  .Append($"<td>{E(ReportDates.DayTime(e.At))}</td>")
                   .Append($"<td>{E(e.By)}</td>")
                   .Append($"<td>{E(SnapshotText(e.Before, d.Unit))}</td>")
                   .Append($"<td>{E(SnapshotText(e.After, d.Unit))}</td>")
@@ -193,29 +203,30 @@ public static class ReportBuilder
         return sb.ToString();
     }
 
-    /// <summary>"Bölge 3.1 — Giderildi (26.10.2026, After rework conforms)", "Bölge 3.2 — Devam ediyor", "Bölge 3.3 — Yeni kusur #7, #8".</summary>
+    /// <summary>"Bölge / Region 3.1 — Giderildi / Resolved (Oct.27.2026, ...)", "... — Devam ediyor / Continues", "... — Yeni kusur / New defect #7, #8".</summary>
     private static string RegionLine(Defect d, string photo, DefectState state, IReadOnlyList<Defect> all)
     {
         var label = DefectRegions.Label(d, photo);
         var (status, by) = DefectRegions.StatusInfo(d, photo);
+        var head = $"{ReportText.Region} {label} — ";
 
         switch (status)
         {
             case RegionStatus.Conforms:
-                return $"Bölge {label} — Giderildi ({by!.DecidedAt:dd.MM.yyyy}, {DefectSentence.DecisionLabel(by)})";
+                return $"{head}{ReportText.Resolved} ({ReportDates.Day(by!.DecidedAt)}, {ReportText.DecisionName(by)})";
 
             case RegionStatus.NewDefect:
                 var ids = DefectRegions.ActiveChildIdsForPhoto(d, photo, all);
                 return ids.Count == 0
-                    ? $"Bölge {label} — Yeni kusur"
-                    : $"Bölge {label} — Yeni kusur {string.Join(", ", ids.Select(i => "#" + i))}";
+                    ? $"{head}{ReportText.NewDefect}"
+                    : $"{head}{ReportText.NewDefect} {string.Join(", ", ids.Select(i => "#" + i))}";
 
             default:
                 // Kusur kapandıysa kalan bölge de kapanmıştır; "devam ediyor" denmez.
                 var last = DefectStateMachine.Effective(d).LastOrDefault(x => x.Source != DecisionSource.System);
                 return state == DefectState.Closed && last is not null
-                    ? $"Bölge {label} — Kapandı ({last.DecidedAt:dd.MM.yyyy}, {DefectSentence.DecisionLabel(last)})"
-                    : $"Bölge {label} — Devam ediyor";
+                    ? $"{head}{ReportText.Closed} ({ReportDates.Day(last.DecidedAt)}, {ReportText.DecisionName(last)})"
+                    : $"{head}{ReportText.Continues}";
         }
     }
 
@@ -269,7 +280,7 @@ public static class ReportBuilder
               .Append($"<text x=\"{Num(bx + font * 0.25)}\" y=\"{Num(by + font * 0.95)}\" font-size=\"{Num(font)}\" font-family=\"Arial\" font-weight=\"bold\" fill=\"#fff\">{E(label)}</text>");
         }
 
-        sb.Append($"</svg><figcaption>{E(photo)}{(file != photo ? " · arka plan kaldırıldı" : "")}</figcaption></figure>");
+        sb.Append($"</svg><figcaption>{E(photo)}{(file != photo ? $" · {E(ReportText.CleanedBackground)}" : "")}</figcaption></figure>");
         return sb.ToString();
     }
 
@@ -304,20 +315,6 @@ public static class ReportBuilder
         _ => "open",
     };
 
-    private static string StateText(DefectState s) => s switch
-    {
-        DefectState.Open => "Açık",
-        DefectState.Reworking => "Rework",
-        DefectState.Repairing => "Repair",
-        DefectState.AwaitingReinspect => "Rework sonrası muayene bekliyor",
-        DefectState.WaitingVendor => "Tedarikçide",
-        DefectState.MrbPending => "MRB bekliyor",
-        DefectState.Closed => "Kapandı",
-        DefectState.Voided => "Void",
-        DefectState.Superseded => "Devredildi",
-        _ => s.ToString(),
-    };
-
     /// <summary>Kullanıcı metinlerini HTML'e güvenle gömer. Null ise boş döner.</summary>
     private static string E(string? value) => WebUtility.HtmlEncode(value ?? "");
 
@@ -347,9 +344,10 @@ public static class ReportBuilder
         .info h3 { font-size: 10pt; color: #1A3A5C; margin: 8px 0 4px; border-bottom: 1px solid #DDE2EA; padding-bottom: 2px; }
         .meas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
         .mc { background: #F3F5F9; border-radius: 3px; padding: 4px 6px; }
-        .ml { font-size: 7pt; color: #777; text-transform: uppercase; }
+        .ml { font-size: 7pt; color: #777; }
         .mv { font-size: 10pt; font-weight: bold; }
         .note { font-size: 9pt; margin: 6px 0; }
+        .link .en { display: block; color: #8a7a4a; font-size: 8pt; margin-top: 1px; }
         .link { font-size: 9pt; background: #FFF8E1; border-left: 3px solid #F59E0B; padding: 4px 8px; margin: 4px 0; }
         table { width: 100%; border-collapse: collapse; font-size: 8pt; }
         th, td { border: 1px solid #DDE2EA; padding: 3px 5px; vertical-align: top; text-align: left; }

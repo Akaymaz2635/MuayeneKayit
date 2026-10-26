@@ -156,6 +156,13 @@ var tests = new List<(string Name, Action Body)>
     ("Geri bildirim VM: void child parent'ı geri açar, ekranda sızıntı yok", VmVoidLastChildReopensParentWithoutLeaks),
     ("Geri bildirim VM: iki child'dan biri void, sonra geri alma", VmUndoMultipleChildrenAndVoidOneOfTwo),
     ("Geri bildirim VM: geri alma iki child'ı bildirir ve void eder", VmUndoTwoChildrenListsBoth),
+    ("Rapor 2: tarihler ay harfli, ay-gün-yıl, kültürden bağımsız", ReportBilingualTests.ReportDatesAreInvariantMonthDayYear),
+    ("Rapor 2: başlık tek satır iki dilli, Proje / Inspector / sürüm / durum yok", ReportBilingualTests.HeaderIsSingleBilingualLine),
+    ("Rapor 2: alt bilgide muayene açılış tarihi", ReportBilingualTests.FooterShowsSessionOpeningDate),
+    ("Rapor 2: tablo tarihleri MMM.dd.yyyy HH:mm", ReportBilingualTests.TableDatesUseMonthNames),
+    ("Rapor 2: kusur sayfası etiketleri Türkçe / English", ReportBilingualTests.DefectPageLabelsAreBilingual),
+    ("Rapor 2: durum ve karar adları iki dilli, sistem notu çevrilir", ReportBilingualTests.StateAndDecisionNamesAreBilingual),
+    ("Rapor 2: bağlantı cümleleri ve bölge satırları iki dilli", ReportBilingualTests.LinkSentencesAndRegionLinesAreBilingual),
 };
 
 int failed = 0;
@@ -568,7 +575,7 @@ static void UndoMrbRejectedRemovesAutoScrap()
     var html = ReportBuilder.Build(SampleSession("SN-U"), new[] { d }, version: 1);
     Expect(!html.Contains("MRB rejected") && !html.Contains("Geri alındı") && html.Contains("Submit MRB"),
         "Raporda geri alınan kararlar görünmemeli, geçerli karar görünmeli");
-    Expect(!html.Contains("Kusur özeti") && html.Contains("Sayfa 1 / 1"), "Özet sayfası olmamalı, sayfa sayısı kusur sayısı kadar");
+    Expect(!html.Contains("Kusur özeti") && html.Contains("Sayfa / Page 1 / 1"), "Özet sayfası olmamalı, sayfa sayısı kusur sayısı kadar");
 }
 
 static void UndoChildLinkVoidsChild()
@@ -698,7 +705,7 @@ static void ReportPhotoPerPage()
     var html = ReportBuilder.Build(SampleSession("SN-P"), new[] { d, single }, 1);
     Expect(html.Contains(">#6.1<") && html.Contains(">#6.2<") && html.Contains(">#6.3<"), "Her fotoğraf 6.1, 6.2, 6.3 olarak etiketlenmeli");
     Expect(html.Contains(">#7<") && !html.Contains("#7.1"), "Tek / fotoğrafsız kusur alt numara almamalı");
-    Expect(html.Contains("Sayfa 4 / 4"), "3 fotoğraf + 1 kusur = 4 sayfa");
+    Expect(html.Contains("Sayfa / Page 4 / 4"), "3 fotoğraf + 1 kusur = 4 sayfa");
     Expect(System.Text.RegularExpressions.Regex.Matches(html, "6_photo_0").Count >= 3, "Her fotoğraf kendi sayfasında");
     Expect(System.Text.RegularExpressions.Regex.Matches(html, "Submit MRB").Count == 1, "Karar geçmişi yalnızca ilk sayfada");
 }
@@ -1180,7 +1187,7 @@ static void MeasurementEditsLogged()
     Expect(!again && d.MeasurementEdits.Count == 1, "Değişiklik yoksa kayıt eklenmemeli");
 
     var html = ReportBuilder.Build(SampleSession(), new[] { d }, 1);
-    Expect(html.Contains("Ölçüm düzeltmeleri"), "Düzeltmeler raporda görünmeli");
+    Expect(html.Contains(System.Net.WebUtility.HtmlEncode("Ölçüm düzeltmeleri / Measurement corrections")), "Düzeltmeler raporda görünmeli");
 }
 
 static void DashboardFilter()

@@ -177,7 +177,7 @@ public static class FeedbackCoreTests
         Expect(all.Where(d => d.Id > 1).All(d => DefectStateMachine.GetState(d) == DefectState.Voided), "Child'lar void");
 
         var html = ReportBuilder.Build(ReportSession, all, 1);
-        Expect(!html.Contains("lge 1.") && !html.Contains("#2 ") && !html.Contains("Defect 2"), "Rapor geri alınan sonucu ve void child'ları göstermemeli");
+        Expect(!html.Contains("Region 1.") && !html.Contains("#2 ") && !html.Contains("Defect 2"), "Rapor geri alınan sonucu ve void child'ları göstermemeli");
     });
 
     // ───────────────────────── 4: void edilen child sızmaz ─────────────────────────
@@ -377,19 +377,19 @@ public static class FeedbackCoreTests
 
         var all = store.LoadDefects(folder);
         var html = ReportBuilder.Build(ReportSession, all, 1);
-        Expect(html.Contains("lge 1.1 — Giderildi (") && html.Contains("After rework: same defect continues)"), "1.1 giderildi satırı (tarih, karar)");
-        Expect(html.Contains("lge 1.2 — Devam ediyor"), "1.2 devam ediyor");
-        Expect(html.Contains("lge 1.3 — Yeni kusur #2, #3"), "1.3 yeni kusurlar");
+        Expect(html.Contains("Region 1.1 — Giderildi / Resolved (") && html.Contains("After rework: same defect continues)"), "1.1 giderildi satırı (tarih, karar)");
+        Expect(html.Contains("Region 1.2 — Devam ediyor / Continues"), "1.2 devam ediyor");
+        Expect(html.Contains("Region 1.3 — Yeni kusur / New defect #2, #3"), "1.3 yeni kusurlar");
         Expect(html.Contains("yeni kusurlar da bulundu: 2, 3 numaralı kusurlar ayrıca takip ediliyor."), "Açık parent çoğul bağlantı");
         Expect(html.Contains("1 numaralı kusurun 1.3 bölgesinde, rework sonrası muayenede bulundu."), "Child bölge bağlantısı");
-        Expect(System.Text.RegularExpressions.Regex.Matches(html, "lge 1\\.\\d — ").Count == 3, "Her fotoğraf sayfasında kendi bölgesinin satırı");
+        Expect(System.Text.RegularExpressions.Regex.Matches(html, "Region 1\\.\\d — ").Count == 3, "Her fotoğraf sayfasında kendi bölgesinin satırı");
 
         // Tek fotoğraflı kusurda bölge satırı gösterilmez.
         var single = new Defect { Id = 7, DefectType = "Nick" };
         single.Photos.Add("7_photo_01.jpg");
         DefectStateMachine.Apply(single, Decision.Accept, DecisionSource.Engineer, "M",
             photoOutcomes: new Dictionary<string, PhotoOutcome> { [single.Photos[0]] = PhotoOutcome.Continues });
-        Expect(!ReportBuilder.Build(ReportSession, new[] { single }, 1).Contains("lge 7."), "Tek fotoğrafta bölge satırı yok");
+        Expect(!ReportBuilder.Build(ReportSession, new[] { single }, 1).Contains("Region 7."), "Tek fotoğrafta bölge satırı yok");
 
         // Devredilen parent: çoğul "Takip" bağlantısı.
         With2(store2 =>
@@ -416,8 +416,8 @@ public static class FeedbackCoreTests
     public static void EnglishInspectorAndDiameterTexts()
     {
         var html = ReportBuilder.Build(ReportSession, new[] { new Defect { Id = 1, DefectType = "Braze Void", Radius = 2 } }, 1);
-        Expect(html.Contains("Inspector A. Yılmaz") && !html.Contains("Muayeneci"), "Rapor başlığında Inspector yazmalı");
-        Expect((html.Contains(">Çap<") || html.Contains(">&#199;ap<")) && !html.Contains("Yarıçap"), "Rapor hücresi Çap olmalı");
+        Expect(!html.Contains("Muayeneci") && !html.Contains("Yarıçap"), "Rapor Muayeneci / Yarıçap demez");
+        Expect(html.Contains("&#199;ap / Diameter"), "Rapor hücresi Çap / Diameter olmalı");
 
         var d = new Defect { Id = 1, DefectType = "Braze Void", Radius = 2 };
         Expect(DefectSentence.Describe(d).Contains("with Diameter: 2 mm.") && !DefectSentence.Describe(d).Contains("Radius"), DefectSentence.Describe(d));
