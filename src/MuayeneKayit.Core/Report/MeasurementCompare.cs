@@ -21,7 +21,7 @@ public static class MeasurementCompare
         Add(lines, "Derinlik", before.Depth, after.Depth, unit);
         Add(lines, "Genişlik", before.Width, after.Width, unit);
         Add(lines, "Uzunluk", before.Length, after.Length, unit);
-        Add(lines, "Yarıçap", before.Radius, after.Radius, unit);
+        Add(lines, "Çap", before.Radius, after.Radius, unit);
         Add(lines, "Açı", before.AngleDeg, after.AngleDeg, null);
 
         if (!string.Equals(before.Color ?? "", after.Color ?? "", StringComparison.Ordinal))

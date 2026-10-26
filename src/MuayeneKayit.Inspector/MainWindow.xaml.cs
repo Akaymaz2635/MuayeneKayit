@@ -158,16 +158,35 @@ public sealed partial class MainWindow : Window
             ShowSuggestions(sender);
     }
 
+    /// <summary>Şu an öneri listesi gösterilen kutu ("×" tıklaması hangi kutunun önerisini gizlediğini buradan bilir).</summary>
+    private AutoSuggestBox? _suggestOwner;
+
+    private SuggestLevel LevelOf(AutoSuggestBox box) =>
+        ReferenceEquals(box, PartBox) ? SuggestLevel.Part
+        : ReferenceEquals(box, OpBox) ? SuggestLevel.Operation
+        : SuggestLevel.Serial;
+
     /// <summary>Öneri listesini ViewModel'den alır ve kutuya verir.</summary>
     private void ShowSuggestions(AutoSuggestBox box)
     {
-        var level = ReferenceEquals(box, PartBox) ? SuggestLevel.Part
-            : ReferenceEquals(box, OpBox) ? SuggestLevel.Operation
-            : SuggestLevel.Serial;
-        var items = Vm.Suggestions(level, box.Text);
+        _suggestOwner = box;
+        var items = Vm.Suggestions(LevelOf(box), box.Text);
 
         box.ItemsSource = items;
         box.IsSuggestionListOpen = items.Count > 0;
+    }
+
+    /// <summary>
+    /// Önerideki "×": öneriyi bu bilgisayarda gizler ve listeyi açık hâlde yeniler. Düğme tıklamayı yuttuğu için
+    /// öneri seçilmez; kutudaki metin değişmez.
+    /// </summary>
+    private void HideSuggestion_Click(object sender, RoutedEventArgs e)
+    {
+        if (_suggestOwner is not { } box || (sender as Button)?.Tag is not string value)
+            return;
+
+        Vm.HideSuggestion(LevelOf(box), value);
+        ShowSuggestions(box);
     }
 
     // ───────────────────────── Kusur listesi ─────────────────────────
@@ -397,7 +416,7 @@ public sealed partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(Vm.InspectorName))
         {
             InspectorBox.Focus(FocusState.Programmatic);
-            Show("Kaydı açmak için muayeneci adınızı girip 'Muayene oluştur'a basın.", InfoBarSeverity.Informational);
+            Show("Kaydı açmak için Inspector adınızı girip 'Create Inspection'a basın.", InfoBarSeverity.Informational);
             return;
         }
 

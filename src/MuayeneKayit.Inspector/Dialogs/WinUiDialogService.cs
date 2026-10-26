@@ -87,6 +87,37 @@ public sealed class WinUiDialogService : IDialogService
             Child = new TextBlock { Text = request.EffectText, TextWrapping = TextWrapping.Wrap },
         });
 
+        // 2+ aktif bölge: karar hangi bölgeler için? Varsayılan hepsi işaretli; işaretsiz bölge uygun (Conforms) sayılır.
+        var regionChecks = new List<(PhotoRegion Info, CheckBox Box)>();
+        if (request.Regions is { Count: >= 2 } regions)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Bu karar hangi bölgeler için?",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            });
+            foreach (var region in regions)
+            {
+                var box = new CheckBox
+                {
+                    IsChecked = true,
+                    MinWidth = 0,
+                    Content = RegionControls.Header(region),
+                };
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, "Bölge " + region.Label);
+                regionChecks.Add((region, box));
+                panel.Children.Add(box);
+            }
+            panel.Children.Add(new TextBlock
+            {
+                Text = "İşaretlemediğiniz bölge uygun (Conforms) sayılır; sonraki kararlar ve muayeneler yalnızca işaretli bölgeleri sorar.",
+                Style = Res("SecondaryTextStyle"),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+        int CheckedRegions() => regionChecks.Count(r => r.Box.IsChecked == true);
+
         TextBox? target = null;
         if (request.TargetHeader is not null)
         {
@@ -134,18 +165,25 @@ public sealed class WinUiDialogService : IDialogService
 
         ReworkScope? SelectedScope() => (scope?.SelectedItem as RadioButton)?.Tag as ReworkScope?;
 
+        var needsRegions = regionChecks.Count > 0;
         var dialog = NewDialog(request.Label, panel, "Kararı kaydet", "Vazgeç",
-            primaryEnabled: DecisionForm.CanSave(request.NoteRequired, note.Text, request.NeedsReworkScope, SelectedScope()));
+            primaryEnabled: DecisionForm.CanSave(request.NoteRequired, note.Text, request.NeedsReworkScope, SelectedScope(), needsRegions, CheckedRegions()));
         void UpdateSave() => dialog.IsPrimaryButtonEnabled =
-            DecisionForm.CanSave(request.NoteRequired, note.Text, request.NeedsReworkScope, SelectedScope());
+            DecisionForm.CanSave(request.NoteRequired, note.Text, request.NeedsReworkScope, SelectedScope(), needsRegions, CheckedRegions());
         note.TextChanged += (_, _) => UpdateSave();
         if (scope is not null)
             scope.SelectionChanged += (_, _) => UpdateSave();
+        foreach (var (_, box) in regionChecks)
+        {
+            box.Checked += (_, _) => UpdateSave();
+            box.Unchecked += (_, _) => UpdateSave();
+        }
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return null;
 
-        return new DecisionInput(target?.Text, reference?.Text, note.Text, SelectedScope());
+        return new DecisionInput(target?.Text, reference?.Text, note.Text, SelectedScope(),
+            needsRegions ? regionChecks.Where(r => r.Box.IsChecked == true).Select(r => r.Info.Photo).ToList() : null);
     }
 
     public async Task<bool> AskReinspectNowAsync(Decision decision, int defectId)
@@ -188,18 +226,63 @@ public sealed class WinUiDialogService : IDialogService
             TextWrapping = TextWrapping.Wrap,
         });
 
-        // 1. adım: sonuç
+        // Aktif bölge 2+ ise her bölge için ayrı sonuç; 0 ya da 1 ise bugünkü 3 seçenek.
+        var multi = request.Regions is { Count: >= 2 };
+        var regionRows = new List<(PhotoRegion Info, RadioButtons Choice, NewDefectListEditor News)>();
         var outcome = new RadioButtons { Header = "1. Muayene sonucu ne?" };
-        outcome.Items.Add(new RadioButton { Content = "Kusur giderildi (uygun) → kusur kapanır", Tag = ReinspectOutcome.Conforms });
-        outcome.Items.Add(new RadioButton
+        NewDefectListEditor? singleNews = null;
+        var summary = new TextBlock
         {
-            Content = hadHighMetal
-                ? "Ana kusur hâlâ var (high metal giderilmiş olabilir) → yeni ölçüm / durum gir"
-                : "Aynı kusur hâlâ var → yeni ölçümleri gir, sonra yeni karar ver",
-            Tag = ReinspectOutcome.Same,
-        });
-        outcome.Items.Add(new RadioButton { Content = "Eski kusur gitti ama yeni bir hata oluştu → yeni kusur aç", Tag = ReinspectOutcome.New });
-        panel.Children.Add(outcome);
+            TextWrapping = TextWrapping.Wrap,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Visibility = Vis(multi),
+        };
+
+        // 1. adım: sonuç
+        if (!multi)
+        {
+            outcome.Items.Add(new RadioButton { Content = "Kusur giderildi (uygun) → kusur kapanır", Tag = ReinspectOutcome.Conforms });
+            outcome.Items.Add(new RadioButton
+            {
+                Content = hadHighMetal
+                    ? "Ana kusur hâlâ var (high metal giderilmiş olabilir) → yeni ölçüm / durum gir"
+                    : "Aynı kusur hâlâ var → yeni ölçümleri gir, sonra yeni karar ver",
+                Tag = ReinspectOutcome.Same,
+            });
+            outcome.Items.Add(new RadioButton { Content = "Eski kusur gitti ama yeni bir hata oluştu → yeni kusur aç", Tag = ReinspectOutcome.New });
+            panel.Children.Add(outcome);
+        }
+        else
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "1. Her bölge (fotoğraf) için muayene sonucu ne?",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            foreach (var region in request.Regions!)
+            {
+                var choice = new RadioButtons { MaxColumns = 3 };
+                choice.Items.Add(new RadioButton { Content = "Giderildi", Tag = PhotoOutcome.Conforms });
+                choice.Items.Add(new RadioButton { Content = "Devam ediyor", Tag = PhotoOutcome.Continues });
+                choice.Items.Add(new RadioButton { Content = "Yeni hata", Tag = PhotoOutcome.NewDefect });
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(choice, "Bölge " + region.Label + " sonucu");
+
+                var news = new NewDefectListEditor(request.TypeNames, "Bu bölgeye hata ekle") { Visibility = Visibility.Collapsed };
+                regionRows.Add((region, choice, news));
+
+                var card = new StackPanel { Spacing = 6 };
+                card.Children.Add(RegionControls.Header(region));
+                card.Children.Add(choice);
+                card.Children.Add(news);
+                panel.Children.Add(new Border
+                {
+                    Style = Res("SubtleCardStyle"),
+                    Padding = new Thickness(10),
+                    Child = card,
+                });
+            }
+        }
 
         // 2. adım (aynı kusur): yeni ölçümler, boş gelir
         var headers = new (MeasureField Field, string Header, double? Old)[]
@@ -207,7 +290,7 @@ public sealed class WinUiDialogService : IDialogService
             (MeasureField.Depth, Units.Header("Derinlik", request.Unit), before.Depth),
             (MeasureField.Width, Units.Header("Genişlik", request.Unit), before.Width),
             (MeasureField.Length, Units.Header("Uzunluk", request.Unit), before.Length),
-            (MeasureField.Radius, Units.Header("Yarıçap", request.Unit), before.Radius),
+            (MeasureField.Radius, Units.Header("Çap", request.Unit), before.Radius),
             (MeasureField.Angle, "Açı (°)", before.AngleDeg),
         };
         var boxes = new Dictionary<MeasureField, TextBox>();
@@ -249,25 +332,27 @@ public sealed class WinUiDialogService : IDialogService
         }
         panel.Children.Add(samePanel);
 
-        // 2. adım (yeni hata): child tipi, varsayılan seçili değil
-        var childType = new ComboBox { Header = "2. Yeni hatanın tipi", ItemsSource = request.TypeNames, PlaceholderText = "Tip seçin", Width = 300 };
+        // 2. adım (yeni hata, tek sonuç): bir ya da daha fazla yeni hatanın tipi, varsayılan seçili değil
+        singleNews = multi ? null : new NewDefectListEditor(request.TypeNames, "Hata ekle");
         var newPanel = new StackPanel
         {
             Spacing = 8,
             Visibility = Visibility.Collapsed,
-            Children =
-            {
-                childType,
-                new TextBlock
-                {
-                    Text = $"#{request.DefectId} kapanmış sayılmaz, yeni kusura devredilir ('Defect {request.DefectId} continues as Defect N'). Yeni kusurun ölçümlerini ve fotoğrafını kaydettikten sonra girersiniz.",
-                    TextWrapping = TextWrapping.Wrap,
-                    Style = Res("SecondaryTextStyle"),
-                    FontSize = 12,
-                },
-            },
         };
+        if (singleNews is not null)
+        {
+            newPanel.Children.Add(new TextBlock { Text = "2. Yeni hataların tipi (her satır ayrı bir yeni kusur olur)", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            newPanel.Children.Add(singleNews);
+            newPanel.Children.Add(new TextBlock
+            {
+                Text = $"#{request.DefectId} kapanmış sayılmaz, yeni kusur(lar)a devredilir ('Defect {request.DefectId} continues as Defect N'). Yeni kusurların ölçümlerini ve fotoğraflarını kaydettikten sonra girersiniz.",
+                TextWrapping = TextWrapping.Wrap,
+                Style = Res("SecondaryTextStyle"),
+                FontSize = 12,
+            });
+        }
         panel.Children.Add(newPanel);
+        panel.Children.Add(summary);
 
         var note = new TextBox { Header = "Not (isteğe bağlı)", AcceptsReturn = true, Height = 60, TextWrapping = TextWrapping.Wrap };
         panel.Children.Add(note);
@@ -278,7 +363,11 @@ public sealed class WinUiDialogService : IDialogService
 
         ReinspectOutcome? Selected() => (outcome.SelectedItem as RadioButton)?.Tag as ReinspectOutcome?;
         bool? HighMetalAnswer() => (highMetal?.SelectedItem as RadioButton)?.Tag as bool?;
-        string? ChildType() => childType.SelectedItem as string;
+
+        // Bölge seçimleri (çok bölgeli mod): seçilmemiş bölgenin sonucu null.
+        IReadOnlyList<RegionChoice> Choices() => regionRows
+            .Select(r => new RegionChoice(r.Info.Photo, (r.Choice.SelectedItem as RadioButton)?.Tag as PhotoOutcome?, r.News.Types))
+            .ToList();
 
         MeasurementSnapshot ReadValues()
         {
@@ -295,23 +384,43 @@ public sealed class WinUiDialogService : IDialogService
 
         void Refresh()
         {
-            var tag = Selected();
-            samePanel.Visibility = Vis(tag == ReinspectOutcome.Same);
-            newPanel.Visibility = Vis(tag == ReinspectOutcome.New);
-
             var entered = ReadValues();
             var anyValue = ReinspectForm.AnyValue(entered);
-            if (tag == ReinspectOutcome.Same)
+            bool showMeasure;
+
+            if (multi)
+            {
+                var choices = Choices();
+                foreach (var (_, choice, news) in regionRows)
+                    news.Visibility = Vis((choice.SelectedItem as RadioButton)?.Tag as PhotoOutcome? == PhotoOutcome.NewDefect);
+                showMeasure = ReinspectForm.AnyContinues(choices);
+                summary.Text = ReinspectForm.Summary(request.DefectId, choices);
+                dialog.IsPrimaryButtonEnabled = ReinspectForm.CanSaveRegions(choices, hadHighMetal, HighMetalAnswer(), anyValue);
+            }
+            else
+            {
+                var tag = Selected();
+                newPanel.Visibility = Vis(tag == ReinspectOutcome.New);
+                showMeasure = tag == ReinspectOutcome.Same;
+                dialog.IsPrimaryButtonEnabled = ReinspectForm.CanSave(tag, hadHighMetal, HighMetalAnswer(), anyValue, singleNews!.Types);
+            }
+
+            samePanel.Visibility = Vis(showMeasure);
+            if (showMeasure)
             {
                 var merged = ReinspectForm.Merge(before, entered, HighMetalAnswer());
                 delta.Text = ReinspectForm.DeltaText(before, merged, anyValue, highMetal is not null && HighMetalAnswer() is not null, request.Unit);
             }
-
-            dialog.IsPrimaryButtonEnabled = ReinspectForm.CanSave(tag, hadHighMetal, HighMetalAnswer(), anyValue, ChildType());
         }
 
         outcome.SelectionChanged += (_, _) => Refresh();
-        childType.SelectionChanged += (_, _) => Refresh();
+        if (singleNews is not null)
+            singleNews.Changed += Refresh;
+        foreach (var (_, choice, news) in regionRows)
+        {
+            choice.SelectionChanged += (_, _) => Refresh();
+            news.Changed += Refresh;
+        }
         if (highMetal is not null)
             highMetal.SelectionChanged += (_, _) => Refresh();
         foreach (var box in boxes.Values.Append(colorBox).OfType<TextBox>())
@@ -320,8 +429,14 @@ public sealed class WinUiDialogService : IDialogService
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             return null;
 
+        if (multi)
+        {
+            var choices = Choices();
+            return new ReinspectInput(ReinspectForm.OutcomeFor(choices), ReadValues(), HighMetalAnswer(), null, note.Text, choices);
+        }
+
         var result = Selected() ?? throw new InvalidOperationException("Muayene sonucunu seçin.");
-        return new ReinspectInput(result, ReadValues(), HighMetalAnswer(), ChildType(), note.Text);
+        return new ReinspectInput(result, ReadValues(), HighMetalAnswer(), singleNews!.Types, note.Text);
     }
 
     // ───────────────────────── Geri al, void, fotoğraf ─────────────────────────
@@ -335,15 +450,18 @@ public sealed class WinUiDialogService : IDialogService
                    $"{request.DecisionLabel}   ({request.DecidedAt:dd.MM.yyyy HH:mm}, {request.DecidedBy})",
             TextWrapping = TextWrapping.Wrap,
         });
-        if (request.ChildToVoid is int childId)
+        if (request.ChildrenToVoid.Count > 0)
         {
+            var single = request.ChildrenToVoid.Count == 1;
             panel.Children.Add(new InfoBar
             {
                 IsOpen = true,
                 IsClosable = false,
                 Severity = InfoBarSeverity.Warning,
-                Message = $"Bu kararla açılan yeni kusur #{childId} void edilecek (silinmez, rapora girmez). " +
-                          $"#{request.DefectId} tekrar 'rework sonrası muayene bekliyor' olur.",
+                Message = (single
+                              ? $"Bu kararla açılan yeni kusur {IdList(request.ChildrenToVoid)} void edilecek (silinmez, rapora girmez). "
+                              : $"Bu kararla açılan yeni kusurlar {IdList(request.ChildrenToVoid)} void edilecek (silinmez, rapora girmez). ") +
+                          $"#{request.DefectId} tekrar 'rework sonrası muayene bekliyor' olur; bölgelerin durumu karardan önceki hâline döner.",
             });
         }
         var reason = new TextBox

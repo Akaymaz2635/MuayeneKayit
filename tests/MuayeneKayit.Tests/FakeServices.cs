@@ -6,6 +6,15 @@ public sealed class FakeUserSettings : IUserSettings
 {
     public LengthUnit Unit { get; set; } = LengthUnit.Mm;
     public AppTheme Theme { get; set; } = AppTheme.Light;
+
+    /// <summary>Gizlenen öneriler bellekte tutulur (gerçek adaptörle aynı kural: HiddenSuggestionSet).</summary>
+    public HiddenSuggestionSet Hidden { get; } = new();
+
+    public IReadOnlySet<string> HiddenSuggestions(SuggestLevel level) => Hidden.Get(level);
+
+    public void HideSuggestion(SuggestLevel level, string value) => Hidden.Hide(level, value);
+
+    public void UnhideSuggestions(string part, string operation, string serial) => Hidden.Unhide(part, operation, serial);
 }
 
 /// <summary>Sahte Windows kullanıcısı (sicil no + AD'deki ad).</summary>

@@ -47,6 +47,53 @@ internal sealed class UserSettingsAdapter : IUserSettings
         }
     }
 
+    // ───── Gizlenen öneriler (bu bilgisayara özel, ayrı dosya) ─────
+
+    private static readonly string HiddenPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MuayeneKayit", "hidden-suggestions.json");
+
+    private readonly HiddenSuggestionSet _hidden = LoadHidden();
+
+    public IReadOnlySet<string> HiddenSuggestions(SuggestLevel level) => _hidden.Get(level);
+
+    public void HideSuggestion(SuggestLevel level, string value)
+    {
+        if (_hidden.Hide(level, value))
+            SaveHidden();
+    }
+
+    public void UnhideSuggestions(string part, string operation, string serial)
+    {
+        if (_hidden.Unhide(part, operation, serial))
+            SaveHidden();
+    }
+
+    private static HiddenSuggestionSet LoadHidden()
+    {
+        try
+        {
+            return HiddenSuggestionSet.FromJson(File.Exists(HiddenPath) ? File.ReadAllText(HiddenPath) : null);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Okunamayan dosya uygulamayı durdurmaz; hiçbir öneri gizli sayılmaz.
+            return new HiddenSuggestionSet();
+        }
+    }
+
+    private void SaveHidden()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(HiddenPath)!);
+            AtomicFile.WriteAllText(HiddenPath, _hidden.ToJson());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Yazılamayan klasör: gizleme bu oturumda bellekte geçerli kalır, uygulama kapanmaz.
+        }
+    }
+
     /// <summary>Açılışta tema için (App oluşturulurken, servisler kurulmadan önce).</summary>
     public static AppTheme LoadTheme() => Load().Theme;
 

@@ -49,7 +49,7 @@ public static class ReportBuilder
                 var label = PageLabel(d, photo);
                 sb.Append("<section class=\"page\">");
                 sb.Append(Header(session, version, status));
-                sb.Append(DefectPage(d, photo));
+                sb.Append(DefectPage(d, photo, allDefects));
                 sb.Append($"<footer><span>Kusur {label} · {E(d.DefectType)}</span><span>Sayfa {index} / {total}</span></footer>");
                 sb.Append("</section>");
             }
@@ -61,7 +61,7 @@ public static class ReportBuilder
 
     private static string Header(Session s, int version, string status) =>
         $"<div class=\"hdr\"><div><strong>Parça {E(s.PartNumber)}</strong> &nbsp; Operasyon {E(s.OperationNumber)} &nbsp; Seri {E(s.SerialNumber)}</div>" +
-        $"<div>Proje {E(s.Project)} · Muayeneci {E(s.Inspector)} · {s.CreatedAt:dd.MM.yyyy} · Rapor v{version} · {E(status)}</div></div>";
+        $"<div>Proje {E(s.Project)} · Inspector {E(s.Inspector)} · {s.CreatedAt:dd.MM.yyyy} · Rapor v{version} · {E(status)}</div></div>";
 
     /// <summary>Tek fotoğrafta "#6", birden fazlada "#6.1", "#6.2".</summary>
     private static string PageLabel(Defect d, int photo) =>
@@ -71,7 +71,7 @@ public static class ReportBuilder
     /// Kusurun bir sayfası: solda tek fotoğraf (tam boy), sağda ölçümler. Karar geçmişi ilk sayfada;
     /// sonraki fotoğraf sayfalarında ilk sayfaya yönlendirilir.
     /// </summary>
-    private static string DefectPage(Defect d, int photoIndex)
+    private static string DefectPage(Defect d, int photoIndex, IReadOnlyList<Defect> all)
     {
         var sb = new StringBuilder();
         var state = DefectStateMachine.GetState(d);
@@ -101,16 +101,39 @@ public static class ReportBuilder
         // Sağ: bilgi
         sb.Append("<div class=\"info\">");
 
+        // Void edilen yeni kusurlar hiçbir yerde anılmaz.
         if (d.SupersedesId is int from)
-            sb.Append($"<p class=\"link\">Bu kusur, {from} numaralı kusurun rework'ünden sonra yapılan muayenede bulundu.</p>");
-        if (d.SupersededById is int to)
-            sb.Append($"<p class=\"link\">Rework sonrası bu kusur giderildi, ancak yeni bir kusur oluştu. Takip {to} numaralı kusur üzerinden yapılıyor.</p>");
+        {
+            var region = DefectRegions.FoundAtLabel(d, all);
+            sb.Append(region.Length == 0
+                ? $"<p class=\"link\">Bu kusur, {from} numaralı kusurun rework'ünden sonra yapılan muayenede bulundu.</p>"
+                : $"<p class=\"link\">Bu kusur, {from} numaralı kusurun {E(region)} bölgesinde, rework sonrası muayenede bulundu.</p>");
+        }
+
+        var children = DefectRegions.ActiveChildIds(d, all);
+        if (children.Count > 0)
+        {
+            var list = string.Join(", ", children);
+            var plural = children.Count > 1;
+            if (state == DefectState.Superseded)
+                sb.Append(plural
+                    ? $"<p class=\"link\">Rework sonrası bu kusur giderildi, ancak yeni kusurlar oluştu. Takip {list} numaralı kusurlar üzerinden yapılıyor.</p>"
+                    : $"<p class=\"link\">Rework sonrası bu kusur giderildi, ancak yeni bir kusur oluştu. Takip {list} numaralı kusur üzerinden yapılıyor.</p>");
+            else
+                sb.Append(plural
+                    ? $"<p class=\"link\">Rework sonrası muayenede yeni kusurlar da bulundu: {list} numaralı kusurlar ayrıca takip ediliyor.</p>"
+                    : $"<p class=\"link\">Rework sonrası muayenede yeni bir kusur da bulundu: {list} numaralı kusur ayrıca takip ediliyor.</p>");
+        }
+
+        // Çok fotoğraflı kusurda bu sayfanın bölgesinin durumu (yalnızca bölge sonuçları kaydedildiyse).
+        if (d.Photos.Count > 1 && DefectRegions.HasRegionData(d))
+            sb.Append($"<p class=\"link region\">{E(RegionLine(d, d.Photos[photoIndex], state, all))}</p>");
 
         sb.Append("<h3>Ölçümler</h3><div class=\"meas\">");
         sb.Append(MeasCell("Derinlik", Len(d.Depth, d.Unit)));
         sb.Append(MeasCell("Genişlik", Len(d.Width, d.Unit)));
         sb.Append(MeasCell("Uzunluk", Len(d.Length, d.Unit)));
-        sb.Append(MeasCell("Yarıçap", Len(d.Radius, d.Unit)));
+        sb.Append(MeasCell("Çap", Len(d.Radius, d.Unit)));
         sb.Append(MeasCell("Açı", d.AngleDeg is double a ? $"{Num(a)}°" : "—"));
         sb.Append(MeasCell("Renk", string.IsNullOrWhiteSpace(d.Color) ? "—" : d.Color!));
         sb.Append("</div>");
@@ -168,6 +191,32 @@ public static class ReportBuilder
 
         sb.Append("</div></div>");
         return sb.ToString();
+    }
+
+    /// <summary>"Bölge 3.1 — Giderildi (26.10.2026, After rework conforms)", "Bölge 3.2 — Devam ediyor", "Bölge 3.3 — Yeni kusur #7, #8".</summary>
+    private static string RegionLine(Defect d, string photo, DefectState state, IReadOnlyList<Defect> all)
+    {
+        var label = DefectRegions.Label(d, photo);
+        var (status, by) = DefectRegions.StatusInfo(d, photo);
+
+        switch (status)
+        {
+            case RegionStatus.Conforms:
+                return $"Bölge {label} — Giderildi ({by!.DecidedAt:dd.MM.yyyy}, {DefectSentence.DecisionLabel(by)})";
+
+            case RegionStatus.NewDefect:
+                var ids = DefectRegions.ActiveChildIdsForPhoto(d, photo, all);
+                return ids.Count == 0
+                    ? $"Bölge {label} — Yeni kusur"
+                    : $"Bölge {label} — Yeni kusur {string.Join(", ", ids.Select(i => "#" + i))}";
+
+            default:
+                // Kusur kapandıysa kalan bölge de kapanmıştır; "devam ediyor" denmez.
+                var last = DefectStateMachine.Effective(d).LastOrDefault(x => x.Source != DecisionSource.System);
+                return state == DefectState.Closed && last is not null
+                    ? $"Bölge {label} — Kapandı ({last.DecidedAt:dd.MM.yyyy}, {DefectSentence.DecisionLabel(last)})"
+                    : $"Bölge {label} — Devam ediyor";
+        }
     }
 
     /// <summary>
@@ -236,7 +285,7 @@ public static class ReportBuilder
         if (s.Depth is double d) parts.Add($"D {Units.Format(d, unit)}");
         if (s.Width is double w) parts.Add($"W {Units.Format(w, unit)}");
         if (s.Length is double l) parts.Add($"L {Units.Format(l, unit)}");
-        if (s.Radius is double r) parts.Add($"R {Units.Format(r, unit)}");
+        if (s.Radius is double r) parts.Add($"Ç {Units.Format(r, unit)}");
         if (s.AngleDeg is double a) parts.Add($"A {Num(a)}°");
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
         if (s.HighMetal) parts.Add("High metal");

@@ -368,7 +368,7 @@ public static partial class ViewModelTests
         SendToRework(c);
 
         var childType = c.Vm.TypeNames.First(n => n != "Dent");
-        c.Dialogs.Reinspects.Enqueue(new ReinspectInput(ReinspectOutcome.New, NoValues, null, childType, "yeni hata"));
+        c.Dialogs.Reinspects.Enqueue(new ReinspectInput(ReinspectOutcome.New, NoValues, null, new[] { childType }, "yeni hata"));
         Wait(c.Vm.ReinspectAsync());
 
         Check(c.Vm.Defects.Count == 2 && c.Vm.SelectedId == 2, $"Child seçilmeli: {c.Vm.SelectedId}");
@@ -394,7 +394,7 @@ public static partial class ViewModelTests
     {
         AddMeasuredDent(c);
         SendToRework(c);
-        c.Dialogs.Reinspects.Enqueue(new ReinspectInput(ReinspectOutcome.New, NoValues, null, c.Vm.TypeNames.First(n => n != "Dent"), null));
+        c.Dialogs.Reinspects.Enqueue(new ReinspectInput(ReinspectOutcome.New, NoValues, null, new[] { c.Vm.TypeNames.First(n => n != "Dent") }, null));
         Wait(c.Vm.ReinspectAsync());
 
         c.Vm.Select(1);
@@ -402,7 +402,7 @@ public static partial class ViewModelTests
         Wait(c.Vm.UndoLastAsync());
 
         var req = c.Dialogs.UndoRequests.Last();
-        Check(req.ChildToVoid == 2 && req.DefectId == 1, $"Child bilgisi: {req.ChildToVoid}");
+        Check(req.ChildrenToVoid.SequenceEqual(new[] { 2 }) && req.DefectId == 1, $"Child bilgisi: {string.Join(",", req.ChildrenToVoid)}");
         Check(StateOf(c, 2) == DefectState.Voided, "Child void olmalı");
         Check(StateOf(c, 1) == DefectState.AwaitingReinspect, "Parent tekrar beklemeli");
         Check(c.Audit.Entries.Any(e => e.Contains("|disposition.undo|") && e.Contains("child #2 void")), "Denetim satırı beklenir");
@@ -431,7 +431,7 @@ public static partial class ViewModelTests
     public static void VmInspectorFromWindowsUser() => With(c =>
     {
         // Kapalıyken (varsayılan) elle yazılır.
-        Check(!c.Vm.IsInspectorFromWindows && c.Vm.InspectorHeader == "Muayeneci", "Varsayılan elle giriş");
+        Check(!c.Vm.IsInspectorFromWindows && c.Vm.InspectorHeader == "Inspector", "Varsayılan elle giriş");
 
         // Admin açtı: muayene seçimine dönünce ad Windows oturumundan gelir, kutu salt okunur.
         SharedConfig.SaveUseWindowsUser(c.Store.Root, true);
@@ -453,7 +453,7 @@ public static partial class ViewModelTests
         // Admin kapattı: kutu boşalır ve yeniden elle yazılır.
         SharedConfig.SaveUseWindowsUser(c.Store.Root, false);
         c.Vm.ChangeSession();
-        Check(!c.Vm.IsInspectorFromWindows && c.Vm.InspectorName == "" && c.Vm.InspectorHeader == "Muayeneci", "Kapalıyken elle giriş");
+        Check(!c.Vm.IsInspectorFromWindows && c.Vm.InspectorName == "" && c.Vm.InspectorHeader == "Inspector", "Kapalıyken elle giriş");
     });
 
     public static void VmAutoSaveMergesAndKeepsStep() => With(c =>
@@ -597,17 +597,21 @@ public static partial class ViewModelTests
         Check(!ReinspectForm.AnyValue(NoValues), "Boş değerde AnyValue false olmalı");
         Check(ReinspectForm.AnyValue(new MeasurementSnapshot(null, null, null, null, 5, null)), "Açı varsa AnyValue true olmalı");
 
-        // CanSave tablosu: (sonuç, hadHighMetal, hmCevap, anyValue, childType) → beklenen
-        var table = new (ReinspectOutcome? O, bool Had, bool? Hm, bool Any, string? Child, bool Expect)[]
+        // CanSave tablosu: (sonuç, hadHighMetal, hmCevap, anyValue, yeni hata tipleri) → beklenen
+        var table = new (ReinspectOutcome? O, bool Had, bool? Hm, bool Any, string?[]? Child, bool Expect)[]
         {
-            (null, false, null, true, "x", false),
+            (null, false, null, true, new string?[] { "x" }, false),
             (ReinspectOutcome.Conforms, true, null, false, null, true),
             (ReinspectOutcome.Same, false, null, false, null, false),
             (ReinspectOutcome.Same, false, null, true, null, true),
             (ReinspectOutcome.Same, true, null, true, null, false),
             (ReinspectOutcome.Same, true, false, false, null, true),
             (ReinspectOutcome.New, false, null, false, null, false),
-            (ReinspectOutcome.New, false, null, false, "Scratch", true),
+            (ReinspectOutcome.New, false, null, false, new string?[] { "Scratch" }, true),
+            (ReinspectOutcome.New, false, null, false, new string?[] { null }, false),
+            (ReinspectOutcome.New, false, null, false, new string?[] { "Scratch", null }, false),
+            (ReinspectOutcome.New, false, null, false, new string?[] { "Scratch", "Scratch" }, true),
+            (ReinspectOutcome.New, false, null, false, new string?[0], false),
         };
         foreach (var t in table)
             Check(ReinspectForm.CanSave(t.O, t.Had, t.Hm, t.Any, t.Child) == t.Expect, $"CanSave {t}");

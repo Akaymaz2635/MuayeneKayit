@@ -2,7 +2,7 @@ namespace MuayeneKayit.Core;
 
 /// <summary>
 /// Muayene kapanışı kontrolü. Açık kusuru olan muayene Completed yapılamaz.
-/// Superseded kusur, child'ı çözüldüğünde çözülmüş sayılır.
+/// Superseded kusur, void olmayan tüm child'ları çözüldüğünde çözülmüş sayılır (void child sayılmaz).
 /// </summary>
 public static class SessionGate
 {
@@ -28,12 +28,34 @@ public static class SessionGate
                 return true;
 
             case DefectState.Superseded:
-                // Döngüsel zincire karşı koruma: aynı kusura ikinci kez gelinirse çözülmemiş say.
+                // Döngüsel zincire karşı koruma: aynı zincirde kusura ikinci kez gelinirse çözülmemiş say.
                 if (!visited.Add(defect.Id))
                     return false;
-                return defect.SupersededById is int childId
-                    && byId.TryGetValue(childId, out var child)
-                    && IsResolved(child, byId, visited);
+                try
+                {
+                    // Hiç yeni kusur kaydı yoksa çözülmüş sayılmaz. Void edilen yeni kusurlar sayılmaz;
+                    // geri kalan hepsi çözülünce parent çözülür. (Yeni akışta son aktif yeni kusur void edilince parent'ın kararı
+                    // sistem tarafından geri alınır; hepsi void kalmış Superseded parent yalnızca eski kayıtlarda görülür ve
+                    // eskiden olduğu gibi çözülmüş sayılır, aksi halde muayene hiç kapatılamazdı.)
+                    var childIds = DefectRegions.ChildIds(defect);
+                    if (childIds.Count == 0)
+                        return false;
+
+                    foreach (var childId in childIds)
+                    {
+                        if (!byId.TryGetValue(childId, out var child))
+                            return false;
+                        if (DefectStateMachine.GetState(child) == DefectState.Voided)
+                            continue;
+                        if (!IsResolved(child, byId, visited))
+                            return false;
+                    }
+                    return true;
+                }
+                finally
+                {
+                    visited.Remove(defect.Id);
+                }
 
             default:
                 return false;

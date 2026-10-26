@@ -48,8 +48,11 @@ public static class DefectPresentation
     /// <summary>"Dent + High metal" ya da "Dent".</summary>
     public static string TypeText(Defect d) => d.HighMetal ? $"{d.DefectType} + High metal" : d.DefectType;
 
-    /// <summary>Muayenecinin bu kusurda yapması gereken sıradaki iş.</summary>
-    public static string NextStepFor(Defect d, DefectState state)
+    /// <summary>
+    /// Muayenecinin bu kusurda yapması gereken sıradaki iş. <paramref name="all"/>: oturumun kusurları;
+    /// verilirse void edilen yeni kusurlar anılmaz.
+    /// </summary>
+    public static string NextStepFor(Defect d, DefectState state, IReadOnlyList<Defect>? all = null)
     {
         var hasMeasure = HasMeasurement(d);
         return state switch
@@ -62,10 +65,41 @@ public static class DefectPresentation
             DefectState.WaitingVendor => "Tedarikçide: parça dönünce reinspect girin.",
             DefectState.MrbPending => "MRB kararı bekleniyor: kabul ya da red gelince girin.",
             DefectState.Closed => "Tamamlandı.",
-            DefectState.Superseded => d.SupersededById is int to ? $"Takip #{to} numaralı kusur üzerinden yapılıyor." : "Devredildi.",
+            DefectState.Superseded => SupersededNextStep(DefectRegions.ActiveChildIds(d, all)),
             DefectState.Voided => "Void edildi, rapora girmez.",
             _ => "",
         };
+    }
+
+    private static string SupersededNextStep(IReadOnlyList<int> children) => children.Count switch
+    {
+        0 => "Devredildi.",
+        1 => $"Takip #{children[0]} numaralı kusur üzerinden yapılıyor.",
+        _ => $"Takip {IdList(children)} numaralı kusurlar üzerinden yapılıyor.",
+    };
+
+    /// <summary>"#7, #8".</summary>
+    public static string IdList(IEnumerable<int> ids) => string.Join(", ", ids.Select(i => "#" + i));
+
+    /// <summary>
+    /// Fotoğraf kartındaki bölge rozeti: "Giderildi" ya da "Yeni kusur #7, #8". Devam eden bölge, tek fotoğraflı kusur ve
+    /// bölge sonucu hiç kaydedilmemiş kusurda boş.
+    /// </summary>
+    public static string RegionBadge(Defect d, string photo, IReadOnlyList<Defect>? all)
+    {
+        if (d.Photos.Count < 2 || !DefectRegions.HasRegionData(d))
+            return "";
+
+        switch (DefectRegions.Status(d, photo))
+        {
+            case RegionStatus.Conforms:
+                return "Giderildi";
+            case RegionStatus.NewDefect:
+                var ids = DefectRegions.ActiveChildIdsForPhoto(d, photo, all);
+                return ids.Count == 0 ? "Yeni kusur" : $"Yeni kusur {IdList(ids)}";
+            default:
+                return "";
+        }
     }
 
     public static bool HasMeasurement(Defect d) =>
@@ -94,7 +128,7 @@ public static class DefectPresentation
         if (s.Depth is double d) parts.Add($"D {Fmt(d, unit)}");
         if (s.Width is double w) parts.Add($"W {Fmt(w, unit)}");
         if (s.Length is double l) parts.Add($"L {Fmt(l, unit)}");
-        if (s.Radius is double r) parts.Add($"R {Fmt(r, unit)}");
+        if (s.Radius is double r) parts.Add($"Ç {Fmt(r, unit)}");
         if (s.AngleDeg is double a) parts.Add($"A {Fmt(a)}°");
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
         if (s.HighMetal) parts.Add("High metal");
@@ -122,7 +156,8 @@ public static class DefectPresentation
         throw new ArgumentException($"{label} sayı olmalı: '{text}'");
     }
 
-    public static IReadOnlyList<string> HistoryLines(Defect defect)
+    /// <param name="all">Oturumun kusurları; verilirse void edilen yeni kusurlar anılmaz.</param>
+    public static IReadOnlyList<string> HistoryLines(Defect defect, IReadOnlyList<Defect>? all = null)
     {
         var items = new List<(DateTime At, string Text)>();
 
@@ -136,6 +171,9 @@ public static class DefectPresentation
             if (!string.IsNullOrWhiteSpace(x.Note)) parts.Add($"not: {x.Note}");
             if (!string.IsNullOrWhiteSpace(x.Reference)) parts.Add($"ref: {x.Reference}");
             if (x.Snapshot is MeasurementSnapshot snap) parts.Add($"ölçüm: {SnapshotText(snap, defect.Unit)}");
+            if (RegionOutcomeText(defect, x, all) is { Length: > 0 } regions) parts.Add($"bölgeler: {regions}");
+            if (DefectRegions.ChildIdsOf(defect, x).Where(id => DefectRegions.ActiveChildIds(defect, all).Contains(id)).ToList() is { Count: > 0 } opened)
+                parts.Add($"açılan kusurlar: {IdList(opened)}");
             items.Add((x.DecidedAt, string.Join("   ", parts)));
         }
 
@@ -145,6 +183,33 @@ public static class DefectPresentation
         return items.Count == 0
             ? new[] { "Henüz karar ya da düzeltme yok." }
             : items.OrderBy(i => i.At).Select((i, n) => $"{n + 1}.  {i.Text}").ToList();
+    }
+
+    /// <summary>Bir kararın bölge sonuçları: "3.1 giderildi, 3.2 devam, 3.3 yeni kusur #7, #8". Bölge sonucu yoksa boş.</summary>
+    private static string RegionOutcomeText(Defect defect, Disposition decision, IReadOnlyList<Defect>? all)
+    {
+        if (decision.PhotoOutcomes is not { Count: > 0 } outcomes)
+            return "";
+
+        var parts = new List<string>();
+        foreach (var photo in defect.Photos.Where(outcomes.ContainsKey))
+        {
+            var label = DefectRegions.Label(defect, photo);
+            switch (outcomes[photo])
+            {
+                case PhotoOutcome.Conforms:
+                    parts.Add($"{label} giderildi");
+                    break;
+                case PhotoOutcome.NewDefect:
+                    var ids = DefectRegions.ActiveChildIdsForPhoto(defect, photo, all);
+                    parts.Add(ids.Count == 0 ? $"{label} yeni kusur" : $"{label} yeni kusur {IdList(ids)}");
+                    break;
+                default:
+                    parts.Add($"{label} devam");
+                    break;
+            }
+        }
+        return string.Join(", ", parts);
     }
 
     public static string DecisionHintFor(Defect defect) => DefectStateMachine.GetState(defect) switch

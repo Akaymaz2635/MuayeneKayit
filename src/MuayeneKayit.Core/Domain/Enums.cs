@@ -53,6 +53,25 @@ public enum ReworkScope
     HighMetalOnly,
 }
 
+/// <summary>
+/// Bir kararda bölgenin (kusurun bir fotoğrafı, raporda 3.1, 3.2 ...) sonucu: kararla devam ediyor,
+/// giderildi (uygun) ya da bu kusurda kapandı ve yerine yeni kusur açıldı.
+/// </summary>
+public enum PhotoOutcome
+{
+    Continues,
+    Conforms,
+    NewDefect,
+}
+
+/// <summary>Bölgenin türetilmiş durumu. Kararlardan hesaplanır, saklanmaz. Active: varsayılan, devam ediyor.</summary>
+public enum RegionStatus
+{
+    Active,
+    Conforms,
+    NewDefect,
+}
+
 /// <summary>Ölçü birimi. Kusur oluşturulurken o anki ayar kusura yazılır; sonradan dönüştürülmez.</summary>
 public enum LengthUnit
 {

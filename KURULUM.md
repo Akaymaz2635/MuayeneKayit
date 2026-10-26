@@ -62,14 +62,15 @@ Program ~210 MB olduğu için ağdan ilk açılış birkaç saniye sürebilir (W
 
 Kişisel ayarlar (Ayarlar sekmesi: ölçü birimi, tema; son kullanılan kamera) her kullanıcının kendi Windows profilinde,
 `%LOCALAPPDATA%\MuayeneKayit` altında saklanır; program klasörüne yazılmaz.
-**Muayeneci kimliği:** Admin > Ayarlar > *Muayeneci kimliği* açılırsa muayeneci adı elle yazılmaz; Windows'a giriş yapan
+**Inspector kimliği:** Admin > Ayarlar > *Inspector kimliği* açılırsa Inspector adı elle yazılmaz; Windows'a giriş yapan
 kullanıcıdan alınır (Active Directory'deki ad + sicil no, ör. `Ali Kaymaz (12345)`). Tüm bilgisayarlara uygulanır.
+Parça / operasyon / seri öneri listesinde "×" ile gizlenen öneriler de bu klasörde, `hidden-suggestions.json` dosyasında tutulur (yalnızca o bilgisayar).
 
 ## 2. İlk açılış
 
 1. Admin exe'sini açın. Ortak klasörde PIN yoksa PIN belirleme ekranı gelir (6-12 rakam).
 2. **Kusur tipleri** sayfasında tipleri ve her tipin ölçüm alanlarını düzenleyip **Tümünü ortak alana kaydet**.
-3. İsterseniz **Karar açıklamaları** sayfasında, muayenecinin karar seçince gördüğü açıklamaları düzenleyip **Ortak alana kaydet**.
+3. İsterseniz **Karar açıklamaları** sayfasında, Inspector'ın karar seçince gördüğü açıklamaları düzenleyip **Ortak alana kaydet**.
 4. Muayene exe'leri kusur tiplerini bir sonraki açılışta, karar açıklamalarını bir sonraki karar seçiminde kullanır.
 
 PIN unutulursa: admin, ortak klasördeki `_config\admin.json` dosyasını silip PIN'i yeniden belirler.

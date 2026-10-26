@@ -10,7 +10,13 @@ namespace MuayeneKayit.Core;
 /// </summary>
 public static class DefectSentence
 {
-    public static string Describe(Defect defect)
+    public static string Describe(Defect defect) => Describe(defect, null);
+
+    /// <summary>
+    /// <paramref name="all"/>: oturumun kusurları. Verilirse void edilen yeni kusurlar anılmaz ve child'ın bulunduğu bölge
+    /// etiketi yazılır; verilmezse yeni kusurların durumu bilinmediğinden hepsi anılır.
+    /// </summary>
+    public static string Describe(Defect defect, IReadOnlyList<Defect>? all)
     {
         var sb = new StringBuilder();
         sb.Append($"Defect {defect.Id}: There is {TypeText(defect)} on part");
@@ -19,7 +25,8 @@ public static class DefectSentence
         AddLength(measurements, "Depth", defect.Depth, defect.Unit);
         AddLength(measurements, "Width", defect.Width, defect.Unit);
         AddLength(measurements, "Length", defect.Length, defect.Unit);
-        AddLength(measurements, "Radius", defect.Radius, defect.Unit);
+        // Alan adı Radius kalır (JSON uyumu); kullanıcı metninde Çap = Diameter.
+        AddLength(measurements, "Diameter", defect.Radius, defect.Unit);
         if (defect.AngleDeg is double angle)
             measurements.Add($"Angle: {Num(angle)}°");
         if (!string.IsNullOrWhiteSpace(defect.Color))
@@ -37,10 +44,21 @@ public static class DefectSentence
         sb.Append('\n');
         sb.Append($"Disposition: {LastDecisionLabel(defect)}.");
 
-        if (defect.SupersededById is int nextId)
-            sb.Append($" Continues as Defect {nextId}.");
+        var children = DefectRegions.ActiveChildIds(defect, all);
+        if (children.Count > 0)
+        {
+            var list = string.Join(", ", children);
+            if (DefectStateMachine.GetState(defect) == DefectState.Superseded)
+                sb.Append(children.Count == 1 ? $" Continues as Defect {list}." : $" Continues as Defects {list}.");
+            else
+                sb.Append(children.Count == 1 ? $" New defect found after rework: {list}." : $" New defects found after rework: {list}.");
+        }
+
         if (defect.SupersedesId is int prevId)
-            sb.Append($" Continues from Defect {prevId}.");
+        {
+            var region = DefectRegions.FoundAtLabel(defect, all);
+            sb.Append(region.Length == 0 ? $" Continues from Defect {prevId}." : $" Continues from Defect {prevId} (region {region}).");
+        }
 
         return sb.ToString();
     }

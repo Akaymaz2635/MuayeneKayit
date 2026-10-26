@@ -83,7 +83,7 @@ public sealed partial class InspectionViewModel : ObservableObject
 
     /// <summary>Admin panelinde açıksa muayeneci Windows oturumundan gelir; kutu salt okunur olur.</summary>
     [ObservableProperty] private bool _isInspectorFromWindows;
-    [ObservableProperty] private string _inspectorHeader = "Muayeneci";
+    [ObservableProperty] private string _inspectorHeader = "Inspector";
 
     /// <summary>"Ali Kaymaz (12345)"; görünen ad yoksa yalnızca sicil no.</summary>
     public static string WindowsInspectorText(string userName, string? displayName) =>
@@ -103,7 +103,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         else if (IsInspectorFromWindows)
             InspectorName = "";
         IsInspectorFromWindows = fromWindows;
-        InspectorHeader = fromWindows ? "Muayeneci (Windows oturumu)" : "Muayeneci";
+        InspectorHeader = fromWindows ? "Inspector (Windows oturumu)" : "Inspector";
     }
 
     // ───────────────────────── Oturum ─────────────────────────
@@ -219,12 +219,14 @@ public sealed partial class InspectionViewModel : ObservableObject
         };
 
         if (string.IsNullOrWhiteSpace(input.Inspector))
-            throw new ArgumentException("Muayeneci adı boş olamaz.");
+            throw new ArgumentException("Inspector adı boş olamaz.");
 
         var existed = _store.LoadSession(_store.FolderFor(input.PartNumber, input.OperationNumber, input.SerialNumber)) is not null;
         (_folder, _session) = _store.OpenOrCreate(input);
         _user = input.Inspector;
         _audit.Append(_user, "session.open", _folder);
+        // Açılan muayenenin değerleri tekrar kullanıldı: "×" ile gizlenmişse öneride geri gelir.
+        _settings.UnhideSuggestions(input.PartNumber, input.OperationNumber, input.SerialNumber);
         IsSessionOpen = true;
         IsSessionClosed = false;
         ClearSelection();
@@ -330,7 +332,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     public void Refresh(int? selectId)
     {
         var defects = _store.LoadDefects(_folder!);
-        var rows = defects.Select(ToItem).ToList();
+        var rows = defects.Select(d => ToItem(d, defects)).ToList();
 
         var keep = selectId ?? SelectedId;
         var match = rows.FirstOrDefault(r => r.Id == keep);
@@ -372,7 +374,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         }
     }
 
-    private static DefectItemViewModel ToItem(Defect d)
+    private static DefectItemViewModel ToItem(Defect d, IReadOnlyList<Defect> all)
     {
         var state = DefectStateMachine.GetState(d);
         return new DefectItemViewModel
@@ -383,7 +385,7 @@ public sealed partial class InspectionViewModel : ObservableObject
             StateText = DefectPresentation.StateLabel(state),
             Tone = DefectPresentation.ToneFor(state),
             PhotoText = d.Photos.Count == 0 ? "fotoğraf yok" : $"{d.Photos.Count} fotoğraf",
-            NextStep = DefectPresentation.NextStepFor(d, state),
+            NextStep = DefectPresentation.NextStepFor(d, state, all),
         };
     }
 
@@ -394,7 +396,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         var open = SessionGate.BlockingDefects(defects).Count;
         var visible = defects.Count(d => DefectStateMachine.GetState(d) != DefectState.Voided);
         SessionTitle = $"{_session.PartNumber}  ·  {_session.OperationNumber}  ·  {_session.SerialNumber}";
-        SessionSubtitle = $"Muayeneci: {_user}   ·   {visible} kusur, {open} açık   ·   " +
+        SessionSubtitle = $"Inspector: {_user}   ·   {visible} kusur, {open} açık   ·   " +
                           (_session.Status == SessionStatus.Completed ? "Tamamlandı" : "Devam ediyor");
         DefectCountText = visible == 0 ? "Kusurlar" : $"Kusurlar ({visible})";
         IsCompletePrimary = open == 0 && _session.Status != SessionStatus.Completed;
@@ -427,7 +429,9 @@ public sealed partial class InspectionViewModel : ObservableObject
 
     private void LoadSelected(IReadOnlyList<Defect>? loaded = null)
     {
-        var defect = (loaded ?? _store.LoadDefects(_folder!)).FirstOrDefault(d => d.Id == SelectedId);
+        // Void edilen yeni kusurlar cümlede, geçmişte ve "Takip #…" metninde anılmasın diye tüm liste geçirilir.
+        var all = loaded ?? _store.LoadDefects(_folder!);
+        var defect = all.FirstOrDefault(d => d.Id == SelectedId);
         if (defect is null)
         {
             ClearSelection();
@@ -443,8 +447,8 @@ public sealed partial class InspectionViewModel : ObservableObject
         Header = $"#{defect.Id}  {defect.DefectType}{(defect.HighMetal ? " + High metal" : "")}";
         StateTone = DefectPresentation.ToneFor(state);
         StateText = DefectPresentation.StateLabel(state);
-        NextStepText = DefectPresentation.NextStepFor(defect, state);
-        Sentence = DefectSentence.Describe(defect);
+        NextStepText = DefectPresentation.NextStepFor(defect, state, all);
+        Sentence = DefectSentence.Describe(defect, all);
         ApplyUnitHeaders(defect.Unit);
         ApplyStepGuidance(defect, state, selectCurrent: newDefect);
 
@@ -493,7 +497,7 @@ public sealed partial class InspectionViewModel : ObservableObject
 
         ApplyTemplateFields(defect);
 
-        History = DefectPresentation.HistoryLines(defect);
+        History = DefectPresentation.HistoryLines(defect, all);
         var historyCount = DefectStateMachine.Effective(defect).Count + defect.MeasurementEdits.Count;
         HistoryTabLabel = historyCount == 0 ? "Geçmiş" : $"Geçmiş ({historyCount})";
 
@@ -503,7 +507,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         ApplyDecisionState(defect);
 
         // Fotoğraf kartları Current değişince çizilir; bu yüzden en son atanır.
-        UpdatePhotos(defect);
+        UpdatePhotos(defect, all);
         Current = defect;
     }
 
@@ -512,7 +516,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         DepthHeader = Units.Header("Derinlik", unit);
         WidthHeader = Units.Header("Genişlik", unit);
         LengthHeader = Units.Header("Uzunluk", unit);
-        RadiusHeader = Units.Header("Yarıçap", unit);
+        RadiusHeader = Units.Header("Çap", unit);
     }
 
     /// <summary>
@@ -648,7 +652,7 @@ public sealed partial class InspectionViewModel : ObservableObject
             DefectPresentation.ParseOptional(DepthText, "Derinlik"),
             DefectPresentation.ParseOptional(WidthText, "Genişlik"),
             DefectPresentation.ParseOptional(LengthText, "Uzunluk"),
-            DefectPresentation.ParseOptional(RadiusText, "Yarıçap"),
+            DefectPresentation.ParseOptional(RadiusText, "Çap"),
             DefectPresentation.ParseOptional(AngleText, "Açı"),
             string.IsNullOrWhiteSpace(ColorText) ? null : ColorText.Trim(),
             HighMetal),

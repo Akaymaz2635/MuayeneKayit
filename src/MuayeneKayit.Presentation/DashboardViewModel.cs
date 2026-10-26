@@ -28,7 +28,7 @@ public sealed class DashboardRowViewModel
 
         Meta = string.Join("   ·   ", new[]
         {
-            string.IsNullOrWhiteSpace(row.Inspector) ? null : $"Muayeneci: {row.Inspector}",
+            string.IsNullOrWhiteSpace(row.Inspector) ? null : $"Inspector: {row.Inspector}",
             row.CreatedAt is DateTime c ? $"Açılış: {c:dd.MM.yyyy HH:mm}" : null,
             $"{row.TotalDefects} kusur",
         }.Where(x => x is not null));

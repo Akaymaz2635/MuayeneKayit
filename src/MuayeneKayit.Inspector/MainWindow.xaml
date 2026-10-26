@@ -7,6 +7,21 @@
 
     <!-- Kök: tema buraya uygulanır. Gezinme bölmesi saydam olduğundan arkasındaki zemin temaya göre değişir. -->
     <Grid x:Name="Root" Background="{ThemeResource PaneBackgroundBrush}">
+    <Grid.Resources>
+        <!-- Öneri satırı: solda metin, sağda "×" (öneriyi bu bilgisayarda gizler). Düğme odak almaz, liste açık kalır. -->
+        <DataTemplate x:Key="SuggestItemTemplate" x:DataType="x:String">
+            <Grid ColumnSpacing="8" MinWidth="200">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{x:Bind}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="×" Tag="{x:Bind}" Click="HideSuggestion_Click" Width="28" Height="28" MinWidth="0" MinHeight="0" Padding="0"
+                        Background="Transparent" BorderThickness="0" AllowFocusOnInteraction="False" IsTabStop="False"
+                        ToolTipService.ToolTip="Bu öneriyi gizle" AutomationProperties.Name="Öneriyi gizle" />
+            </Grid>
+        </DataTemplate>
+    </Grid.Resources>
     <NavigationView
         x:Name="Nav"
         IsBackButtonVisible="Collapsed"
@@ -44,7 +59,7 @@
                     <Border Style="{StaticResource CardStyle}" Width="600" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32">
                         <StackPanel Spacing="16">
                             <StackPanel Spacing="4">
-                                <TextBlock Text="Muayene" Style="{StaticResource SubtitleTextBlockStyle}" />
+                                <TextBlock Text="Visual Inspection" Style="{StaticResource SubtitleTextBlockStyle}" />
                                 <TextBlock Text="Parça, operasyon ve seri numarasını girin. Kayıt varsa açılır, yoksa yeni muayene oluşturulur." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                             <Grid ColumnSpacing="12" RowSpacing="12">
@@ -56,12 +71,12 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <AutoSuggestBox x:Name="PartBox" Text="{x:Bind Vm.PartNumber, Mode=TwoWay}" Header="Parça no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="PartBox" />
-                                <AutoSuggestBox x:Name="OpBox" Grid.Column="1" Text="{x:Bind Vm.OperationNumber, Mode=TwoWay}" Header="Operasyon" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="OpBox" />
-                                <AutoSuggestBox x:Name="SerialBox" Grid.Row="1" Text="{x:Bind Vm.SerialNumber, Mode=TwoWay}" Header="Seri no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="SerialBox" />
+                                <AutoSuggestBox x:Name="PartBox" ItemTemplate="{StaticResource SuggestItemTemplate}" Text="{x:Bind Vm.PartNumber, Mode=TwoWay}" Header="Parça no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="PartBox" />
+                                <AutoSuggestBox x:Name="OpBox" ItemTemplate="{StaticResource SuggestItemTemplate}" Grid.Column="1" Text="{x:Bind Vm.OperationNumber, Mode=TwoWay}" Header="Operasyon" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="OpBox" />
+                                <AutoSuggestBox x:Name="SerialBox" ItemTemplate="{StaticResource SuggestItemTemplate}" Grid.Row="1" Text="{x:Bind Vm.SerialNumber, Mode=TwoWay}" Header="Seri no" PlaceholderText="Yaz ya da seç" TextChanged="Suggest_TextChanged" GotFocus="Suggest_GotFocus" QuerySubmitted="Suggest_QuerySubmitted" AutomationProperties.AutomationId="SerialBox" />
                                 <TextBox x:Name="InspectorBox" Grid.Row="1" Grid.Column="1" Text="{x:Bind Vm.InspectorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{x:Bind Vm.IsInspectorFromWindows, Mode=OneWay}" Header="{x:Bind Vm.InspectorHeader, Mode=OneWay}" PlaceholderText="Adınız" KeyDown="InspectorBox_KeyDown" AutomationProperties.AutomationId="InspectorBox" />
                             </Grid>
-                            <Button Content="Muayene oluştur" Click="OpenSession_Click" Height="48" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="OpenSessionButton" />
+                            <Button Content="Create Inspection" Click="OpenSession_Click" Height="48" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}" AutomationProperties.AutomationId="OpenSessionButton" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -263,7 +278,7 @@
                                                 <TextBlock x:Name="PhotoEmpty" Visibility="{x:Bind Vm.NoPhotos, Mode=OneWay}" Text="Henüz fotoğraf yok. Kusuru kamerayla çekin; sonra 'İşaretle' ile kusur numarasını fotoğrafın üzerine koyun." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                 <ItemsRepeater x:Name="PhotoPanel" ItemsSource="{x:Bind Vm.Photos}">
                                                     <ItemsRepeater.Layout>
-                                                        <UniformGridLayout MinItemWidth="208" MinItemHeight="250" ItemsStretch="None" />
+                                                        <UniformGridLayout MinItemWidth="208" MinItemHeight="272" ItemsStretch="None" />
                                                     </ItemsRepeater.Layout>
                                                     <ItemsRepeater.ItemTemplate>
                                                         <DataTemplate x:DataType="pres:PhotoItemViewModel">
@@ -274,6 +289,7 @@
                                                                     </Border>
                                                                     <TextBlock Text="{x:Bind Caption}" FontSize="12" FontWeight="SemiBold" />
                                                                     <TextBlock Text="{x:Bind InfoText}" FontSize="11" Foreground="{x:Bind local:MainWindow.InfoBrush(HasInfo)}" />
+                                                                    <TextBlock Text="{x:Bind RegionBadge}" Visibility="{x:Bind HasRegionBadge}" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
                                                                     <Grid ColumnSpacing="6">
                                                                         <Grid.ColumnDefinitions>
                                                                             <ColumnDefinition Width="*" />

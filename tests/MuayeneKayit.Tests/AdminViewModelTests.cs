@@ -445,7 +445,7 @@ public static class AdminViewModelTests
         c.Records.StateFilter = c.Records.StateOptions[0];
         var mrb = c.Records.Rows.First(r => r.Row.Serial == "SN-A1");
         Check(mrb.Title == "PD170  ·  OP40  ·  SN-A1" && mrb.HasOpenDefects, "Kart başlığı");
-        Check(mrb.Meta.StartsWith("Muayeneci: A. Yılmaz   ·   Açılış: ") && mrb.Meta.EndsWith("   ·   1 kusur, 1 açık   ·   Açık"), $"Meta: {mrb.Meta}");
+        Check(mrb.Meta.StartsWith("Inspector: A. Yılmaz   ·   Açılış: ") && mrb.Meta.EndsWith("   ·   1 kusur, 1 açık   ·   Açık"), $"Meta: {mrb.Meta}");
         Check(mrb.DefectChips.Single().Text == "#1 Dent · MrbPending" && mrb.DefectChips.Single().Background == "#EDE9FE", $"Kusur etiketi: {mrb.DefectChips.Single().Text}");
         var done = c.Records.Rows.First(r => r.Row.Serial == "SN-A2");
         Check(done.Meta.EndsWith("Tamamlandı") && done.DefectChips.Single().Background == "#DCFCE7", "Tamamlandı kartı");

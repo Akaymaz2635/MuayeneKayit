@@ -19,4 +19,13 @@ public interface IUserSettings
     LengthUnit Unit { get; set; }
 
     AppTheme Theme { get; set; }
+
+    /// <summary>Bu bilgisayarda gizlenen öneriler (büyük/küçük harf duyarsız karşılaştırılır).</summary>
+    IReadOnlySet<string> HiddenSuggestions(SuggestLevel level);
+
+    /// <summary>Öneriyi bu bilgisayarda gizler (kişisel ayar). Yazma hatası uygulamayı düşürmez.</summary>
+    void HideSuggestion(SuggestLevel level, string value);
+
+    /// <summary>Muayene açılınca kullanılan değerlerin gizlemesi kalkar: tekrar kullanınca öneride geri gelir.</summary>
+    void UnhideSuggestions(string part, string operation, string serial);
 }

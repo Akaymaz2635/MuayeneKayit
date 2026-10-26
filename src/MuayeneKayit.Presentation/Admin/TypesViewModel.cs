@@ -81,7 +81,7 @@ public sealed partial class TypesViewModel : AdminViewModelBase
         MeasureField.Depth => "D",
         MeasureField.Width => "W",
         MeasureField.Length => "L",
-        MeasureField.Radius => "R",
+        MeasureField.Radius => "Ç",
         MeasureField.Angle => "Açı",
         MeasureField.Color => "Renk",
         _ => f.ToString(),

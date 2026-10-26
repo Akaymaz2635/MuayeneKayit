@@ -128,7 +128,7 @@ public static class DashboardViewModelTests
         Check(mrb.Badge == new ChipData("1 açık kusur", "#FEF3C7", "#B45309") && mrb.HasOpenDefects, "Açık kusur rozeti");
         Check(mrb.DefectChips.Single() == new ChipData("#1 Dent · MRB bekliyor", "#EDE9FE", "#6D28D9") || mrb.DefectChips.Single().Background == "#EDE9FE",
             $"Kusur etiketi: {mrb.DefectChips.Single().Text}");
-        Check(mrb.Meta.StartsWith("Muayeneci: A. Yılmaz   ·   Açılış: ") && mrb.Meta.EndsWith("   ·   1 kusur"), $"Meta: {mrb.Meta}");
+        Check(mrb.Meta.StartsWith("Inspector: A. Yılmaz   ·   Açılış: ") && mrb.Meta.EndsWith("   ·   1 kusur"), $"Meta: {mrb.Meta}");
 
         var done = c.Dash.Rows.First(r => r.Row.Serial == "SN-A2");
         Check(done.Badge == new ChipData("Tamamlandı", "#DCFCE7", "#15803D") && !done.HasOpenDefects, "Tamamlandı rozeti");

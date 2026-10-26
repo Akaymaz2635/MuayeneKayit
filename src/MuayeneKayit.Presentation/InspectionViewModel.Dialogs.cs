@@ -31,6 +31,10 @@ public sealed partial class InspectionViewModel
         var asksTarget = decision is Decision.Rework or Decision.Reinspect;
         var noteRequired = decision == Decision.Reopen;
 
+        // 2+ aktif bölgesi olan kusurda (Void / Reopen hariç) kararın hangi bölgeler için olduğu sorulur.
+        var activePhotos = DefectRegions.ActivePhotos(defect);
+        var regionInfos = DecisionForm.AsksRegions(decision, activePhotos.Count) ? PhotoRegions(defect, activePhotos) : null;
+
         var request = new DecisionRequest(
             defect.Id,
             defect.DefectType,
@@ -48,7 +52,8 @@ public sealed partial class InspectionViewModel
                 or Decision.Repair or Decision.Scrap,
             NoteRequired: noteRequired,
             // High metal'li kusurda rework kapsamı sorulur: yalnızca high metal mi, kusurla birlikte mi.
-            NeedsReworkScope: decision == Decision.Rework && defect.HighMetal);
+            NeedsReworkScope: decision == Decision.Rework && defect.HighMetal,
+            Regions: regionInfos);
 
         var input = await _dialogs.AskDecisionAsync(request);
         if (input is null)
@@ -62,9 +67,19 @@ public sealed partial class InspectionViewModel
         var targetText = request.TargetHeader is null ? null
             : string.IsNullOrWhiteSpace(input.Target) ? _session!.OperationNumber : input.Target.Trim();
 
+        // İşaretli bölgeler karar kapsamında (Continues), işaretsizler uygun (Conforms) sayılır.
+        IReadOnlyDictionary<string, PhotoOutcome>? outcomes = null;
+        if (regionInfos is not null)
+        {
+            var continuing = input.ContinuingPhotos;
+            if (continuing is null || continuing.Count == 0 || !continuing.All(activePhotos.Contains))
+                throw new InvalidOperationException("Karar hangi bölgeler için? En az bir bölgeyi işaretleyin.");
+            outcomes = DecisionForm.RegionOutcomes(activePhotos, continuing);
+        }
+
         _store.UpdateDefect(_folder!, id, d =>
             DefectStateMachine.Apply(d, decision, source, by, note: noteText, reference: refText, targetOperation: targetText,
-                reworkScope: input.Scope));
+                reworkScope: input.Scope, photoOutcomes: outcomes));
 
         _audit.Append(by, "disposition", $"#{id} {decision}");
         Refresh(id);
@@ -84,7 +99,9 @@ public sealed partial class InspectionViewModel
 
     /// <summary>
     /// Rework (ya da reinspect) sonrası muayene: önce sonuç seçilir, sonra yalnızca o sonucun alanları açılır.
-    /// Giderildi: başka bir şey sorulmaz. Aynı kusur: boş alan önceki değerinde kalır. Yeni hata: child tipi seçilir.
+    /// Giderildi: başka bir şey sorulmaz. Aynı kusur: boş alan önceki değerinde kalır. Yeni hata: bir ya da daha fazla
+    /// yeni kusurun tipi seçilir. Kusurun 2+ aktif bölgesi (fotoğrafı) varsa her bölge için ayrı sonuç sorulur;
+    /// genel sonuç bölgelerden otomatik çıkar (devam eden yoksa kapanır ya da devredilir, varsa açık kalır).
     /// </summary>
     public Task ReinspectAsync() => RunAsync(ReinspectCoreAsync);
 
@@ -116,6 +133,8 @@ public sealed partial class InspectionViewModel
             .Select(x => x.Field)
             .ToList();
 
+        // Yalnızca aktif bölgeler sorulur; 2+ ise her biri için ayrı sonuç.
+        var activePhotos = DefectRegions.ActivePhotos(defect);
         var request = new ReinspectRequest(
             defect.Id,
             defect.DefectType,
@@ -126,7 +145,8 @@ public sealed partial class InspectionViewModel
             fields,
             template is null || template.Fields.Contains(MeasureField.Color) || before.Color is not null,
             TypeNames,
-            defect.Unit);
+            defect.Unit,
+            activePhotos.Count >= 2 ? PhotoRegions(defect, activePhotos) : null);
 
         var input = await _dialogs.AskReinspectAsync(request);
         if (input is null)
@@ -134,84 +154,99 @@ public sealed partial class InspectionViewModel
 
         var id = defect.Id;
         var by = _user;
-        var noteText = string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim();
+        var result = ReinspectForm.ToResult(defect, before, input);
 
-        switch (input.Outcome)
+        if (result.Measurements is MeasurementSnapshot v)
         {
-            case ReinspectOutcome.Conforms:
-                _store.UpdateDefect(_folder!, id, d =>
-                    DefectStateMachine.Apply(d, Decision.AfterReworkConforms, DecisionSource.Engineer, by, noteText));
-                _audit.Append(by, "disposition", $"#{id} AfterReworkConforms");
+            var probe = new Defect { DefectType = defect.DefectType, Depth = v.Depth, Width = v.Width, Length = v.Length, Radius = v.Radius, AngleDeg = v.AngleDeg, Color = v.Color };
+            var errors = DefectValidator.Validate(probe);
+            if (errors.Count > 0)
+                throw new InvalidOperationException(string.Join(" ", errors));
+        }
+
+        // Ölçümler, karar, bölge sonuçları ve yeni kusurlar tek kilit altında yazılır.
+        var (_, children) = _store.ApplyReinspect(_folder!, id, result, by);
+        _audit.Append(by, "disposition", $"#{id} {result.Decision}");
+        if (children.Count > 0)
+            _audit.Append(by, "disposition.continue", $"#{id} -> {string.Join(", ", children.Select(c => $"#{c.Id} {c.DefectType}"))}");
+
+        var openedText = children.Count == 0
+            ? ""
+            : $" Yeni kusur: {DefectPresentation.IdList(children.Select(c => c.Id))} (ölçümlerini ve fotoğraflarını girin).";
+
+        switch (result.Decision)
+        {
+            case Decision.AfterReworkConforms:
                 Refresh(id);
                 Send($"#{id} uygun bulundu ve kapandı.", StatusKind.Success);
                 break;
 
-            case ReinspectOutcome.Same:
-                var v = ReinspectForm.Merge(before, input.Entered, input.HighMetalStillThere);
-                var probe = new Defect { DefectType = defect.DefectType, Depth = v.Depth, Width = v.Width, Length = v.Length, Radius = v.Radius, AngleDeg = v.AngleDeg, Color = v.Color };
-                var errors = DefectValidator.Validate(probe);
-                if (errors.Count > 0)
-                    throw new InvalidOperationException(string.Join(" ", errors));
-
-                // High metal giderildiyse ve not yazılmadıysa otomatik not: kalan ana kusurun kararı buna göre verilir.
-                var sameNote = noteText ?? (hadHighMetal && !v.HighMetal ? "High metal giderildi; ana kusur devam ediyor." : null);
-
-                // Yeni ölçümler ve karar aynı kilit altında: karar anı görüntüsü yeni değerleri taşır.
-                _store.UpdateDefect(_folder!, id, d =>
-                {
-                    MeasurementEditor.Apply(d, v, by);
-                    DefectStateMachine.Apply(d, Decision.AfterReworkSameDefect, DecisionSource.Engineer, by, sameNote);
-                });
-                _audit.Append(by, "disposition", $"#{id} AfterReworkSameDefect");
+            case Decision.AfterReworkSameDefect:
+                var highMetalGone = hadHighMetal && result.Measurements is { HighMetal: false };
                 Refresh(id);
-                Send(hadHighMetal && !v.HighMetal
+                Send((highMetalGone
                         ? $"#{id}: high metal giderildi, ana kusur devam ediyor. Şimdi Disposition'dan kalan kusur için karar verin."
-                        : $"#{id}: aynı kusur devam ediyor, yeni ölçümler kaydedildi. Şimdi Disposition'dan yeni karar verin.",
+                        : $"#{id}: aynı kusur devam ediyor, yeni ölçümler kaydedildi. Şimdi Disposition'dan yeni karar verin.") + openedText,
                     StatusKind.Warning);
                 break;
 
-            case ReinspectOutcome.New:
-                var newType = input.ChildType ?? throw new InvalidOperationException("Yeni hata tipini seçin.");
-                var child = _store.ContinueAsChild(_folder!, id, newType, DecisionSource.Engineer, by, noteText, null);
-                _audit.Append(by, "disposition.continue", $"#{id} -> #{child.Id} {newType}");
-                Refresh(child.Id);
-                Send($"#{id} yeni kusur #{child.Id} ({newType}) olarak devam ediyor. #{child.Id} seçildi: ölçümlerini ve fotoğrafını girin.",
+            default:
+                Refresh(children[0].Id);
+                Send(children.Count == 1
+                        ? $"#{id} yeni kusur #{children[0].Id} ({children[0].DefectType}) olarak devam ediyor. #{children[0].Id} seçildi: ölçümlerini ve fotoğrafını girin."
+                        : $"#{id} yeni kusurlar olarak devam ediyor: {string.Join(", ", children.Select(c => $"#{c.Id} ({c.DefectType})"))}. " +
+                          $"#{children[0].Id} seçildi: her birinin ölçümlerini ve fotoğrafını girin.",
                     StatusKind.Warning);
                 break;
         }
     }
 
+    /// <summary>Penceredeki bölge satırları: etiket (3.1) ve küçük resim (varsa temiz kopya).</summary>
+    private IReadOnlyList<PhotoRegion> PhotoRegions(Defect defect, IReadOnlyList<string> photos)
+    {
+        var directory = Path.Combine(_folder!, "defects");
+        return photos
+            .Select(p => new PhotoRegion(p, DefectRegions.Label(defect, p), Path.Combine(directory, ShownFile(defect, p))))
+            .ToList();
+    }
+
     // ───────────────────────── Geri al, void, fotoğraf ─────────────────────────
 
     /// <summary>
-    /// Son kararı geri alır. Karar silinmez; geçmişe "geri alındı" satırı eklenir. Rework sonrası yeni kusura
-    /// devir geri alınırsa bağ çözülür ve açılan yeni kusur void edilir.
+    /// Son kararı geri alır. Karar silinmez; geçmişe "geri alındı" satırı eklenir. Rework sonrası yeni kusurlara
+    /// devir ya da yeni kusur açılması geri alınırsa açılan yeni kusurların hepsi void edilir; bölge durumları geri gelir.
     /// </summary>
     public Task UndoLastAsync() => RunAsync(async () =>
     {
         RequireSelection();
-        var defect = _store.LoadDefects(_folder!).First(d => d.Id == SelectedId);
+        var all = _store.LoadDefects(_folder!);
+        var defect = all.First(d => d.Id == SelectedId);
         var last = DefectStateMachine.LastUndoable(defect)
             ?? throw new InvalidOperationException("Geri alınacak karar yok.");
 
-        int? childId = last.Decision == Decision.AfterReworkNewDefect && defect.SupersededById is int c ? c : null;
+        // Kararla açılan ve henüz void olmayan yeni kusurlar (geri alınınca hepsi void edilir).
+        var children = DefectRegions.ChildIdsOf(defect, last)
+            .Where(id => all.FirstOrDefault(c => c.Id == id) is { } c && DefectStateMachine.GetState(c) != DefectState.Voided)
+            .ToList();
         var reason = await _dialogs.AskUndoReasonAsync(new UndoRequest(
-            defect.Id, defect.DefectType, DefectSentence.DecisionLabel(last.Decision), last.DecidedAt, last.DecidedBy, childId));
+            defect.Id, defect.DefectType, DefectSentence.DecisionLabel(last.Decision), last.DecidedAt, last.DecidedBy, children));
         if (reason is null)
             return;
 
         var (undone, voided) = _store.UndoLastDecision(_folder!, defect.Id, _user, reason);
         _audit.Append(_user, "disposition.undo",
-            $"#{defect.Id} {undone.Decision} (seq {undone.Seq}){(voided is int v ? $", child #{v} void" : "")}");
+            $"#{defect.Id} {undone.Decision} (seq {undone.Seq}){(voided.Count > 0 ? $", child {DefectPresentation.IdList(voided)} void" : "")}");
         Refresh(defect.Id);
         Send($"#{defect.Id}: '{DefectSentence.DecisionLabel(undone.Decision)}' geri alındı." +
-             (voided is int vc ? $" Yeni kusur #{vc} void edildi." : "") +
+             (voided.Count > 0 ? $" Yeni kusur {DefectPresentation.IdList(voided)} void edildi." : "") +
              $" Durum: {DefectPresentation.StateLabel(DefectStateMachine.GetState(Current ?? defect))}.", StatusKind.Success);
     });
 
     /// <summary>
     /// Yanlış girilen kusuru geçersiz kılar. Gerekçe yazılmadan onaylanmaz; kayıt silinmez,
-    /// ortak alanda "void" olarak kalır ve rapora girmez.
+    /// ortak alanda "void" olarak kalır ve rapora girmez. Rework sonrası açılan son yeni kusur void edilirse ana kusurun
+    /// "yeni hata" kararı sistem tarafından geri alınır, ana kusur tekrar rework sonrası muayene bekler
+    /// (tek kilit altında, SessionStore.VoidDefect).
     /// </summary>
     public Task VoidAsync() => RunAsync(async () =>
     {
@@ -226,11 +261,13 @@ public sealed partial class InspectionViewModel
         var by = _user;
         var note = reason.Trim();
 
-        _store.UpdateDefect(_folder!, id, d =>
-            DefectStateMachine.Apply(d, Decision.Void, DecisionSource.Operator, by, note: note));
+        var reopened = _store.VoidDefect(_folder!, id, by, note);
         _audit.Append(by, "defect.void", $"#{id} {note}");
+        if (reopened is int parent)
+            _audit.Append(by, "disposition.undo", $"#{parent} AfterReworkNewDefect (sistem: yeni kusur #{id} void edildi)");
         Refresh(id);
-        Send($"#{id} void edildi. Kayıt ortak alanda kaldı, rapora girmeyecek.", StatusKind.Success);
+        Send($"#{id} void edildi. Kayıt ortak alanda kaldı, rapora girmeyecek." +
+             (reopened is int p ? $" #{p} yeniden rework sonrası muayene bekliyor." : ""), StatusKind.Success);
     });
 
     /// <summary>

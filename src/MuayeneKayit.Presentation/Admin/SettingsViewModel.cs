@@ -55,8 +55,8 @@ public sealed partial class SettingsViewModel : AdminViewModelBase
             SharedConfig.SaveUseWindowsUser(_ctx.Root, value);
             _ctx.Audit.Append("admin", "admin.identity", value ? "windows" : "manual");
             Say(value
-                ? "Muayeneci artık Windows oturumundan alınacak (sicil no + ad). Muayene ekranları bir sonraki muayene seçiminde uygular."
-                : "Muayeneci adı yeniden elle yazılacak.", StatusKind.Success);
+                ? "Inspector artık Windows oturumundan alınacak (sicil no + ad). Muayene ekranları bir sonraki muayene seçiminde uygular."
+                : "Inspector adı yeniden elle yazılacak.", StatusKind.Success);
         });
     }
 

@@ -19,6 +19,11 @@ public sealed class PhotoItemViewModel
     /// <summary>İşaret sayısı ya da arka plan bilgisi varsa true (bilgi metni vurgulanır).</summary>
     public bool HasInfo { get; init; }
 
+    /// <summary>Bölge sonucu rozeti ("Giderildi", "Yeni kusur #7, #8"); bölge sonucu yoksa boş.</summary>
+    public string RegionBadge { get; init; } = "";
+
+    public bool HasRegionBadge => RegionBadge.Length > 0;
+
     public bool HasMarks { get; init; }
     public bool IsEditable { get; init; }
 

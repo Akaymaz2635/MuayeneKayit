@@ -30,5 +30,15 @@ public interface ISessionStore
         string? note,
         string? reference);
 
-    (Disposition Undone, int? VoidedChildId) UndoLastDecision(string folder, int defectId, string by, string? note);
+    (Defect Parent, IReadOnlyList<Defect> Children) ApplyReinspect(
+        string folder,
+        int parentId,
+        ReinspectResult result,
+        string decidedBy,
+        DecisionSource source = DecisionSource.Engineer,
+        string? reference = null);
+
+    int? VoidDefect(string folder, int defectId, string by, string note);
+
+    (Disposition Undone, IReadOnlyList<int> VoidedChildIds) UndoLastDecision(string folder, int defectId, string by, string? note);
 }

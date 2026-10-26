@@ -132,7 +132,7 @@
                                 <CheckBox x:Name="FieldDepth" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldDepth, Mode=TwoWay}" Content="Derinlik" />
                                 <CheckBox x:Name="FieldWidth" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldWidth, Mode=TwoWay}" Content="Genişlik" />
                                 <CheckBox x:Name="FieldLength" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldLength, Mode=TwoWay}" Content="Uzunluk" />
-                                <CheckBox x:Name="FieldRadius" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldRadius, Mode=TwoWay}" Content="Yarıçap" />
+                                <CheckBox x:Name="FieldRadius" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldRadius, Mode=TwoWay}" Content="Çap" />
                                 <CheckBox x:Name="FieldAngle" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldAngle, Mode=TwoWay}" Content="Açı" />
                                 <CheckBox x:Name="FieldColor" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldColor, Mode=TwoWay}" Content="Renk" />
                             </StackPanel>
@@ -159,7 +159,7 @@
                                 <Button Content="Ortak alana kaydet" Click="{x:Bind Shell.Texts.Save}" Style="{StaticResource AccentButtonStyle}" />
                                 <Button Content="Tümünü varsayılana döndür" Click="ResetTexts_Click" />
                             </StackPanel>
-                            <TextBlock Text="Muayeneci bir karar seçince açılan pencerede bu açıklama gösterilir. Kararın ne yapacağını ve sonra ne yapılacağını yazın (en fazla 600 karakter)." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+                            <TextBlock Text="Inspector bir karar seçince açılan pencerede bu açıklama gösterilir. Kararın ne yapacağını ve sonra ne yapılacağını yazın (en fazla 600 karakter)." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
                             <TextBlock x:Name="TextsDirty" Text="{x:Bind Shell.Texts.DirtyText, Mode=OneWay}" Foreground="#B45309" FontSize="12" />
                         </StackPanel>
                     </Border>
@@ -242,8 +242,8 @@
                     </Border>
                     <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="Muayeneci kimliği" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
-                            <TextBlock Text="Açıkken muayeneci adı elle yazılmaz; muayene bilgisayarında Windows'a giriş yapan kullanıcıdan alınır (sicil no ve Active Directory'deki ad, ör. 'Ali Kaymaz (12345)'). Tüm muayene bilgisayarlarına uygulanır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+                            <TextBlock Text="Inspector kimliği" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <TextBlock Text="Açıkken Inspector adı elle yazılmaz; muayene bilgisayarında Windows'a giriş yapan kullanıcıdan alınır (sicil no ve Active Directory'deki ad, ör. 'Ali Kaymaz (12345)'). Tüm muayene bilgisayarlarına uygulanır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
                             <ToggleSwitch x:Name="WindowsUserSwitch" IsOn="{x:Bind Shell.Settings.UseWindowsUser, Mode=TwoWay}" OnContent="Windows oturumundan al" OffContent="Elle yazılır" AutomationProperties.AutomationId="WindowsUserSwitch" />
                         </StackPanel>
                     </Border>

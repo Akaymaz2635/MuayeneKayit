@@ -11,7 +11,7 @@ public sealed class AdminRecordRowViewModel
     {
         Row = r;
         Title = $"{r.Part}  ·  {r.Operation}  ·  {r.Serial}";
-        Meta = $"Muayeneci: {r.Inspector}   ·   Açılış: {r.CreatedAt:dd.MM.yyyy HH:mm}   ·   {r.TotalDefects} kusur, {r.OpenDefects} açık   ·   {(r.Status == nameof(SessionStatus.Completed) ? "Tamamlandı" : "Açık")}";
+        Meta = $"Inspector: {r.Inspector}   ·   Açılış: {r.CreatedAt:dd.MM.yyyy HH:mm}   ·   {r.TotalDefects} kusur, {r.OpenDefects} açık   ·   {(r.Status == nameof(SessionStatus.Completed) ? "Tamamlandı" : "Açık")}";
         DefectChips = r.Defects.Take(12).Select(d =>
         {
             var (bg, fg) = d.State switch

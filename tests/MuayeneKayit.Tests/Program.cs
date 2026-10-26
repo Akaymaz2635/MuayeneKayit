@@ -129,6 +129,33 @@ var tests = new List<(string Name, Action Body)>
     ("Birim: alt kusur ana kusurun birimini alır", ChildDefectInheritsParentUnit),
     ("Ayarlar VM: tema ve birim yazılır, olay gelir", UserSettingsViewModelWritesAndRaises),
     ("Birim: rapor HTML inch değerleri gösterir", ReportShowsInchValues),
+    ("Geri bildirim: çoklu yeni hata (aynı tip ×2 + farklı tip), cümle ve geçit", FeedbackCoreTests.MultipleNewDefectsLinkAndGate),
+    ("Geri bildirim: bölgeli karışık sonuç (giderildi / devam / yeni hata ×2), ikinci turda kapanır", FeedbackCoreTests.MixedRegionOutcomes),
+    ("Geri bildirim: hepsi giderildi kapanır, kusurda olmayan bölge reddedilir", FeedbackCoreTests.AllRegionsConformClosesAndInvalidPhotoRejected),
+    ("Geri bildirim: geri alma tüm child'ları void eder, bölge durumları geri gelir", FeedbackCoreTests.UndoVoidsAllChildrenAndRestoresRegions),
+    ("Geri bildirim: son child void edilince parent geri açılır, hiçbir yerde sızmaz", FeedbackCoreTests.VoidLastChildReopensParent),
+    ("Geri bildirim: birden çok child'dan biri void, parent devredilmiş kalır", FeedbackCoreTests.VoidOneOfManyChildrenKeepsParentTransferred),
+    ("Geri bildirim: çoklu child'ın sonuncusu void edilince parent geri açılır", FeedbackCoreTests.VoidLastOfManyChildrenReopensParent),
+    ("Geri bildirim: 'aynı kusur' kararındaki child void edilince parent açık kalır", FeedbackCoreTests.VoidChildOfSameDefectDecisionKeepsParentOpen),
+    ("Geri bildirim: eski supersededById JSON'u aynen devredilmiş görünür", FeedbackCoreTests.LegacySupersededByIdStillReadable),
+    ("Geri bildirim: eski kayıtta devir geri alınınca eski bağ çözülür", FeedbackCoreTests.LegacyUndoClearsOldLink),
+    ("Geri bildirim: yeni alanlar yazılıp okunur, eski JSON aynen yüklenir", FeedbackCoreTests.NewFieldsRoundTripAndOldJsonLoads),
+    ("Geri bildirim: bölge durumu kararlardan türer (undo, reopen, yeni kusur numarası)", FeedbackCoreTests.RegionStatusFollowsEffectiveDecisionsAndReopen),
+    ("Geri bildirim: rapor bölge satırları ve çoğul bağlantılar", FeedbackCoreTests.ReportShowsRegionLinesAndPluralLinks),
+    ("Geri bildirim: İngilizce Inspector ve Çap / Diameter metinleri", FeedbackCoreTests.EnglishInspectorAndDiameterTexts),
+    ("Geri bildirim: reinspect / karar penceresi bölge kuralları", FeedbackCoreTests.ReinspectFormRegionRules),
+    ("Geri bildirim: gizlenen öneri kümesi (büyük/küçük harf, JSON, bozuk dosya)", FeedbackCoreTests.HiddenSuggestionSetRulesAndJson),
+    ("Geri bildirim VM: öneri gizleme kutuya özel, kullanılınca geri gelir", VmHiddenSuggestionsPerBoxAndReturnOnUse),
+    ("Geri bildirim VM: Inspector ve Çap metinleri", VmEnglishInspectorTexts),
+    ("Geri bildirim VM: reinspect birden fazla yeni hata açar", VmReinspectMultipleNewDefects),
+    ("Geri bildirim VM: tipi seçilmemiş yeni hata işlenmez", VmReinspectNewDefectWithoutTypeIsRejected),
+    ("Geri bildirim VM: karar penceresi bölge sorar, işaretsiz uygun sayılır, undo geri getirir", VmDecisionAsksRegionsAndMarksUncheckedConforming),
+    ("Geri bildirim VM: karar bölge seçimi doğrulanır", VmDecisionRegionSelectionIsValidated),
+    ("Geri bildirim VM: bölge bazında reinspect, rozet, geçmiş, sonraki tur yalnızca aktif", VmReinspectPerRegionOutcomes),
+    ("Geri bildirim VM: eksik bölge seçimi işlenmez, hepsi giderilince kapanır", VmReinspectRegionsMissingChoiceIsRejected),
+    ("Geri bildirim VM: void child parent'ı geri açar, ekranda sızıntı yok", VmVoidLastChildReopensParentWithoutLeaks),
+    ("Geri bildirim VM: iki child'dan biri void, sonra geri alma", VmUndoMultipleChildrenAndVoidOneOfTwo),
+    ("Geri bildirim VM: geri alma iki child'ı bildirir ve void eder", VmUndoTwoChildrenListsBoth),
 };
 
 int failed = 0;
@@ -268,7 +295,8 @@ static void GateSupersedeResolves()
 
 
     var child = NewDefect(5, "Scratch");
-    DefectStateMachine.Supersede(parent, child);
+    DefectStateMachine.Apply(parent, Decision.AfterReworkNewDefect, DecisionSource.Engineer, "M. Kaya", newDefectIds: new[] { child.Id });
+    child.SupersedesId = parent.Id;
     Expect(DefectStateMachine.GetState(parent) == DefectState.Superseded, "Parent Superseded olmalı");
     Expect(!SessionGate.CanComplete(new[] { parent, child }), "Child açıkken geçit kapalı olmalı");
 
@@ -495,7 +523,7 @@ static void ContinueAsChildLinks()
         var reloaded = store.LoadDefects(folder);
         var p = reloaded.First(d => d.Id == parent.Id);
         var c = reloaded.First(d => d.Id == child.Id);
-        Expect(p.SupersededById == child.Id, "Parent child'a bağlanmalı");
+        Expect(p.Dispositions[^1].NewDefectIds is { Count: 1 } ids && ids[0] == child.Id && p.SupersededById is null, "Parent child'a karar üzerinden bağlanmalı (eski tek bağ yazılmaz)");
         Expect(c.SupersedesId == parent.Id, "Child parent'a bağlanmalı");
         Expect(p.Dispositions[^1].Decision == Decision.AfterReworkNewDefect, "Parent devam kararını almalı");
         Expect(!SessionGate.CanComplete(reloaded), "Açık child varken muayene kapanmamalı");
@@ -563,7 +591,7 @@ static void UndoChildLinkVoidsChild()
 
         store.UndoLastDecision(folder, child.Id, "M. Kaya", "yanlış kabul");
         var (undone, voided) = store.UndoLastDecision(folder, parent.Id, "M. Kaya", "Dent yanlış bağlandı");
-        Expect(undone.Decision == Decision.AfterReworkNewDefect && voided == child.Id, "Devir geri alınmalı, child void edilmeli");
+        Expect(undone.Decision == Decision.AfterReworkNewDefect && voided.SequenceEqual(new[] { child.Id }), "Devir geri alınmalı, child void edilmeli");
 
         var all = store.LoadDefects(folder);
         var p = all.First(x => x.Id == parent.Id);

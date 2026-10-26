@@ -15,7 +15,7 @@ public static class DefectValidator
         CheckPositive(defect.Depth, "Derinlik", errors);
         CheckPositive(defect.Width, "Genişlik", errors);
         CheckPositive(defect.Length, "Uzunluk", errors);
-        CheckPositive(defect.Radius, "Yarıçap", errors);
+        CheckPositive(defect.Radius, "Çap", errors);
 
         if (defect.AngleDeg is double angle && (double.IsNaN(angle) || angle < 0 || angle > 360))
             errors.Add("Açı 0 ile 360 derece arasında olmalı.");

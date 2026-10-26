@@ -9,8 +9,11 @@ public sealed partial class InspectionViewModel
 {
     // ───────────────────────── Fotoğraf kartları ─────────────────────────
 
-    /// <summary>Kartlar; işaret sayısı ve arka plan durumu ile.</summary>
-    private void UpdatePhotos(Defect? defect)
+    /// <summary>
+    /// Kartlar; işaret sayısı, arka plan durumu ve (bölge sonucu kaydedildiyse) bölge rozeti ile.
+    /// <paramref name="all"/>: rozetteki yeni kusur numaralarından void olanları ayıklamak için.
+    /// </summary>
+    private void UpdatePhotos(Defect? defect, IReadOnlyList<Defect>? all = null)
     {
         Photos.Clear();
         if (defect is not null && _folder is not null)
@@ -19,8 +22,7 @@ public sealed partial class InspectionViewModel
             foreach (var photo in defect.Photos)
             {
                 var markup = defect.Markups.GetValueOrDefault(photo);
-                var clean = markup?.CleanedFile;
-                var shown = clean is not null && File.Exists(Path.Combine(directory, clean)) ? clean : photo;
+                var shown = ShownFile(defect, photo);
 
                 var info = new List<string>();
                 if (markup?.Shapes.Count > 0) info.Add($"{markup.Shapes.Count} işaret");
@@ -36,11 +38,19 @@ public sealed partial class InspectionViewModel
                     HasInfo = info.Count > 0,
                     HasMarks = markup?.Shapes.Count > 0,
                     IsEditable = IsEditable,
+                    RegionBadge = DefectPresentation.RegionBadge(defect, photo, all),
                 });
             }
         }
         HasPhotos = Photos.Count > 0;
         NoPhotos = Photos.Count == 0;
+    }
+
+    /// <summary>Gösterilecek dosya: arka planı kaldırılmış kopya varsa (ve diskte duruyorsa) o, yoksa orijinal.</summary>
+    private string ShownFile(Defect defect, string photo)
+    {
+        var clean = defect.Markups.GetValueOrDefault(photo)?.CleanedFile;
+        return clean is not null && File.Exists(Path.Combine(_folder!, "defects", clean)) ? clean : photo;
     }
 
     // ───────────────────────── Dosyadan ekle ─────────────────────────
@@ -241,11 +251,20 @@ public sealed partial class InspectionViewModel
     public IReadOnlyList<string> Suggestions(SuggestLevel level, string text)
     {
         text = text.Trim();
+        // "×" ile gizlenenler bu bilgisayarda önerilmez; diğer kutuların gizlileri birbirini etkilemez.
+        var hidden = _settings.HiddenSuggestions(level);
         return FolderNames(level)
+            .Where(n => !hidden.Contains(n))
             .Where(n => text.Length == 0 || n.Contains(text, StringComparison.OrdinalIgnoreCase))
             .Take(50)
             .ToList();
     }
+
+    /// <summary>
+    /// Öneriyi bu bilgisayarda gizler (klasör silinmez). Gizlenen değerle muayene açılınca öneri geri gelir.
+    /// View listeyi yeniler.
+    /// </summary>
+    public void HideSuggestion(SuggestLevel level, string value) => _settings.HideSuggestion(level, value);
 
     private IEnumerable<string> FolderNames(SuggestLevel level)
     {

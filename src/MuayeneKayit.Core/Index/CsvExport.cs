@@ -11,7 +11,7 @@ public static class CsvExport
     public static string Build(IEnumerable<IndexRow> rows)
     {
         var sb = new StringBuilder();
-        sb.AppendLine(Line("Parça", "Operasyon", "Seri", "Durum", "Muayeneci", "Açılış", "Kusur", "Açık", "Kusur no", "Hata tipi", "Kusur durumu", "Son karar"));
+        sb.AppendLine(Line("Parça", "Operasyon", "Seri", "Durum", "Inspector", "Açılış", "Kusur", "Açık", "Kusur no", "Hata tipi", "Kusur durumu", "Son karar"));
 
         foreach (var r in rows)
         {

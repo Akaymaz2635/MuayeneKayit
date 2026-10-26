@@ -47,7 +47,13 @@ public sealed class Defect
     /// <summary>Bu kusurun yerini aldığı önceki kusur (child ise dolu).</summary>
     public int? SupersedesId { get; set; }
 
-    /// <summary>Bu kusurun devam ettiği yeni kusur (parent ise dolu).</summary>
+    /// <summary>Child'da: parent'ın hangi bölgesinde (fotoğraf adı) bulunduğu. Bölgesizse boş.</summary>
+    public string? FoundAtPhoto { get; set; }
+
+    /// <summary>
+    /// Eski tek bağ (parent'ın devrettiği tek yeni kusur). Yalnızca okunur: yeni kodda yazılmaz, parent'ın yeni kusurları
+    /// kararlardaki <see cref="Disposition.NewDefectIds"/> alanındadır. Eski kayıtlar <see cref="DefectRegions.ChildIds"/> ile okunur.
+    /// </summary>
     public int? SupersededById { get; set; }
 
     public List<Disposition> Dispositions { get; set; } = new();
@@ -89,4 +95,10 @@ public sealed class Disposition
 
     /// <summary>Rework ve rework sonrası kararlarda o andaki ölçümler. Diğer kararlarda boş.</summary>
     public MeasurementSnapshot? Snapshot { get; set; }
+
+    /// <summary>Bu kararla bölgelerin durumu (fotoğraf adı → sonuç). Bölge sorulmadıysa boş.</summary>
+    public Dictionary<string, PhotoOutcome>? PhotoOutcomes { get; set; }
+
+    /// <summary>Bu kararla (rework sonrası muayene) açılan yeni kusurların numaraları. Yoksa boş.</summary>
+    public List<int>? NewDefectIds { get; set; }
 }

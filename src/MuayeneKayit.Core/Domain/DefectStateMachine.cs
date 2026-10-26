@@ -71,7 +71,8 @@ public static class DefectStateMachine
             // MRB reddiyle otomatik yazılan hurda gibi, hemen ardından gelen System kayıtları da geri alınır.
             foreach (var next in defect.Dispositions.Where(d => d.Seq > target).OrderBy(d => d.Seq))
             {
-                if (next.Source != DecisionSource.System)
+                // Geri alma kaydının kendisi (sistem kaydı olabilir) zinciri keser.
+                if (next.Decision == Decision.Undo || next.Source != DecisionSource.System)
                     break;
                 undone.Add(next.Seq);
             }
@@ -87,7 +88,14 @@ public static class DefectStateMachine
     /// Son kararı geri alır: kayıt silinmez, "Undo" satırı eklenir ve durum önceki karara döner.
     /// Gerekçe zorunludur. Child'a devredilen kararın geri alınması SessionStore.UndoLastDecision ile yapılır.
     /// </summary>
-    public static Disposition Undo(Defect defect, string decidedBy, string? note, DateTime? at = null)
+    public static Disposition Undo(Defect defect, string decidedBy, string? note, DateTime? at = null) =>
+        Undo(defect, decidedBy, note, at, childrenHandled: false);
+
+    /// <param name="childrenHandled">
+    /// Kararla açılan yeni kusurlar zaten void edildiyse true (SessionStore.UndoLastDecision, aynı kilit altında).
+    /// Aksi halde yeni kusurlara bağlı karar burada geri alınamaz.
+    /// </param>
+    internal static Disposition Undo(Defect defect, string decidedBy, string? note, DateTime? at, bool childrenHandled)
     {
         if (string.IsNullOrWhiteSpace(note))
             throw new InvalidOperationException("Geri almak için gerekçe yazın (örn. yanlış karar seçildi).");
@@ -95,30 +103,41 @@ public static class DefectStateMachine
         var target = LastUndoable(defect)
             ?? throw new InvalidOperationException("Geri alınacak karar yok.");
 
-        if (target.Decision == Decision.AfterReworkNewDefect && defect.SupersededById is not null)
-            throw new InvalidOperationException("Bu karar yeni bir kusura bağlı; geri alma child kusurla birlikte yapılmalı.");
+        if (!childrenHandled && DefectRegions.ChildIdsOf(defect, target).Count > 0)
+            throw new InvalidOperationException("Bu karar yeni kusurlara bağlı; geri alma child kusurlarla birlikte yapılmalı.");
 
+        AddUndo(defect, target, target.Source, decidedBy, note.Trim(), at);
+        return target;
+    }
+
+    /// <summary>
+    /// Sistem geri almasıdır: son yeni kusur void edilince parent'ın "yeni hata" kararı geri alınır.
+    /// Gerekçe sistemden gelir; kayıt silinmez, Undo satırı System kaynaklı eklenir.
+    /// </summary>
+    internal static void SystemUndo(Defect defect, Disposition target, string by, string note, DateTime? at = null) =>
+        AddUndo(defect, target, DecisionSource.System, by, note, at);
+
+    private static void AddUndo(Defect defect, Disposition target, DecisionSource source, string by, string note, DateTime? at) =>
         defect.Dispositions.Add(new Disposition
         {
             Seq = defect.Dispositions.Count + 1,
             Decision = Decision.Undo,
-            Source = target.Source,
-            DecidedBy = decidedBy,
-            Note = note.Trim(),
+            Source = source,
+            DecidedBy = by,
+            Note = note,
             UndoesSeq = target.Seq,
             DecidedAt = at ?? DateTime.Now,
         });
-        return target;
-    }
 
     public static DefectState GetState(Defect defect)
     {
-        if (defect.SupersededById is not null)
-            return DefectState.Superseded;
-
         var effective = Effective(defect);
         if (effective.Count == 0)
             return DefectState.Open;
+
+        // Son (sistem olmayan) karar "yeni hata" ise kusur yeni kusurlara devredilmiştir.
+        if (effective.LastOrDefault(d => d.Source != DecisionSource.System)?.Decision == Decision.AfterReworkNewDefect)
+            return DefectState.Superseded;
 
         return effective[^1].Decision switch
         {
@@ -171,7 +190,9 @@ public static class DefectStateMachine
         string? reference = null,
         string? targetOperation = null,
         DateTime? decidedAt = null,
-        ReworkScope? reworkScope = null)
+        ReworkScope? reworkScope = null,
+        IReadOnlyDictionary<string, PhotoOutcome>? photoOutcomes = null,
+        IReadOnlyList<int>? newDefectIds = null)
     {
         var (ok, reason) = Check(defect, decision, source);
         if (!ok)
@@ -189,31 +210,19 @@ public static class DefectStateMachine
         if (reworkScope is not null && decision != Decision.Rework)
             throw new InvalidOperationException("Rework kapsamı yalnızca rework kararında verilir.");
 
-        Add(defect, decision, source, decidedBy, note, reference, targetOperation, decidedAt, reworkScope);
+        if (newDefectIds is { Count: > 0 } && decision is not (Decision.AfterReworkSameDefect or Decision.AfterReworkNewDefect))
+            throw new InvalidOperationException("Yeni kusur numaraları yalnızca rework sonrası muayene kararında verilir.");
+
+        if (decision == Decision.AfterReworkNewDefect && newDefectIds is not { Count: > 0 })
+            throw new InvalidOperationException("Yeni hata kararı için açılan yeni kusurun numarası gerekli.");
+
+        Add(defect, decision, source, decidedBy, note, reference, targetOperation, decidedAt, reworkScope, photoOutcomes, newDefectIds);
 
         if (decision == Decision.MrbRejected)
         {
             Add(defect, Decision.Scrap, DecisionSource.System, decidedBy,
                 "MRB reddi, otomatik hurda", reference, null, decidedAt);
         }
-    }
-
-    /// <summary>
-    /// Rework sonrası yeniden muayene yeni bir kusur bulduğunda parent'ı child'a bağlar.
-    /// Parent, AfterReworkNewDefect kararını zaten almış ya da AwaitingReinspect durumunda olmalıdır.
-    /// </summary>
-    public static void Supersede(Defect parent, Defect child)
-    {
-        var effective = Effective(parent);
-        var lastIsContinues = effective.Count > 0
-            && effective[^1].Decision == Decision.AfterReworkNewDefect;
-
-        if (GetState(parent) != DefectState.AwaitingReinspect && !(lastIsContinues && parent.SupersededById is null))
-            throw new InvalidOperationException(
-                $"Kusur #{parent.Id} rework sonrası yeniden muayene bekleme durumunda değil.");
-
-        parent.SupersededById = child.Id;
-        child.SupersedesId = parent.Id;
     }
 
     /// <summary>Kapalı bir kusur yeniden açılabilir mi? Hurda ve MRB reddi kesindir.</summary>
@@ -258,7 +267,9 @@ public static class DefectStateMachine
         string? reference,
         string? targetOperation,
         DateTime? decidedAt,
-        ReworkScope? reworkScope = null)
+        ReworkScope? reworkScope = null,
+        IReadOnlyDictionary<string, PhotoOutcome>? photoOutcomes = null,
+        IReadOnlyList<int>? newDefectIds = null)
     {
         var snapshot = decision is Decision.Rework or Decision.AfterReworkConforms
             or Decision.AfterReworkSameDefect or Decision.AfterReworkNewDefect
@@ -277,6 +288,8 @@ public static class DefectStateMachine
             DecidedAt = decidedAt ?? DateTime.Now,
             Snapshot = snapshot,
             ReworkScope = reworkScope,
+            PhotoOutcomes = photoOutcomes is { Count: > 0 } ? new Dictionary<string, PhotoOutcome>(photoOutcomes) : null,
+            NewDefectIds = newDefectIds is { Count: > 0 } ? newDefectIds.ToList() : null,
         });
     }
 }

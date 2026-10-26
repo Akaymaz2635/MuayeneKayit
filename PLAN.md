@@ -42,7 +42,8 @@ ARM64 sürümü Surface Pro 9 (SQ3, 5G) içindir; Intel Surface ve notebook'lar 
 
 ## 3. Akış (operatör)
 
-1. Muayeneci parça / operasyon / seri girer (önceki kayıtlardan öneri gelir), **Muayene oluştur**.
+1. Inspector parça / operasyon / seri girer (önceki kayıtlardan öneri gelir; öneri satırındaki **×** o öneriyi bu bilgisayarda gizler,
+   o değerle muayene açılınca geri gelir; ayar `%LOCALAPPDATA%\MuayeneKayit\hidden-suggestions.json`), **Create Inspection**.
 2. **Kusur ekle**. Kusur tipinin şablonundaki ölçüm alanları görünür; spec adı varsayılan yazılır. Yan kusur **High metal** için onay kutusu.
 3. **Fotoğraf**: kamera (C920 / Surface arka kamera). Ortadaki **çerçeve** (aç/kapa, boyutu ayarlanabilir, varsayılan kısa kenarın %20'si)
    kaydedilen fotoğrafta "#N" kutusu olur. Kaydedince kamera kapanır, fotoğraf işaretleme ekranında açılır. Dosyadan ekleme de var.
@@ -69,21 +70,24 @@ Onay pencerelerinde onay düğmesi koyu, vazgeç sade; Enter hiçbir düğmeyi t
 | Rework kapsamı (yalnızca High metal'li kusurda, zorunlu) | Kusur + high metal / yalnızca high metal |
 | Rework sonrası: uygun | Kapandı |
 | Rework sonrası: aynı kusur devam (değerler girilir; high metal varsa durumu zorunlu) | Açık, yeniden karar; artış/azalış gösterilir |
-| Rework sonrası: eski kusur gitti, yeni hata oluştu | Child kusur açılır, "Defect 1 continues as Defect 5" |
+| Rework sonrası: eski kusur gitti, yeni hata(lar) oluştu | Bir ya da daha fazla child kusur açılır (aynı tip birden çok olabilir), "Defect 1 continues as Defects 5, 6" |
+| Rework sonrası, kusurun 2+ aktif bölgesi (fotoğrafı) varsa | Her bölge (3.1, 3.2 ...) için ayrı sonuç: Giderildi / Devam ediyor / Yeni hata (bölgeye ayrı yeni kusurlar). Genel sonuç otomatik: devam eden yoksa kapanır ya da yeni kusurlara devredilir, varsa açık kalır (yeni kusurlar ayrıca açılır). Sonraki karar ve muayeneler yalnızca aktif bölgeleri sorar; karar penceresinde de 2+ aktif bölgede "hangi bölgeler için" sorulur (işaretsiz bölge uygun sayılır). Ölçüm kusur başına tektir |
 | Reinspect (CTP), Repair | Açık sayılır |
 | Submit MRB | MRB bekliyor (parça akışta ilerleyebilir, muayene açık kalır) |
 | MRB kabul | Kapandı (accept as is) |
 | MRB red | Otomatik Scrap |
 | Return to vendor | Tedarikçide, dönüşte reinspect |
 | Scrap | Kapandı, kesin |
-| Void | Yalnızca karar geçmişi olmayan kusur, gerekçe zorunlu, onay penceresi. Kayıt kalır, rapora girmez |
+| Void | Yalnızca karar geçmişi olmayan kusur, gerekçe zorunlu, onay penceresi. Kayıt kalır, rapora, cümleye, ekrana ve muayene kapanışına karışmaz. Rework sonrası açılan son aktif yeni kusur void edilirse ana kusurun "yeni hata" kararı sistem kaydıyla geri alınır, ana kusur tekrar rework sonrası muayene bekler |
 | Yeniden aç | Not zorunlu, geçmiş korunur. Scrap ve MRB red açılamaz |
-| Son kararı geri al | Gerekçe zorunlu. Kayıt silinmez; geri alınan karar ekranda ve raporda görünmez, ham dosyada ve denetim kaydında kalır. MRB reddi otomatik hurdayla birlikte geri alınır. Child devri geri alınırsa bağ çözülür, child void olur. Void geri alınamaz |
+| Son kararı geri al | Gerekçe zorunlu. Kayıt silinmez; geri alınan karar ekranda ve raporda görünmez, ham dosyada ve denetim kaydında kalır. MRB reddi otomatik hurdayla birlikte geri alınır. Yeni kusur(lar) açan karar geri alınırsa hepsi void olur ve bölge durumları geri gelir. Void geri alınamaz |
 
 High metal: cümlede "There is Dent with high metal on part …". Yalnızca high metal giderildiyse kusur "Dent" olarak açık kalır,
 otomatik not yazılır ve kalan kusur için yeni karar (ör. MRB) verilir.
 Karar penceresindeki açıklamalar admin panelinden düzenlenir. Karar vermeden yapılan ölçüm ve high metal düzeltmeleri önce/sonra kaydedilir.
-Denetim kaydına işlemi yapan muayeneci (Muayeneci kutusu) yazılır, oturumu açan kişi değil.
+Denetim kaydına işlemi yapan Inspector (Inspector kutusu) yazılır, oturumu açan kişi değil.
+Çap: ölçüm alanı kullanıcı metinlerinde "Çap" (raporda cümlede "Diameter"); JSON / kod alan adı `radius` değişmedi, eski kayıtlar aynen okunur.
+Eski kayıtlardaki tek `supersededById` bağı okunur (tek yeni kusur gibi); yeni kayıtlar yeni kusurları kararda (`newDefectIds`) saklar.
 
 ## 5. Güvenlik
 

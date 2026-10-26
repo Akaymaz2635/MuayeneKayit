@@ -66,7 +66,7 @@ public static partial class ViewModelTests
         c.Vm.AddDefect("Dent");
         Check(c.Store.LoadDefects(c.Folder).Single().Unit == LengthUnit.Inch, "Yeni kusur inch olmalı");
         Check(c.Vm.DepthHeader == "Derinlik (in)" && c.Vm.WidthHeader == "Genişlik (in)"
-              && c.Vm.LengthHeader == "Uzunluk (in)" && c.Vm.RadiusHeader == "Yarıçap (in)", "Başlıklar inch olmalı");
+              && c.Vm.LengthHeader == "Uzunluk (in)" && c.Vm.RadiusHeader == "Çap (in)", "Başlıklar inch olmalı");
 
         c.Vm.DepthText = "0.123";
         c.Vm.SaveMeasurements();
