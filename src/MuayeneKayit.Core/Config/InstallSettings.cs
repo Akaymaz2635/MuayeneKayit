@@ -49,13 +49,28 @@ public static class InstallSettings
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "MuayeneKayitDemo");
     }
 
-    /// <summary>Okunan dosyaya (yoksa exe'nin klasörüne) yazar.</summary>
+    /// <summary>
+    /// Okunan dosyaya yazar. Dosya henüz yoksa ağdan çalıştırma düzeninde program klasörünün köküne (surum.txt'nin yanına)
+    /// yazar: Admin'den girilen yolu tüm sürümlerdeki Inspector'lar görür. Düzen yoksa exe'nin klasörüne yazar.
+    /// </summary>
     public static void SaveRootPath(string startDirectory, string root)
     {
         if (string.IsNullOrWhiteSpace(root) || root.Trim().Length > 260)
             throw new ArgumentException("Ortak alan yolu geçersiz.");
 
         var json = JsonSerializer.Serialize(new { rootPath = root.Trim() }, new JsonSerializerOptions { WriteIndented = true });
-        AtomicFile.WriteAllText(Find(startDirectory) ?? Path.Combine(startDirectory, FileName), json);
+        AtomicFile.WriteAllText(Find(startDirectory) ?? Path.Combine(ProgramRoot(startDirectory) ?? startDirectory, FileName), json);
+    }
+
+    /// <summary>Üst klasörlerde (en fazla <see cref="MaxLevelsUp"/>) surum.txt bulunan program kökü; yoksa null.</summary>
+    private static string? ProgramRoot(string startDirectory)
+    {
+        var dir = new DirectoryInfo(startDirectory);
+        for (var level = 0; dir is not null && level <= MaxLevelsUp; level++, dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, ProgramLayout.VersionFile)))
+                return dir.FullName;
+        }
+        return null;
     }
 }

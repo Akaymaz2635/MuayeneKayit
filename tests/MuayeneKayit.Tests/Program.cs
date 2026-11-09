@@ -875,6 +875,15 @@ static void InstallSettingsFoundInParentFolders()
         InstallSettings.SaveRootPath(exeDir, @"\\sunucu\Yeni");
         Expect(InstallSettings.LoadRootPath(exeDir) == @"\\sunucu\Yeni" && !File.Exists(Path.Combine(exeDir, InstallSettings.FileName)),
             "Kayıt kökteki dosyaya yazılmalı");
+
+        // Dosya hiç yokken Admin'den kayıt: surum.txt'nin yanına (program köküne) yazılır, exe klasörüne değil.
+        File.Delete(shared);
+        File.WriteAllText(Path.Combine(root, "Program", ProgramLayout.VersionFile), "1.0.0");
+        var adminDir = Path.Combine(root, "Program", "1.0.0", "Admin-x64");
+        Directory.CreateDirectory(adminDir);
+        InstallSettings.SaveRootPath(adminDir, @"\\sunucu\Ilk");
+        Expect(File.Exists(shared) && !File.Exists(Path.Combine(adminDir, InstallSettings.FileName)), "İlk kayıt program köküne yazılmalı");
+        Expect(InstallSettings.LoadRootPath(exeDir) == @"\\sunucu\Ilk", "Inspector aynı yolu görmeli");
     }
     finally { Directory.Delete(root, true); }
 }

@@ -45,11 +45,20 @@ klasöründen çalışır. Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğ
 | `MuayeneKayit.settings.example.json` | Ortak ayar örneği |
 | `OKU-BENI.txt` | Bu bölümün kısa hâli |
 
-1. Örnekten aynı klasörde `MuayeneKayit.settings.json` oluşturup ortak **veri** klasörünü yazın (program klasörü değil):
-   ```json
-   { "rootPath": "\\\\SUNUCU\\MuayeneKayit\\Veri" }
-   ```
+0. **İndirme:** GitHub > Releases > `MuayeneKayit-<sürüm>.zip` (*Code > Download ZIP* değil; o kaynak koddur).
+   İnternetten inen zip'e sağ tık > **Özellikler** > **Engellemeyi kaldır** > Tamam, sonra çıkarın; yoksa Windows programı engelleyebilir.
+   Ağda iki klasör açın: `Program` (zip'in içi) ve boş `Veri` (kayıt, fotoğraf, rapor buraya yazılır).
+1. **Verinin yazılacağı yer** — iki yoldan biri:
+   - **Admin'den (önerilen):** program klasöründen `MuayeneKayit Admin.exe`'yi açın, PIN belirleyin, **Ayarlar > Ortak alan > Kök klasör**
+     kutusuna veri klasörünü yazıp **Kaydet ve yeniden bağlan**'a basın (klasör önceden açılmış olmalı). Yol program klasöründeki
+     `MuayeneKayit.settings.json` dosyasına yazılır; yeni veri klasörü için PIN bir kez daha sorulur.
+   - **Elle:** örnekten aynı klasörde `MuayeneKayit.settings.json` oluşturup ortak **veri** klasörünü yazın (program klasörü değil):
+     ```json
+     { "rootPath": "\\\\SUNUCU\\MuayeneKayit\\Veri" }
+     ```
    Sürüm klasörlerindeki programlar bu tek dosyayı kullanır (exe'nin klasöründe yoksa üst klasörlere bakar).
+   Deneme: `MuayeneKayit.exe` ile bir test muayenesi açın; veri klasöründe `Parça\Operasyon\Seri` klasörü oluşmalı.
+   Kurulumun anlatımlı videosu: `docs/kurulum-video` (Remotion; `npm install`, `npm run render`).
 2. **Kullanıcılar:** ağdaki `MuayeneKayit.exe` > sağ tık > *Gönder > Masaüstü (kısayol oluştur)*. Kısayolu BT grup ilkesiyle de dağıtabilir.
 3. **Güncelleme** (program açıkken de yapılabilir): yeni paketteki sürüm klasörünü (ör. `1.0.1`) program klasörüne kopyalayın,
    sonra `surum.txt`'yi `1.0.1` yapın. Kullanıcılar bir sonraki açışta yeni sürümü açar; açık programlar eski klasörden

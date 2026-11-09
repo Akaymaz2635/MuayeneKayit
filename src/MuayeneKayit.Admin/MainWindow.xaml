@@ -235,7 +235,7 @@
                     <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1">
                         <StackPanel Spacing="10">
                             <TextBlock Text="Ortak alan" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
-                            <TextBlock Text="Bu admin uygulamasının kullandığı kök klasör. Muayene uygulamalarında aynı yol, exe'nin yanındaki MuayeneKayit.settings.json dosyasına yazılmalıdır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
+                            <TextBlock Text="Kayıtların, fotoğrafların ve raporların yazılacağı ortak VERİ klasörü (program klasörü değil). Kaydedince program klasöründeki MuayeneKayit.settings.json dosyasına yazılır; tüm muayene bilgisayarları bu yolu kullanır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
                             <TextBox x:Name="RootBox" Text="{x:Bind Shell.Settings.RootText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Kök klasör (ör. \\sunucu\Muayene)" Width="520" HorizontalAlignment="Left" />
                             <Button Content="Kaydet ve yeniden bağlan" Click="{x:Bind Shell.Settings.SaveRoot}" Style="{StaticResource AccentButtonStyle}" />
                         </StackPanel>
