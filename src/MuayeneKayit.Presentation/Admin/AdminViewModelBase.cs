@@ -18,7 +18,8 @@ public abstract class AdminViewModelBase : ObservableObject
             action();
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
-                                    or TimeoutException or InvalidDataException or UnauthorizedAccessException)
+                                    or TimeoutException or InvalidDataException or UnauthorizedAccessException
+                                    or System.Text.Json.JsonException or FormatException)
         {
             Say(ex.Message, StatusKind.Error);
         }

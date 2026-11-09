@@ -18,9 +18,13 @@ public sealed partial class InspectionViewModel
         Photos.Clear();
         if (defect is not null && _folder is not null)
         {
-            var directory = Path.Combine(_folder, "defects");
             foreach (var photo in defect.Photos)
             {
+                // Yalnızca geçerli düz fotoğraf adları listelenir ve açılır (yol dolaşımı, UNC, mutlak yol yok).
+                var thumbnail = ThumbnailFor(defect, photo);
+                if (thumbnail is null)
+                    continue;
+
                 var markup = defect.Markups.GetValueOrDefault(photo);
                 var shown = ShownFile(defect, photo);
 
@@ -33,7 +37,7 @@ public sealed partial class InspectionViewModel
                     FileName = photo,
                     Label = $"{defect.Id}.{defect.Photos.IndexOf(photo) + 1}",
                     DisplayFile = shown,
-                    ThumbnailPath = Path.Combine(directory, shown),
+                    ThumbnailPath = thumbnail,
                     InfoText = info.Count == 0 ? "İşaret yok" : string.Join(" · ", info),
                     HasInfo = info.Count > 0,
                     HasMarks = markup?.Shapes.Count > 0,
@@ -46,12 +50,16 @@ public sealed partial class InspectionViewModel
         NoPhotos = Photos.Count == 0;
     }
 
-    /// <summary>Gösterilecek dosya: arka planı kaldırılmış kopya varsa (ve diskte duruyorsa) o, yoksa orijinal.</summary>
+    /// <summary>Gösterilecek dosya: arka planı kaldırılmış kopya varsa (geçerli adlıysa ve diskte duruyorsa) o, yoksa orijinal.</summary>
     private string ShownFile(Defect defect, string photo)
     {
         var clean = defect.Markups.GetValueOrDefault(photo)?.CleanedFile;
-        return clean is not null && File.Exists(Path.Combine(_folder!, "defects", clean)) ? clean : photo;
+        return PhotoMarkupValidator.ResolvePhotoPath(_folder!, clean) is string path && File.Exists(path) ? clean! : photo;
     }
+
+    /// <summary>Kartın küçük resim yolu; ad geçersizse null (kart oluşturulmaz).</summary>
+    private string? ThumbnailFor(Defect defect, string photo) =>
+        PhotoMarkupValidator.ResolvePhotoPath(_folder!, ShownFile(defect, photo));
 
     // ───────────────────────── Dosyadan ekle ─────────────────────────
 
@@ -144,7 +152,11 @@ public sealed partial class InspectionViewModel
         if (!editable)
         {
             // Kapalı kusurda yalnızca görüntüleme: işaretli hali rapordan görülür, ham fotoğraf burada açılır.
-            _windows.OpenFile(Path.Combine(folder, "defects", defect.Markups.GetValueOrDefault(photo)?.CleanedFile ?? photo));
+            // Yol yalnızca kusur klasöründeki geçerli ad olabilir; geçersiz temiz kopya adı yok sayılır, orijinal açılır.
+            var cleaned = defect.Markups.GetValueOrDefault(photo)?.CleanedFile;
+            var viewPath = PhotoMarkupValidator.ResolvePhotoPath(folder, cleaned) ?? PhotoMarkupValidator.ResolvePhotoPath(folder, photo)
+                ?? throw new InvalidOperationException("Fotoğraf okunamadı.");
+            _windows.OpenFile(viewPath);
             return;
         }
 
@@ -205,28 +217,52 @@ public sealed partial class InspectionViewModel
     public Task CreateReportAsync() => RunAsync(async () =>
     {
         AutoSave();
+        string? workDir = null;
         try
         {
             RequireSession();
             IsReportRunning = true;
 
-            var reportsDir = Path.Combine(_folder!, "reports");
+            var folder = _folder!;
+            var reportsDir = Path.Combine(folder, "reports");
             Directory.CreateDirectory(reportsDir);
 
-            var version = ReportFiles.LatestVersion(_folder!) + 1;
+            var version = ReportFiles.LatestVersion(folder) + 1;
             var htmlPath = Path.Combine(reportsDir, $"Rapor_v{version}.html");
             var pdfPath = Path.ChangeExtension(htmlPath, ".pdf");
 
-            var defects = _store.LoadDefects(_folder!);
-            AtomicFile.WriteAllText(htmlPath, ReportBuilder.Build(_session!, defects, version));
+            // Okunamayan kusur dosyası varsa rapor eksik kusurla üretilmez.
+            var defects = _store.LoadDefects(folder);
+            var unreadable = _store.UnreadableDefectFiles(folder);
+            if (unreadable.Count > 0)
+                throw new InvalidOperationException($"Rapor üretilemedi: okunamayan kusur dosyası var ({string.Join(", ", unreadable.Take(3))}). Yöneticiye bildirin.");
+            var html = ReportBuilder.Build(_session!, defects, version);
+
+            // HTML ve fotoğraflar bu bilgisayardaki geçici klasörde hazırlanır; Edge paylaşımdaki dosyaları değil yerel kopyayı
+            // okur (dönüştürme sırasında paylaşımdaki dosya değiştirilse de PDF'e girmez). Yalnızca sonuç paylaşıma kopyalanır.
+            workDir = Path.Combine(Path.GetTempPath(), "MuayeneKayit-rapor-" + Guid.NewGuid().ToString("N"));
+            var workReports = Path.Combine(workDir, "reports");
+            var workDefects = Path.Combine(workDir, "defects");
+            Directory.CreateDirectory(workReports);
+            Directory.CreateDirectory(workDefects);
+            foreach (var file in ReportBuilder.PhotoFiles(defects))
+            {
+                if (PhotoMarkupValidator.ResolvePhotoPath(folder, file) is string source && File.Exists(source))
+                    File.Copy(source, Path.Combine(workDefects, file), overwrite: true);
+            }
+            var workHtml = Path.Combine(workReports, Path.GetFileName(htmlPath));
+            var workPdf = Path.ChangeExtension(workHtml, ".pdf");
+            File.WriteAllText(workHtml, html, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
             Send($"Rapor v{version} hazırlanıyor (PDF)...", StatusKind.Info);
-            var pdfError = await _pdf.TryConvertAsync(htmlPath, pdfPath);
+            var pdfError = await _pdf.TryConvertAsync(workHtml, workPdf);
 
-            // PDF asıl kayıttır (fotoğraflar içinde). HTML yalnızca ara dosya: PDF oluştuysa silinir,
-            // oluşmadıysa yedek olarak kalır ve açılır.
+            // PDF asıl kayıttır (fotoğraflar içinde) ve paylaşıma kopyalanır. HTML yalnızca ara dosyadır: PDF üretilemediyse
+            // yedek olarak paylaşıma yazılır ve açılır.
             if (pdfError is null)
-                ReportFiles.DeleteHtml(htmlPath);
+                PublishReport(workPdf, pdfPath);
+            else
+                AtomicFile.WriteAllText(htmlPath, html);
 
             _audit.Append(_user, "report.create", $"Rapor_v{version}{(pdfError is null ? " (pdf)" : "")}");
             _windows.OpenFile(pdfError is null ? pdfPath : htmlPath);
@@ -239,8 +275,40 @@ public sealed partial class InspectionViewModel
         finally
         {
             IsReportRunning = false;
+            if (workDir is not null)
+                DeleteQuietly(workDir);
         }
     });
+
+    /// <summary>Üretilen PDF'i paylaşıma önce geçici adla kopyalar, sonra asıl adına taşır (yarım PDF görünmez; var olan sürümün üzerine yazılmaz).</summary>
+    private static void PublishReport(string workPdf, string pdfPath)
+    {
+        var temp = pdfPath + ".tmp";
+        try
+        {
+            File.Copy(workPdf, temp, overwrite: true);
+            File.Move(temp, pdfPath, overwrite: false);
+        }
+        finally
+        {
+            DeleteQuietly(temp);
+        }
+    }
+
+    private static void DeleteQuietly(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+            else if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Geçici dosya silinemezse rapor yine geçerlidir.
+        }
+    }
 
     // ───────────────────────── Öneriler ─────────────────────────
 

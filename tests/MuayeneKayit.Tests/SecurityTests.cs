@@ -17,7 +17,7 @@ public static class SecurityTests
     /// <summary>Test atlandı (ortam / yetki nedeniyle); Program.cs "ATLANDI" yazar, çıkış kodunu etkilemez.</summary>
     public sealed class SkipException(string reason) : Exception(reason);
 
-    private const string TestPin = "482916";
+    private const string TestPin = "48291657";
     private static readonly byte[] JpegBytes = { 0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10, 0x4A, 0x46 };
 
     // ───────────────────────── Yardımcılar ─────────────────────────
@@ -44,6 +44,15 @@ public static class SecurityTests
     {
         try { action(); return false; }
         catch (T) { return true; }
+    }
+
+    /// <summary>Beklenen türde istisnayı döndürür; istisna yoksa ya da başka türdeyse testi düşürür.</summary>
+    private static T Catch<T>(Action action) where T : Exception
+    {
+        try { action(); }
+        catch (T ex) { return ex; }
+        catch (Exception ex) { throw new Exception($"{typeof(T).Name} beklenirdi, {ex.GetType().Name} geldi: {ex.Message}"); }
+        throw new Exception($"{typeof(T).Name} beklenirdi, istisna oluşmadı");
     }
 
     /// <summary>Süre sınırı: iş parçacığı arka planda kalır (IsBackground), sonuç beklenmez.</summary>
@@ -444,8 +453,10 @@ public static class SecurityTests
     {
         var d = new Defect { Id = 1, DefectType = "Dent", Photos = { "a\"b.jpg" } };
         var html = ReportBuilder.Build(SampleSession(), new[] { d }, 1);
-        Expect(html.Contains("a&quot;b.jpg"), "Tırnak &quot; olmalı");
+        // Geçersiz ad rapora hiç girmez (ÖB-02 düzeltmesi): ne ham ne kaçılmış hali öznitelikte bulunur.
         Expect(!html.Contains("a\"b.jpg"), "Öznitelik dışına taşma var");
+        Expect(!html.Contains("src=\"../defects/a"), "Geçersiz fotoğraf adı src'ye girmemeli");
+        Expect(html.Contains("no-photo"), "Geçersiz ad 'fotoğraf yok' sayılmalı");
     }
 
     public static void ReportTitleIsEscaped()
@@ -542,17 +553,37 @@ public static class SecurityTests
         Expect(!html.Contains("x.jpg"), "Geçersiz temiz kopya adı rapora girdi");
     }
 
-    public static void AdminLatestReportDoesNotOpenHtmlOnShare() => WithAdmin(a =>
+    public static void AdminLatestReportPrefersPdfAndHtmlOnlyInsideRoot() => WithAdmin(a =>
     {
         var folder = Path.Combine(a.Root, "P", "O", "S");
-        Directory.CreateDirectory(Path.Combine(folder, "reports"));
-        File.WriteAllText(Path.Combine(folder, "reports", "Rapor_v1.html"), "<html></html>");
+        var reports = Path.Combine(folder, "reports");
+        Directory.CreateDirectory(reports);
+        File.WriteAllText(Path.Combine(reports, "Rapor_v1.html"), "<html></html>");
         var records = new RecordsViewModel(a.Context, a.Saver, a.Os, a.Clock);
         records.Notify += (m, k) => a.Notes.Add((m, k));
         var row = new IndexRow("P", "O", "S", "Open", 0, 0, "", DateTime.Now, new List<IndexDefect>());
+
+        // Yalnızca yedek HTML var ve kök içinde: açılır (PDF üretilemeyen raporun tek kopyası).
         records.OpenLatestReport(new AdminRecordRowViewModel(row, a.Root));
-        if (a.Os.Files.Any(f => f.EndsWith(".html", StringComparison.OrdinalIgnoreCase)))
-            Fail("PDF yoksa 'PDF yok' uyarısı; kabuğa .html verilmez", $"kabuğa gitti: {a.Os.Files[0]}", "RecordsViewModel.cs:153-157");
+        Expect(a.Os.Files.Count == 1 && a.Os.Files[0].EndsWith("Rapor_v1.html", StringComparison.OrdinalIgnoreCase), "Kök içindeki yedek HTML açılmalı");
+
+        // PDF de varsa PDF tercih edilir, HTML açılmaz.
+        File.WriteAllBytes(Path.Combine(reports, "Rapor_v1.pdf"), new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        a.Os.Files.Clear();
+        records.OpenLatestReport(new AdminRecordRowViewModel(row, a.Root));
+        Expect(a.Os.Files.Count == 1 && a.Os.Files[0].EndsWith(".pdf", StringComparison.OrdinalIgnoreCase), "PDF tercih edilmeli");
+
+        // Kök dışındaki klasördeki yalnızca-HTML rapor hiçbir zaman açılmaz.
+        var other = a.Root + "-dis";
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(other, "P", "O", "S", "reports"));
+            File.WriteAllText(Path.Combine(other, "P", "O", "S", "reports", "Rapor_v1.html"), "<html></html>");
+            a.Os.Files.Clear();
+            records.OpenLatestReport(new AdminRecordRowViewModel(row, other));
+            Expect(a.Os.Files.Count == 0, "Kök dışındaki HTML kabuğa verilmemeli");
+        }
+        finally { Cleanup(other); }
     });
 
     // ═════════════════════════ S-CSV ═════════════════════════
@@ -645,8 +676,34 @@ public static class SecurityTests
         var f = Seed(e.Store);
         Directory.CreateDirectory(Path.Combine(f, "defects"));
         File.WriteAllText(DefectFile(f, 2), "{");
-        NoThrow("VM istisna sızdırmaz, hata mesajı verir", "InspectionViewModel.cs:797 (Run JsonException yakalamıyor), SessionStore.cs:66-67", () => e.Open());
-        Expect(e.Notes.Any(n => n.Kind == StatusKind.Error), "Hata bildirimi beklenir");
+        NoThrow("VM istisna sızdırmaz, uyarı / hata mesajı verir", "InspectionViewModel.cs:797 (Run JsonException yakalamıyor), SessionStore.cs:66-67", () => e.Open());
+        // Bozuk dosya atlanır ve uyarı olarak bildirilir; işlemin son mesajı uyarıdır.
+        Expect(e.Notes.Any(n => n.Kind is StatusKind.Error or StatusKind.Warning), "Uyarı / hata bildirimi beklenir");
+        Expect(e.Notes.Last().Kind == StatusKind.Warning && e.Notes.Last().Message.Contains("2.json"), $"Son mesaj bozuk dosyayı anmalı: {e.Notes.Last().Message}");
+    });
+
+    public static void CorruptDefectBlocksCompleteAndReport() => WithVm(e =>
+    {
+        e.Open();
+        e.Vm.AddDefect("Dent");
+        File.WriteAllText(DefectFile(e.Folder, 2), "{");
+        e.Notes.Clear();
+        e.Vm.Complete();
+        Expect(e.Notes.Any(n => n.Kind == StatusKind.Error && n.Message.Contains("okunamayan")), "Okunamayan kusur dosyası varken muayene kapatılmamalı");
+        Expect(e.Store.LoadSession(e.Folder)!.Status == SessionStatus.Open, "Oturum açık kalmalı");
+        e.Vm.CreateReportAsync().GetAwaiter().GetResult();
+        Expect(e.Pdf.Calls.Count == 0 && e.Notes.Last().Message.Contains("okunamayan"), "Eksik kusurla rapor üretilmemeli");
+    });
+
+    public static void NextDefectIdNeverReusesCorruptFileNumber() => WithRoot(root =>
+    {
+        var store = new SessionStore(root);
+        var f = Seed(store);
+        store.AddDefect(f, "Dent");
+        File.WriteAllText(DefectFile(f, 2), "{");
+        var added = store.AddDefect(f, "Nick");
+        Expect(added.Id == 3, $"Bozuk 2.json'un numarası yeniden kullanılmamalı: {added.Id}");
+        Expect(File.ReadAllText(DefectFile(f, 2)) == "{", "Bozuk dosya ezilmemeli");
     });
 
     public static void NullCollectionsBehaveLikeEmpty()
@@ -687,7 +744,7 @@ public static class SecurityTests
         var f = Seed(e.Store);
         Directory.CreateDirectory(Path.Combine(f, "defects"));
         File.WriteAllText(DefectFile(f, 1), "{\"id\":1,\"notes\":" + new string('[', 200) + new string(']', 200) + "}");
-        Expect(Throws<JsonException>(() => e.Store.LoadDefects(f)), "Store JsonException (MaxDepth 64) atmalı");
+        Expect(e.Store.LoadDefects(f).Count == 0 && e.Store.TakeWarnings().Count == 1, "Derin iç içe dosya (MaxDepth 64) atlanmalı ve uyarı üretmeli");
         NoThrow("JsonException yakalanır, hata mesajı", "InspectionViewModel.cs:797", () => e.Open());
     });
 
@@ -702,7 +759,7 @@ public static class SecurityTests
             var s = store.LoadSession(f);
             if (s is not null && !Enum.IsDefined(s.Status)) problems.Add($"Session.Status={(int)s.Status} (tanımsız) kabul edildi");
         }
-        catch (JsonException) { }
+        catch (InvalidDataException) { }
 
         store.AddDefect(f, "Dent");
         var d = store.LoadDefects(f)[0];
@@ -714,14 +771,13 @@ public static class SecurityTests
             disp["decision"] = 999;
             disp["source"] = -1;
         });
-        try
-        {
-            var loaded = store.LoadDefects(f)[0];
-            var x = loaded.Dispositions[0];
-            if (!Enum.IsDefined(x.Decision) || !Enum.IsDefined(x.Source))
-                problems.Add($"Disposition.Decision={(int)x.Decision}, Source={(int)x.Source} (tanımsız) kabul edildi");
-        }
-        catch (JsonException) { }
+        // Aralık dışı sayılar artık kabul edilmez: kusur dosyası atlanır, uyarı üretilir (kayıt yüklenmez).
+        var reloaded = store.LoadDefects(f);
+        if (reloaded.Count > 0)
+            problems.Add($"Disposition.Decision={(int)reloaded[0].Dispositions[0].Decision} (tanımsız) kabul edildi");
+        if (store.TakeWarnings().Count == 0)
+            problems.Add("bozuk kusur dosyası için uyarı yok");
+        Expect(Throws<InvalidDataException>(() => store.UpdateDefect(f, 1, x => x.Notes = "x")), "Aralık dışı karar yazma yolunda da reddedilmeli");
 
         if (problems.Count > 0)
             Fail("aralık dışı enum sayısı reddedilir (AllowIntegerValues=false) ya da 'bilinmeyen' sayılır", string.Join("; ", problems), "SessionStore.cs:19 (JsonStringEnumConverter tamsayı kabul eder)");
@@ -851,12 +907,19 @@ public static class SecurityTests
         var store = new SessionStore(root);
         var f = Seed(store);
         store.AddDefect(f, "Dent");
-        EditJson(DefectFile(f, 1), o => o["id"] = int.MaxValue);
-        try { store.AddDefect(f, "Scratch"); }
-        catch (Exception) { /* kontrollü hata kabul */ }
+        // Adı ve Id'si uyuşan en büyük numara: bir sonraki numara taşmaz, kontrollü hata verilir.
+        File.Move(DefectFile(f, 1), DefectFile(f, int.MaxValue));
+        EditJson(DefectFile(f, int.MaxValue), o => o["id"] = int.MaxValue);
+        Expect(Throws<InvalidOperationException>(() => store.AddDefect(f, "Scratch")), "Sınırda InvalidOperationException beklenir");
         var negative = Directory.EnumerateFiles(Path.Combine(f, "defects"), "-*.json").ToList();
         if (negative.Count > 0)
-            Fail("kontrollü hata (checked / üst sınır); negatif numaralı dosya oluşmaz", $"{Path.GetFileName(negative[0])} oluştu (Max+1 taştı)", "SessionStore.cs:81 (unchecked Max(Id)+1)");
+            Fail("kontrollü hata (checked / üst sınır); negatif numaralı dosya oluşmaz", $"{Path.GetFileName(negative[0])} oluştu (Max+1 taştı)", "SessionStore.cs NextDefectId");
+
+        // Fotoğraf adı 5 haneli numarayla sınırlı: 99999 numaralı kusurdan sonra yeni kusur açılmaz.
+        File.Move(DefectFile(f, int.MaxValue), DefectFile(f, SessionStore.MaxDefectId));
+        EditJson(DefectFile(f, SessionStore.MaxDefectId), o => o["id"] = SessionStore.MaxDefectId);
+        Expect(Throws<InvalidOperationException>(() => store.AddDefect(f, "Scratch")), $"{SessionStore.MaxDefectId} sonrası yeni kusur açılmamalı");
+        Expect(Directory.EnumerateFiles(Path.Combine(f, "defects"), "*.json").Count() == 1, "Başka dosya oluşmamalı");
     });
 
     public static void NonPositiveIdsRejectedOnLoad() => WithRoot(root =>
@@ -971,8 +1034,8 @@ public static class SecurityTests
         }
         sw.Stop();
         var ms = sw.Elapsed.TotalMilliseconds / runs;
-        var hours = ms * 1_000_000 / 1000 / 3600;
-        Console.WriteLine($"        · ÖLÇÜM: VerifyPin ≈ {ms:0.0} ms/deneme ({runs} ölçüm); 10^6 PIN uzayı tek çekirdekte ≈ {hours:0.0} saat (en kötü durum), 16 çekirdekte ≈ {hours / 16:0.0} saat.");
+        var hours = ms * 100_000_000 / 1000 / 3600;   // 8 haneli yeni PIN uzayı: 10^8
+        Console.WriteLine($"        · ÖLÇÜM: VerifyPin ≈ {ms:0.0} ms/deneme ({runs} ölçüm); 10^8 PIN uzayı (8 hane) tek çekirdekte ≈ {hours:0.0} saat (en kötü durum), 16 çekirdekte ≈ {hours / 16:0.0} saat.");
     });
 
     public static void LockoutSurvivesNewLoginViewModel() => WithAdmin(a =>
@@ -1437,9 +1500,11 @@ public static class SecurityTests
         Expect(InstallSettings.LoadRootPath(start) == "\\\\testhost\\s", "UNC yalnız metin olarak döner (erişilmez)");
 
         File.WriteAllText(file, "{\"rootPath\":\"veri\"}");
-        var relative = InstallSettings.LoadRootPath(start);
-        if (!Path.IsPathRooted(relative))
-            Fail("göreli rootPath reddedilir ya da belgelenir", $"'{relative}' olduğu gibi döndü (çalışma klasörüne bağlı çözülür)", "InstallSettings.cs:36-40");
+        // Göreli yol çalışma klasörüne bağlı çözülürdü: açık hata ile reddedilir (uygulama yanlış klasöre yazmasın).
+        var ex = Catch<InvalidDataException>(() => InstallSettings.LoadRootPath(start));
+        Expect(ex.Message.Contains("tam yol"), $"Mesaj tam yol gereğini söylemeli: {ex.Message}");
+        Expect(Throws<ArgumentException>(() => InstallSettings.SaveRootPath(start, "veri")), "Göreli yol kaydedilemez");
+        Expect(Throws<ArgumentException>(() => InstallSettings.SaveRootPath(start, "..\\veri")), "Üst klasöre göreli yol kaydedilemez");
     });
 
     // ═════════════════════════ S-NTFS (UNIT kısmı) ═════════════════════════
@@ -1459,5 +1524,309 @@ public static class SecurityTests
             Expect(a.Notes.Any(n => n.Kind == StatusKind.Error), "Hata bildirimi beklenir");
         }
         finally { File.SetAttributes(file, FileAttributes.Normal); }
+    });
+
+    // ═════════════════════════ Düzeltme regresyonları (güvenlik düzeltmeleri) ═════════════════════════
+
+    public static void PinNewRecordsUseHigherIterationsAndLegacyStillVerifies() => WithRoot(root =>
+    {
+        SharedConfig.SetPin(root, TestPin);
+        var record = JsonSerializer.Deserialize<AdminPinRecord>(File.ReadAllText(Path.Combine(SharedConfig.Folder(root), "admin.json")), SessionStore.JsonOptions)!;
+        Expect(record.Iterations >= 600_000, $"Yeni PIN en az 600.000 tur kullanmalı: {record.Iterations}");
+        Expect(SharedConfig.VerifyPin(root, TestPin), "Yeni kayıt doğrulanmalı");
+
+        // Eski kayıt (6 hane, 200.000 tur) hâlâ doğrulanır.
+        TestPins.WriteLegacy(root, "123456");
+        Expect(SharedConfig.VerifyPin(root, "123456") && !SharedConfig.VerifyPin(root, "123457"), "Eski 6 haneli kayıt doğrulanmalı");
+    });
+
+    public static void PinIterationsOutsideRangeAreRejectedClearly() => WithRoot(root =>
+    {
+        foreach (var iterations in new[] { 1, SharedConfig.MinPinIterations - 1, SharedConfig.MaxPinIterations + 1 })
+        {
+            Directory.CreateDirectory(SharedConfig.Folder(root));
+            var rec = new AdminPinRecord { Salt = Convert.ToBase64String(new byte[16]), Hash = Convert.ToBase64String(new byte[32]), Iterations = iterations };
+            File.WriteAllText(Path.Combine(SharedConfig.Folder(root), "admin.json"), JsonSerializer.Serialize(rec, SessionStore.JsonOptions));
+            var ex = Catch<InvalidDataException>(() => SharedConfig.VerifyPin(root, TestPin));
+            Expect(ex.Message.Contains("admin.json"), $"Mesaj admin.json'u anmalı: {ex.Message}");
+        }
+    });
+
+    public static void PinLengthRulesForNewAndLegacyPins() => WithRoot(root =>
+    {
+        foreach (var bad in new[] { "482916", "4829165", "1234567890123", "１２３４５６７８" })
+            Expect(Throws<ArgumentException>(() => SharedConfig.SetPin(root, bad)), $"Yeni PIN '{bad}' reddedilmeli");
+        foreach (var good in new[] { "48291657", "482916571234" })
+            SharedConfig.SetPin(root, good);
+        Expect(SharedConfig.VerifyPin(root, "482916571234"), "12 haneli PIN doğrulanmalı");
+    });
+
+    public static void LegacySixDigitPinLogsInAndSuggestsChange() => WithAdmin(a =>
+    {
+        TestPins.WriteLegacy(a.Root, "123456");
+        var vm = new LoginViewModel(a.Context, a.Clock);
+        var loggedIn = false;
+        vm.LoggedIn += () => loggedIn = true;
+        vm.Pin = "123456";
+        vm.Login();
+        Expect(loggedIn && vm.Error.Length == 0, $"Eski 6 haneli PIN girişte kabul edilmeli: {vm.Error}");
+        Expect(vm.PostLoginNotice.Contains("8-12"), $"Değiştirme önerisi beklenir: {vm.PostLoginNotice}");
+    });
+
+    public static void AdminPinResetNeedsExplicitConfirmationAndIsAudited() => WithAdmin(a =>
+    {
+        var first = new LoginViewModel(a.Context, a.Clock);
+        Expect(first.IsFirstRun && !first.NeedsResetConfirm, "Temiz kökte normal ilk kurulum");
+        first.Pin = first.PinRepeat = TestPin;
+        first.Login();
+        File.Delete(Path.Combine(SharedConfig.Folder(a.Root), "admin.json"));
+
+        var vm = new LoginViewModel(a.Context, a.Clock);
+        var loggedIn = false;
+        vm.LoggedIn += () => loggedIn = true;
+        Expect(vm.IsFirstRun && vm.NeedsResetConfirm && vm.Hint.Contains("sıfırl"), "Sıfırlama uyarısı beklenir");
+
+        vm.Pin = vm.PinRepeat = "99887766";
+        vm.Login();
+        Expect(!loggedIn && !SharedConfig.HasPin(a.Root), "Onay olmadan PIN belirlenmemeli");
+
+        vm.ResetConfirmed = true;
+        vm.Login();
+        Expect(loggedIn && SharedConfig.VerifyPin(a.Root, "99887766"), $"Onaydan sonra yeni PIN geçerli: {vm.Error}");
+        var actions = AuditLog.ReadTail(a.Context.Store, 20).Select(x => x.Action).ToList();
+        Expect(actions.Contains("admin.pin.reset"), "admin.pin.reset denetime yazılmalı: " + string.Join(",", actions));
+    });
+
+    public static void PriorAdminConfigFilesAlsoTriggerResetWarning() => WithAdmin(a =>
+    {
+        // admin.json hiç yazılmadan _config altında başka dosya var: sessiz ilk kurulum yok.
+        SharedConfig.SaveDefectTypes(a.Root, SharedConfig.Defaults);
+        var vm = new LoginViewModel(a.Context, a.Clock);
+        Expect(vm.IsFirstRun && vm.NeedsResetConfirm, "_config dolu kökte sıfırlama uyarısı beklenir");
+    });
+
+    public static void LockoutPersistsAcrossRestartAndIsExpiredByClock() => WithAdmin(a =>
+    {
+        TestPins.WriteLegacy(a.Root, "123456");
+        for (var round = 0; round < 4; round++)
+        {
+            var vm = new LoginViewModel(a.Context, a.Clock);   // her turda "yeniden açılış"
+            vm.Pin = "000000";
+            vm.Login();
+        }
+        var fifth = new LoginViewModel(a.Context, a.Clock);
+        fifth.Pin = "000000";
+        fifth.Login();
+        var locked = new LoginViewModel(a.Context, a.Clock);
+        locked.Pin = "123456";
+        locked.Login();
+        Expect(locked.Error.StartsWith("Çok fazla hatalı deneme."), $"5. hatadan sonra yeni açılışta da bekleme sürmeli: {locked.Error}");
+
+        a.Clock.Advance(TimeSpan.FromSeconds(61));
+        var later = new LoginViewModel(a.Context, a.Clock);
+        var ok = false;
+        later.LoggedIn += () => ok = true;
+        later.Pin = "123456";
+        later.Login();
+        Expect(ok, $"Süre dolunca giriş: {later.Error}");
+        var actions = AuditLog.ReadTail(a.Context.Store, 50).Select(x => x.Action).ToList();
+        Expect(actions.Count(x => x == "admin.login.fail") == 5 && actions.Contains("admin.login.lockout"), "Her hatalı deneme ve kilitlenme denetlenmeli: " + string.Join(",", actions));
+    });
+
+    public static void CorruptAuditTailStartsReportedChainSegment() => WithRoot(root =>
+    {
+        var store = ThreeEntryAudit(root);
+        var path = Path.Combine(root, AuditLog.FileName);
+        File.AppendAllText(path, "{bozuk" + Environment.NewLine);
+        AuditLog.Append(store, "a", "x.after", "d4");
+        AuditLog.Append(store, "a", "x.after2", "d5");
+
+        var check = AuditLog.Check(store);
+        Expect(!check.Ok, "Bozuk satır ve zincir bölümü Verify tarafından bildirilmeli");
+        Expect(check.Problems.Any(p => p.Contains("okunamıyor")) && check.Problems.Any(p => p.Contains("yeniden başlatılmış")), "Hem bozuk satır hem işaret satırı bildirilmeli: " + string.Join(" | ", check.Problems));
+        Expect(AuditLog.ReadTail(store, 10).Any(x => x.Action == AuditLog.ChainResetAction), "İşaret satırı yazılmalı");
+        // İşaretten sonraki satırlar yeni bölümde sağlam: yalnızca ilk bozulma bildirilir (bozuk satır + işaret).
+        Expect(check.Problems.Count == 2, $"Yalnızca iki bulgu beklenir: {check.Problems.Count}");
+    });
+
+    public static void MaintenanceReportsRecordsChangedOutsideAudit() => WithAdmin(a =>
+    {
+        var folder = Seed(a.Context.Store);
+        var defect = a.Context.Store.AddDefect(folder, "Dent");
+        a.Context.Audit.Append("t", "defect.add", $"#{defect.Id}");
+        var maintenance = new MaintenanceViewModel(a.Context, new FakeConfirm());
+        maintenance.Notify += (m, k) => a.Notes.Add((m, k));
+        maintenance.VerifyAudit();
+        Expect(a.Notes.Last().Kind == StatusKind.Success, $"Başlangıçta sağlam: {a.Notes.Last().Message}");
+
+        EditJson(DefectFile(folder, defect.Id), o => o["notes"] = "elle değiştirildi");
+        maintenance.VerifyAudit();
+        Expect(a.Notes.Last().Kind == StatusKind.Error, "Denetim dışı değişiklik hata olarak bildirilmeli");
+        Expect(maintenance.AuditLines.Any(l => l.StartsWith("!!") && l.Contains("denetim dışı değiştirilmiş")), "Liste 'kayıt denetim dışı değiştirilmiş' satırını göstermeli");
+
+        // Denetimli yeni yazma özeti günceller: yeniden sağlam.
+        a.Context.Store.UpdateDefect(folder, defect.Id, d => d.Notes = "denetimli");
+        a.Context.Audit.Append("t", "defect.measure", $"#{defect.Id}");
+        maintenance.VerifyAudit();
+        Expect(a.Notes.Last().Kind == StatusKind.Success, $"Denetimli yazmadan sonra sağlam: {a.Notes.Last().Message}");
+    });
+
+    public static void LockFileRecordsOwnerAndFutureLockMessageNamesIt() => WithRoot(root =>
+    {
+        var path = Path.Combine(root, "o.lock");
+        using (FileLock.Acquire(path))
+        {
+            // Açık kilidin içeriği başka süreççe okunamaz (FileShare.None); kapanınca dosya silinir. Sahip metni kilit anında yazılır.
+        }
+        // Sahip bilgisi: kilit bırakılmadan önce yazılır; eski kalan kilitte okunabilir.
+        File.WriteAllText(path, $"{Environment.MachineName}\\kisi pid=1 2026-01-01T00:00:00Z");
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(1));
+        var ex = Catch<InvalidOperationException>(() => FileLock.Acquire(path, TimeSpan.FromSeconds(1)));
+        Expect(ex.Message.Contains("admin") && ex.Message.Contains("sahibi"), $"Mesaj admin'i ve sahibi anmalı: {ex.Message}");
+        Expect(FileLock.IsStale(path), "İleri tarihli kilit eski sayılmalı");
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddSeconds(30));
+        Expect(!FileLock.IsStale(path), "Küçük saat farkı eski sayılmamalı");
+    });
+
+    public static void NewLockWritesOwnerText() => WithRoot(root =>
+    {
+        var path = Path.Combine(root, "p.lock");
+        var raw = "";
+        using (FileLock.Acquire(path))
+        {
+            // Başka tutamaç yalnızca ReadWrite paylaşımıyla açabilir; kilit FileShare.None olduğundan okuma reddedilir.
+            Expect(FileLock.DescribeOwner(path) is null, "Açık kilidin sahibi okunamaz (kilit tutamacı özel)");
+        }
+        Expect(!File.Exists(path), "Kilit bırakılınca silinmeli");
+        // Süreç çökerse kalan dosyada sahip metni olur: aynı biçimi elle yazıp okuma yolunu sına.
+        File.WriteAllText(path, $"{Environment.MachineName}\\{Environment.UserName} pid=1 2026-01-01T00:00:00Z");
+        raw = FileLock.DescribeOwner(path) ?? "";
+        Expect(raw.Contains(Environment.MachineName), "DescribeOwner makine adını döndürmeli");
+    });
+
+    public static void StaleLocksSkipJunctionAndRemoveRefusesIt() => WithRoot(root =>
+    {
+        var outside = root + "-dis";
+        Directory.CreateDirectory(outside);
+        try
+        {
+            var kok = Path.Combine(root, "kok");
+            Directory.CreateDirectory(kok);
+            var stale = MakeLock(Path.Combine(outside, "x.lock"), TimeSpan.FromMinutes(20));
+            var link = Path.Combine(kok, "jn");
+            MakeJunction(link, outside);
+            try
+            {
+                Expect(SharedConfig.StaleLocks(kok).Count == 0, "Junction ardındaki kilit listelenmemeli");
+                var viaLink = Path.Combine(link, "x.lock");
+                Expect(Throws<InvalidOperationException>(() => SharedConfig.RemoveStaleLock(kok, viaLink)), "Junction üzerinden kilit silinmemeli");
+                Expect(File.Exists(stale), "Kök dışındaki kilit dosyası yerinde kalmalı");
+            }
+            finally { Directory.Delete(link, recursive: false); }
+        }
+        finally { Cleanup(outside); }
+    });
+
+    public static void SegmentsRejectReservedNamesWithExtensionAndTrailingSpace()
+    {
+        foreach (var bad in new[] { "con", "Prn.log", "AUX.x.y", "nul ", "COM9", "lpt3.txt", "COM1 .x" })
+            Expect(Throws<ArgumentException>(() => SafePath.ValidateSegment(bad, "Parça no")), $"'{bad}' reddedilmeli");
+        foreach (var good in new[] { "COM10", "CONSOLE", "NULL1", "PD170", "LPT" })
+            Expect(SafePath.ValidateSegment(good, "Parça no") == good, $"'{good}' kabul edilmeli");
+    }
+
+    public static void UnderRootCheckRejectsSiblingPrefix() => WithRoot(root =>
+    {
+        var veri = Path.Combine(root, "Veri");
+        Directory.CreateDirectory(veri);
+        Expect(SafePath.IsUnderRootWithoutLinks(veri, Path.Combine(veri, "P", "x.pdf")), "Kök altı kabul edilmeli");
+        Expect(!SafePath.IsUnderRootWithoutLinks(veri, Path.Combine(root, "Veri2", "x.pdf")), "Kardeş önek reddedilmeli");
+        Expect(!SafePath.IsUnderRootWithoutLinks(veri, veri), "Kökün kendisi 'altında' sayılmaz");
+        Expect(!SafePath.IsUnderRootWithoutLinks(veri, Path.Combine(veri, "..", "x.pdf")), "Üst klasöre kaçış reddedilmeli");
+    });
+
+    public static void ImportRejectsHugePixelCountWithoutDecoding() => WithRoot(root =>
+    {
+        var folder = Seed(new SessionStore(root));
+        // PNG: imza + IHDR (20000 x 20000 = 400 MP). Dosya çok küçük ama başlık dev görüntü bildirir.
+        var png = new List<byte> { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R' };
+        png.AddRange(new byte[] { 0, 0, 0x4E, 0x20, 0, 0, 0x4E, 0x20, 8, 6, 0, 0, 0 });
+        var pngPath = Path.Combine(root, "dev.png");
+        File.WriteAllBytes(pngPath, png.ToArray());
+        var ex = Catch<InvalidDataException>(() => PhotoImporter.Import(folder, 1, pngPath));
+        Expect(ex.Message.Contains("megapiksel"), $"Mesaj piksel sınırını anmalı: {ex.Message}");
+
+        // JPEG: SOI + APP0 + SOF0 (65535 x 65535).
+        var jpeg = new List<byte> { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x4A, 0x46 };
+        jpeg.AddRange(new byte[] { 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x01, 0x11, 0x00 });
+        var jpgPath = Path.Combine(root, "dev.jpg");
+        File.WriteAllBytes(jpgPath, jpeg.ToArray());
+        Catch<InvalidDataException>(() => PhotoImporter.Import(folder, 1, jpgPath));
+        Expect(!Directory.Exists(Path.Combine(folder, "defects")) || !Directory.EnumerateFiles(Path.Combine(folder, "defects")).Any(), "Reddedilen dosya kopyalanmamalı");
+
+        Expect(ImageHeader.ExceedsLimit(65_536, 65_536) && !ImageHeader.ExceedsLimit(8_000, 6_000), "Sınır 60 MP");
+    });
+
+    public static void ImportStripsGpsButKeepsOrientation() => WithRoot(root =>
+    {
+        var folder = Seed(new SessionStore(root));
+        // Exif APP1: büyük bayt sıralı TIFF, IFD0'da yalnızca Orientation=6; ayrıca "GPS" metni içeren ek veri.
+        var tiff = new List<byte> { (byte)'M', (byte)'M', 0, 0x2A, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0 };
+        tiff.AddRange(Encoding.ASCII.GetBytes("GPSLatitude=41.0;GPSLongitude=29.0"));
+        var payload = new List<byte>(Encoding.ASCII.GetBytes("Exif\0\0"));
+        payload.AddRange(tiff);
+        var length = payload.Count + 2;
+        var jpeg = new List<byte> { 0xFF, 0xD8, 0xFF, 0xE1, (byte)(length >> 8), (byte)length };
+        jpeg.AddRange(payload);
+        jpeg.AddRange(new byte[] { 0xFF, 0xDB, 0x00, 0x04, 0x00, 0x01, 0xFF, 0xDA, 0x00, 0x02, 0x11, 0x22, 0xFF, 0xD9 });
+        var src = Path.Combine(root, "gps.jpg");
+        File.WriteAllBytes(src, jpeg.ToArray());
+
+        var name = PhotoImporter.Import(folder, 1, src);
+        var bytes = File.ReadAllBytes(Path.Combine(folder, "defects", name));
+        var text = Encoding.Latin1.GetString(bytes);
+        Expect(!text.Contains("GPS"), "GPS verisi kalmamalı");
+        // Yön etiketi (0x0112, SHORT, 1, değer 6) korunur.
+        var marker = new byte[] { 0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x06 };
+        Expect(bytes.AsSpan().IndexOf(marker) >= 0, "EXIF yönü (Orientation=6) korunmalı");
+        // Görüntü verisi (DQT + SOS ... EOI) aynen duruyor.
+        Expect(bytes.AsSpan().IndexOf(new byte[] { 0xFF, 0xDA, 0x00, 0x02, 0x11, 0x22, 0xFF, 0xD9 }) >= 0, "Görüntü verisi değişmemeli");
+        Expect(bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[^2] == 0xFF && bytes[^1] == 0xD9, "Geçerli JPEG kalmalı");
+    });
+
+    public static void EdgeBrowserNeverOpensUnknownFileTypes() => WithRoot(root =>
+    {
+        foreach (var name in new[] { "a.exe", "b.bat", "c.lnk", "d.txt", "e.cmd", "f.ps1", "g.js", "h" })
+        {
+            var path = Path.Combine(root, name);
+            File.WriteAllText(path, "x");
+            Expect(Throws<InvalidOperationException>(() => EdgeBrowser.OpenFile(path)), $"{name} açılmamalı");
+        }
+        Expect(Throws<FileNotFoundException>(() => EdgeBrowser.OpenFile(Path.Combine(root, "yok.pdf"))), "Olmayan rapor FileNotFoundException vermeli (süreç başlatılmaz)");
+        Expect(EdgeBrowser.IsOpenable("Rapor_v1.PDF") && EdgeBrowser.IsOpenable("x.html") && EdgeBrowser.IsOpenable("1_photo_01.jpg"), "Rapor ve fotoğraf türleri açılabilir");
+    });
+
+    public static void ProgramLayoutAcceptsNumericVersion() => WithRoot(root =>
+    {
+        ProgramRootWith(root, "1.0.2");
+        PlaceExe(root, "1.0.2");
+        Expect(ProgramLayout.Resolve(root, "Inspector", false).EndsWith("MuayeneKayit.Inspector.exe"), "1.0.2 çözülmeli");
+    });
+
+    public static void CsvQuotesCommaCells()
+    {
+        Expect(CsvExport.Cell("a,b") == "\"a,b\"", "Virgüllü hücre tırnaklanmalı");
+        Expect(CsvExport.Cell("=1,2").StartsWith("\"'="), "Formül + virgül: önek ve tırnak");
+    }
+
+    public static void MalformedPhotoNamesAreDroppedOnLoadWithWarning() => WithRoot(root =>
+    {
+        var store = new SessionStore(root);
+        var f = Seed(store);
+        store.AddDefect(f, "Dent");
+        EditJson(DefectFile(f, 1), o => o["photos"] = new JsonArray("1_photo_01.jpg", "..\\x.jpg", "\\\\h\\s\\x.jpg", "C:\\a.jpg", "1_photo_02.jpg\n", null));
+        var d = store.LoadDefects(f).Single();
+        Expect(d.Photos.SequenceEqual(new[] { "1_photo_01.jpg" }), "Yalnızca geçerli ad kalmalı: " + string.Join("|", d.Photos));
+        Expect(store.TakeWarnings().Any(w => w.Contains("geçersiz fotoğraf adı")), "Uyarı beklenir");
     });
 }

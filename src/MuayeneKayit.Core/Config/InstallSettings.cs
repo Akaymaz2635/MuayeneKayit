@@ -37,7 +37,12 @@ public static class InstallSettings
                     value.GetString() is string root &&
                     !string.IsNullOrWhiteSpace(root))
                 {
-                    return Environment.ExpandEnvironmentVariables(root.Trim());
+                    var expanded = Environment.ExpandEnvironmentVariables(root.Trim());
+                    // Göreli yol çalışma klasörüne bağlı çözülür (başlatma biçimine göre farklı klasör olur): kabul edilmez.
+                    if (!Path.IsPathFullyQualified(expanded))
+                        throw new InvalidDataException(
+                            $"{FileName} içindeki ortak alan yolu tam yol olmalı (ör. D:\\Veri ya da \\\\sunucu\\paylasim): \"{root.Trim()}\". Dosyayı admin düzeltmeli.");
+                    return expanded;
                 }
             }
         }
@@ -57,6 +62,8 @@ public static class InstallSettings
     {
         if (string.IsNullOrWhiteSpace(root) || root.Trim().Length > 260)
             throw new ArgumentException("Ortak alan yolu geçersiz.");
+        if (!Path.IsPathFullyQualified(Environment.ExpandEnvironmentVariables(root.Trim())))
+            throw new ArgumentException("Ortak alan yolu tam yol olmalı (ör. D:\\Veri ya da \\\\sunucu\\paylasim); göreli yol kabul edilmez.");
 
         var json = JsonSerializer.Serialize(new { rootPath = root.Trim() }, new JsonSerializerOptions { WriteIndented = true });
         AtomicFile.WriteAllText(Find(startDirectory) ?? Path.Combine(ProgramRoot(startDirectory) ?? startDirectory, FileName), json);

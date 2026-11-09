@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using MuayeneKayit.Core;
 
 namespace MuayeneKayit.Inspector;
 
@@ -31,6 +32,10 @@ public sealed class ThumbnailView : UserControl
 
     private async Task LoadAsync(string path)
     {
+        // Ek güvenlik: dosya adı yalnızca "{id}_photo_NN.ext" biçiminde olabilir (VM zaten süzer; burada yeniden denetlenir).
+        if (!PhotoMarkupValidator.IsPhotoFileName(System.IO.Path.GetFileName(path)))
+            return;
+
         try
         {
             // Akıştan okunur: dosya kilitli kalmaz, ortak alandaki dosya başkası tarafından da açılabilir.
@@ -40,7 +45,7 @@ public sealed class ThumbnailView : UserControl
             if (Path == path)
                 _image.Source = bitmap;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or OutOfMemoryException)
         {
             // Küçük resim gösterilemezse kart boş kalır; kayıt etkilenmez.
         }

@@ -136,8 +136,12 @@ public sealed partial class DashboardViewModel : ObservableObject
     public void Refresh() => Run(() =>
     {
         var store = new SessionStore(_store.Root);
-        _all = IndexBuilder.Rebuild(store);
+        var problems = new List<string>();
+        _all = IndexBuilder.Rebuild(store, problems);
         ApplyFilters();
+        // Okunamayan kayıtlar atlanır; kullanıcı bilgilendirilir (diğer kayıtlar listelenir).
+        if (problems.Count > 0)
+            Notify?.Invoke($"{problems.Count} kayıt dosyası okunamadı ve atlandı (ilk: {problems[0]}). Yöneticiye bildirin.", StatusKind.Warning);
     });
 
     public void ClearFilters()
@@ -161,9 +165,16 @@ public sealed partial class DashboardViewModel : ObservableObject
     public void VerifyAudit() => Run(() =>
     {
         var store = new SessionStore(_store.Root);
-        var (ok, badLine) = AuditLog.Verify(store);
+        var check = AuditLog.Check(store);
+        var ok = check.Ok;
         AuditTitle = ok ? "Denetim kaydı sağlam" : "Denetim kaydı bozulmuş";
-        AuditMessage = ok ? "Zincir baştan sona doğrulandı." : $"{badLine}. satırda zincir kırılmış.";
+        // Satıra bağlanan ilk zincir hatası eski biçimde başlar; günlük kısalması / denetim dışı değişen kayıtlar eklenir.
+        var details = check.All;
+        AuditMessage = ok
+            ? "Zincir baştan sona doğrulandı."
+            : check.BadLine is int line
+                ? $"{line}. satırda zincir kırılmış." + (details.Count > 1 ? " " + string.Join(" ", details.Skip(1).Take(5)) : "")
+                : string.Join(" ", details.Take(5));
         AuditKind = ok ? StatusKind.Success : StatusKind.Error;
         IsAuditOpen = true;
     });
@@ -210,7 +221,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
                                     or TimeoutException or InvalidDataException or UnauthorizedAccessException
-                                    or FileNotFoundException)
+                                    or FileNotFoundException or System.Text.Json.JsonException or FormatException)
         {
             Notify?.Invoke(ex.Message, StatusKind.Error);
         }

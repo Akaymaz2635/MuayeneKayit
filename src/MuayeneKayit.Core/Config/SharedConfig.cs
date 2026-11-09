@@ -21,11 +21,16 @@ public enum MeasureField
 /// </summary>
 public sealed class DefectTypeTemplate
 {
+    private List<MeasureField> _fields = new();
+    private List<string> _customFields = new();
+
     public string Name { get; set; } = "";
-    public List<MeasureField> Fields { get; set; } = new();
+
+    // Bozuk dosyada "null" gelen listeler boş liste sayılır.
+    public List<MeasureField> Fields { get => _fields; set => _fields = value ?? new(); }
 
     /// <summary>İşaretli ek ölçüm alanlarının anahtarları (<see cref="CustomFieldDef.Key"/>). Eski dosyalarda yok.</summary>
-    public List<string> CustomFields { get; set; } = new();
+    public List<string> CustomFields { get => _customFields; set => _customFields = value ?? new(); }
 
     public string? SpecName { get; set; }
 }
@@ -47,7 +52,16 @@ public static class SharedConfig
     public const string FolderName = "_config";
     private const string TypesFile = "defect_types.json";
     private const string PinFile = "admin.json";
-    private const int PinIterations = 200_000;
+    /// <summary>Yeni PIN'ler için PBKDF2 tur sayısı (eski kayıtlar kendi tur sayısıyla doğrulanır).</summary>
+    private const int PinIterations = 600_000;
+
+    /// <summary>Kabul edilen tur sayısı aralığı: altı zayıf, üstü arayüzü dakikalarca kilitler (bozuk / kurcalanmış dosya).</summary>
+    public const int MinPinIterations = 10_000;
+    public const int MaxPinIterations = 5_000_000;
+
+    /// <summary>Yeni PIN uzunluğu (rakam). Daha kısa eski PIN'ler girişte hâlâ kabul edilir.</summary>
+    public const int MinPinLength = 8;
+    public const int MaxPinLength = 12;
 
     public static readonly IReadOnlyList<DefectTypeTemplate> Defaults = new[]
     {
@@ -93,9 +107,13 @@ public static class SharedConfig
             errors.Add("En az bir kusur tipi olmalı.");
         if (types.Count > 100)
             errors.Add("En fazla 100 kusur tipi tanımlanabilir.");
+        if (types.Any(t => t is null))
+            return new[] { "Kusur tipi listesinde boş öğe var." };
 
         foreach (var t in types)
         {
+            if (t.Fields.Any(f => !Enum.IsDefined(f)))
+                errors.Add($"{t.Name}: geçersiz ölçüm alanı.");
             if (!NamePattern.IsMatch(t.Name ?? ""))
                 errors.Add($"Geçersiz kusur tipi adı: \"{t.Name}\" (1-40 karakter, harf, rakam, boşluk, - _ . / ( )).");
             if (t.SpecName is { Length: > 60 })
@@ -151,6 +169,8 @@ public static class SharedConfig
     public static IReadOnlyList<string> ValidateCustomFields(IReadOnlyList<CustomFieldDef> fields)
     {
         var errors = new List<string>();
+        if (fields.Any(f => f is null))
+            return new[] { "Ek ölçüm alanı listesinde boş öğe var." };
         if (fields.Count > MaxCustomFields)
             errors.Add($"En fazla {MaxCustomFields} ek ölçüm alanı tanımlanabilir.");
 
@@ -305,11 +325,14 @@ public static class SharedConfig
 
     public static bool HasPin(string root) => File.Exists(Path.Combine(Folder(root), PinFile));
 
-    /// <summary>PIN 6-12 rakamdır. Sabit zamanlı karşılaştırma yapılır.</summary>
+    /// <summary>
+    /// Yeni PIN 8-12 ASCII rakamdır (0-9; tam genişlik gibi başka yazı sistemlerinin rakamları kabul edilmez).
+    /// Doğrulama sabit zamanlı karşılaştırma yapar.
+    /// </summary>
     public static void SetPin(string root, string pin)
     {
-        if (!Regex.IsMatch(pin ?? "", @"^\d{6,12}$"))
-            throw new ArgumentException("PIN 6-12 haneli rakam olmalı.");
+        if (!IsValidNewPin(pin))
+            throw new ArgumentException($"PIN {MinPinLength}-{MaxPinLength} haneli rakam (0-9) olmalı.");
 
         var salt = RandomNumberGenerator.GetBytes(16);
         var record = new AdminPinRecord
@@ -323,19 +346,69 @@ public static class SharedConfig
         AtomicFile.WriteAllText(Path.Combine(Folder(root), PinFile), JsonSerializer.Serialize(record, SessionStore.JsonOptions));
     }
 
+    public static bool IsValidNewPin(string? pin) =>
+        pin is not null && pin.Length is >= MinPinLength and <= MaxPinLength && pin.All(char.IsAsciiDigit);
+
+    /// <summary>
+    /// PIN doğru mu. admin.json bozuksa (JSON, Base64, tur sayısı aralık dışı) <see cref="InvalidDataException"/> atılır:
+    /// arayüz bunu "PIN hatalı" gibi göstermez, açık hata mesajı verir.
+    /// </summary>
     public static bool VerifyPin(string root, string pin)
     {
         var path = Path.Combine(Folder(root), PinFile);
-        if (!File.Exists(path) || string.IsNullOrEmpty(pin) || pin.Length > 12)
+        if (!File.Exists(path) || string.IsNullOrEmpty(pin) || pin.Length > MaxPinLength)
             return false;
 
         var record = SessionStore.ReadJson<AdminPinRecord>(path);
-        if (record.Iterations < 10_000)
-            return false;
+        if (record.Iterations < MinPinIterations || record.Iterations > MaxPinIterations)
+            throw new InvalidDataException(
+                $"admin.json geçersiz: PBKDF2 tur sayısı ({record.Iterations}) {MinPinIterations}-{MaxPinIterations} aralığı dışında. Dosya bozulmuş ya da değiştirilmiş olabilir.");
 
-        var expected = Convert.FromBase64String(record.Hash);
-        var actual = Derive(pin, Convert.FromBase64String(record.Salt), record.Iterations);
+        byte[] expected, salt;
+        try
+        {
+            expected = Convert.FromBase64String(record.Hash);
+            salt = Convert.FromBase64String(record.Salt);
+        }
+        catch (Exception ex) when (ex is FormatException or ArgumentException)
+        {
+            throw new InvalidDataException("admin.json bozuk: PIN özeti ya da tuz okunamadı.", ex);
+        }
+        if (expected.Length != 32 || salt.Length < 8)
+            throw new InvalidDataException("admin.json bozuk: PIN özeti ya da tuz beklenen uzunlukta değil.");
+
+        var actual = Derive(pin, salt, record.Iterations);
         return CryptographicOperations.FixedTimeEquals(expected, actual);
+    }
+
+    /// <summary>
+    /// Admin PIN'i daha önce kullanılmış bir kökte admin.json yok mu: _config altında başka dosya var ya da denetim
+    /// günlüğünde admin eylemi yazılmış. Bu durumda "ilk kurulum" yerine PIN sıfırlama uyarısı gösterilir.
+    /// </summary>
+    public static bool HasPriorAdminActivity(string root)
+    {
+        try
+        {
+            var folder = Folder(root);
+            if (Directory.Exists(folder) && Directory.EnumerateFiles(folder).Any(f =>
+                {
+                    var name = Path.GetFileName(f);
+                    return !name.StartsWith('.') && !name.Equals(PinFile, StringComparison.OrdinalIgnoreCase);
+                }))
+                return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+
+        try
+        {
+            return AuditLog.HasAdminActivity(new SessionStore(root));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static byte[] Derive(string pin, byte[] salt, int iterations) =>
@@ -344,11 +417,15 @@ public static class SharedConfig
     // ───── Kilit bakımı ─────
 
     /// <summary>Kök altında eski kalmış kilit dosyaları (program çöktüğünde ya da ağ koptuğunda kalır).</summary>
-    public static IReadOnlyList<string> StaleLocks(string root) =>
-        Directory.EnumerateFiles(Path.GetFullPath(root), "*.lock", SearchOption.AllDirectories)
-            // Tam bu sırada bırakılan kilit 1601 tarihiyle döner; eski sayılmaz.
-            .Where(p => File.GetLastWriteTimeUtc(p) is var w && w.Year > 1601 && DateTime.UtcNow - w > FileLock.StaleAfter)
+    public static IReadOnlyList<string> StaleLocks(string root)
+    {
+        // Kök içindeki junction / sembolik bağlar izlenmez (kök dışındaki kilit listelenmez, silinemez).
+        var options = new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = true };
+        return Directory.EnumerateFiles(Path.GetFullPath(root), "*.lock", options)
+            // Eski ya da ileri tarihli kilitler (FileLock.IsStale); tam bu sırada bırakılan kilit eski sayılmaz.
+            .Where(FileLock.IsStale)
             .ToList();
+    }
 
     /// <summary>
     /// Eski kilidi siler. Yalnızca kök altındaki, ".lock" uzantılı ve eski sayılan dosyalar silinebilir;
@@ -362,7 +439,10 @@ public static class SharedConfig
             throw new ArgumentException("Yalnızca ortak alandaki kilit dosyaları silinebilir.");
         if (!File.Exists(full))
             return;
-        if (DateTime.UtcNow - File.GetLastWriteTimeUtc(full) <= FileLock.StaleAfter)
+        // Yol, kök dışına çıkan bir bağ (junction / sembolik bağ) üzerinden geçiyorsa silinmez.
+        if (!SafePath.IsUnderRootWithoutLinks(root, full))
+            throw new InvalidOperationException("Kilit dosyası yeniden çözümleme noktası (junction) üzerinden erişiliyor ya da kök dışında; silinmedi.");
+        if (!FileLock.IsStale(full))
             throw new InvalidOperationException("Kilit henüz eski değil; bir kullanıcı şu an yazıyor olabilir.");
         File.Delete(full);
     }

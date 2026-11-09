@@ -5,7 +5,11 @@ using MuayeneKayit.Presentation;
 // Admin uygulaması ViewModel testleri (gerçek SessionStore + geçici klasör, sahte portlar).
 public static partial class AdminViewModelTests
 {
+    /// <summary>Eski sürümden kalma 6 haneli PIN: mevcut kurulumlarda girişin hâlâ çalıştığını gösterir (bkz. TestPins).</summary>
     private const string Pin = "123456";
+
+    /// <summary>Yeni kurallara uygun (8-12 hane) PIN.</summary>
+    private const string NewPin8 = "58203947";
 
     private static void Check(bool condition, string message)
     {
@@ -35,7 +39,7 @@ public static partial class AdminViewModelTests
         /// <summary>PIN'i yazar (ilk kurulumu atlar) ve giriş ekranını yeniler.</summary>
         public void SetupPin()
         {
-            SharedConfig.SetPin(Root, Pin);
+            TestPins.WriteLegacy(Root, Pin);
             Shell.Lock(null);
         }
 
@@ -111,17 +115,17 @@ public static partial class AdminViewModelTests
     public static void FirstRunPinMustMatchAndIsAudited() => With(c =>
     {
         Check(c.Login.IsFirstRun && c.Login.ButtonText == "PIN'i belirle ve gir", "İlk kurulum metni");
-        Check(c.Login.Hint.StartsWith("İlk kurulum: admin PIN'i belirleyin (6-12 rakam)."), "İlk kurulum ipucu");
+        Check(c.Login.Hint.StartsWith("İlk kurulum: admin PIN'i belirleyin (8-12 rakam)."), "İlk kurulum ipucu");
         Check(c.Login.RootText == $"Ortak alan: {c.Root}", "Kök metni");
 
-        c.Login.Pin = Pin;
-        c.Login.PinRepeat = "654321";
+        c.Login.Pin = NewPin8;
+        c.Login.PinRepeat = "65432198";
         c.Login.Login();
         Check(c.Login.Error == "PIN'ler aynı değil." && !c.Shell.IsLoggedIn && !SharedConfig.HasPin(c.Root), "Eşleşmeyen PIN reddedilmeli");
 
-        c.Login.PinRepeat = Pin;
+        c.Login.PinRepeat = NewPin8;
         c.Login.Login();
-        Check(c.Shell.IsLoggedIn && SharedConfig.HasPin(c.Root) && SharedConfig.VerifyPin(c.Root, Pin), "PIN yazılmalı, giriş yapılmalı");
+        Check(c.Shell.IsLoggedIn && SharedConfig.HasPin(c.Root) && SharedConfig.VerifyPin(c.Root, NewPin8), "PIN yazılmalı, giriş yapılmalı");
         var actions = c.AuditActions();
         Check(actions.Contains("admin.pin.set") && actions.Contains("admin.login"), $"Denetim satırları: {string.Join(",", actions)}");
 
@@ -152,7 +156,7 @@ public static partial class AdminViewModelTests
     {
         c.Login.Pin = c.Login.PinRepeat = "123";
         c.Login.Login();
-        Check(c.Login.Error == "PIN 6-12 haneli rakam olmalı." && !c.Shell.IsLoggedIn, $"Kısa PIN: {c.Login.Error}");
+        Check(c.Login.Error == "PIN 8-12 haneli rakam (0-9) olmalı." && !c.Shell.IsLoggedIn, $"Kısa PIN: {c.Login.Error}");
     });
 
     public static void FiveWrongPinsWaitSixtySecondsThenRetry() => With(c =>
@@ -532,7 +536,7 @@ public static partial class AdminViewModelTests
             Check(c.Login.IsFirstRun, "Yeni alanda PIN yok: ilk kurulum");
 
             // Yeni köke yazıldığını doğrula: ilk kurulum yeni alanda PIN yazar.
-            c.Login.Pin = c.Login.PinRepeat = Pin;
+            c.Login.Pin = c.Login.PinRepeat = NewPin8;
             c.Login.Login();
             Check(c.Shell.IsLoggedIn && SharedConfig.HasPin(newRoot), "PIN yeni alanda belirlenir");
         }
@@ -547,12 +551,12 @@ public static partial class AdminViewModelTests
         c.SignIn();
 
         c.SettingsVm.OldPin = "000000";
-        c.SettingsVm.NewPin = c.SettingsVm.NewPinRepeat = "222222";
+        c.SettingsVm.NewPin = c.SettingsVm.NewPinRepeat = "22222222";
         c.SettingsVm.ChangePin();
         Check(c.Notes[^1] == ("Mevcut PIN hatalı.", StatusKind.Error) && SharedConfig.VerifyPin(c.Root, Pin), "Eski PIN yanlış");
 
         c.SettingsVm.OldPin = Pin;
-        c.SettingsVm.NewPinRepeat = "333333";
+        c.SettingsVm.NewPinRepeat = "33333333";
         c.SettingsVm.ChangePin();
         Check(c.Notes[^1] == ("Yeni PIN'ler aynı değil.", StatusKind.Error) && SharedConfig.VerifyPin(c.Root, Pin), "Yeni PIN eşleşmiyor");
 
@@ -560,10 +564,10 @@ public static partial class AdminViewModelTests
         c.SettingsVm.ChangePin();
         Check(c.Notes[^1].Kind == StatusKind.Error && SharedConfig.VerifyPin(c.Root, Pin), "Kısa PIN reddedilir");
 
-        c.SettingsVm.NewPin = c.SettingsVm.NewPinRepeat = "222222";
+        c.SettingsVm.NewPin = c.SettingsVm.NewPinRepeat = "22222222";
         c.SettingsVm.ChangePin();
         Check(c.Notes[^1] == ("PIN değiştirildi.", StatusKind.Success), "PIN değişti");
-        Check(SharedConfig.VerifyPin(c.Root, "222222") && !SharedConfig.VerifyPin(c.Root, Pin), "Yeni PIN geçerli, eskisi değil");
+        Check(SharedConfig.VerifyPin(c.Root, "22222222") && !SharedConfig.VerifyPin(c.Root, Pin), "Yeni PIN geçerli, eskisi değil");
         Check(c.SettingsVm.OldPin == "" && c.SettingsVm.NewPin == "" && c.SettingsVm.NewPinRepeat == "", "Alanlar temizlenir");
         Check(c.AuditActions().Contains("admin.pin.change"), "Denetim satırı");
     });

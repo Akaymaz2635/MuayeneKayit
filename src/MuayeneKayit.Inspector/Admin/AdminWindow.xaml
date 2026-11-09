@@ -15,6 +15,7 @@
                     <TextBlock x:Name="LoginHint" Text="{x:Bind Shell.Login.Hint, Mode=OneWay}" TextWrapping="Wrap" Foreground="#555" />
                     <PasswordBox x:Name="PinBox" Password="{x:Bind Shell.Login.Pin, Mode=TwoWay}" Header="PIN" MaxLength="12" InputScope="NumericPin" KeyDown="PinBox_KeyDown" />
                     <PasswordBox x:Name="PinRepeatBox" Password="{x:Bind Shell.Login.PinRepeat, Mode=TwoWay}" Header="PIN (tekrar)" MaxLength="12" InputScope="NumericPin" Visibility="{x:Bind Shell.Login.IsFirstRun, Mode=OneWay}" KeyDown="PinBox_KeyDown" />
+                    <CheckBox x:Name="ResetConfirmBox" Content="Uyarıyı okudum; admin PIN'inin sıfırlanmasını onaylıyorum" IsChecked="{x:Bind Shell.Login.ResetConfirmed, Mode=TwoWay}" Visibility="{x:Bind Shell.Login.NeedsResetConfirm, Mode=OneWay}" />
                     <Button x:Name="LoginButton" Content="{x:Bind Shell.Login.ButtonText, Mode=OneWay}" Click="{x:Bind Shell.Login.Login}" HorizontalAlignment="Stretch" Height="44" Style="{StaticResource AccentButtonStyle}" />
                     <TextBlock x:Name="LoginError" Text="{x:Bind Shell.Login.Error, Mode=OneWay}" Foreground="#B91C1C" TextWrapping="Wrap" />
                     <TextBlock x:Name="LoginRoot" Text="{x:Bind Shell.Login.RootText, Mode=OneWay}" Foreground="#888" FontSize="12" TextWrapping="Wrap" />
@@ -286,7 +287,7 @@
                         <StackPanel Spacing="10">
                             <TextBlock Text="Admin PIN'i değiştir" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
                             <PasswordBox x:Name="OldPin" Password="{x:Bind Shell.Settings.OldPin, Mode=TwoWay}" Header="Mevcut PIN" Width="240" HorizontalAlignment="Left" MaxLength="12" />
-                            <PasswordBox x:Name="NewPin" Password="{x:Bind Shell.Settings.NewPin, Mode=TwoWay}" Header="Yeni PIN (6-12 rakam)" Width="240" HorizontalAlignment="Left" MaxLength="12" />
+                            <PasswordBox x:Name="NewPin" Password="{x:Bind Shell.Settings.NewPin, Mode=TwoWay}" Header="Yeni PIN (8-12 rakam)" Width="240" HorizontalAlignment="Left" MaxLength="12" />
                             <PasswordBox x:Name="NewPinRepeat" Password="{x:Bind Shell.Settings.NewPinRepeat, Mode=TwoWay}" Header="Yeni PIN (tekrar)" Width="240" HorizontalAlignment="Left" MaxLength="12" />
                             <Button Content="PIN'i değiştir" Click="{x:Bind Shell.Settings.ChangePin}" Style="{StaticResource AccentButtonStyle}" />
                         </StackPanel>

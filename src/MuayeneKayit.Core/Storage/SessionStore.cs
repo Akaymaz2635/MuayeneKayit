@@ -16,7 +16,8 @@ public sealed class SessionStore : ISessionStore
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter() },
+        // Tamsayı enum değerleri kabul edilmez (999 gibi tanımsız sayı yerine açık hata); dosyalarda enum adları yazılıdır.
+        Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) },
     };
 
     private readonly string _root;
@@ -44,29 +45,223 @@ public sealed class SessionStore : ISessionStore
         return (folder, input);
     }
 
+    /// <summary>En büyük kusur numarası: fotoğraf adındaki numara 5 hane ("{id}_photo_NN") olabildiği için.</summary>
+    public const int MaxDefectId = 99_999;
+
+    // Kusur dosyası adı: sıfırsız başlayan numara + ".json" (007.json, kopya.json, notlar.json kusur sayılmaz).
+    private static readonly System.Text.RegularExpressions.Regex DefectFileName =
+        new(@"^[1-9][0-9]{0,8}\.json\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    // Yüklemede atlanan dosyaların uyarıları (tekrarlar tek satır). TakeWarnings ile alınır.
+    private readonly object _warnLock = new();
+    private readonly HashSet<string> _warnings = new();
+
+    // Yazılan kayıt dosyaları: bir sonraki denetim satırı bunların özetini taşır (bkz. AuditLog).
+    private readonly object _writeLock = new();
+    private readonly HashSet<string> _pendingWrites = new(StringComparer.OrdinalIgnoreCase);
+
+    private string Rel(string path) => Path.GetRelativePath(_root, path);
+
+    private void Warn(string message)
+    {
+        lock (_warnLock)
+            _warnings.Add(message);
+    }
+
+    public IReadOnlyList<string> TakeWarnings()
+    {
+        lock (_warnLock)
+        {
+            var list = _warnings.ToList();
+            _warnings.Clear();
+            return list;
+        }
+    }
+
+    /// <summary>Son denetim satırından beri yazılan kayıt dosyalarının tam yolları (alınınca liste boşalır).</summary>
+    internal List<string> TakePendingWrites()
+    {
+        lock (_writeLock)
+        {
+            var list = _pendingWrites.ToList();
+            _pendingWrites.Clear();
+            return list;
+        }
+    }
+
+    internal void RestorePendingWrites(IEnumerable<string> paths)
+    {
+        lock (_writeLock)
+            foreach (var p in paths)
+                _pendingWrites.Add(p);
+    }
+
+    private void MarkWritten(string path)
+    {
+        lock (_writeLock)
+            _pendingWrites.Add(Path.GetFullPath(path));
+    }
+
     public Session? LoadSession(string folder)
     {
         var path = Path.Combine(folder, "session.json");
-        return File.Exists(path) ? ReadJson<Session>(path) : null;
+        if (!File.Exists(path))
+            return null;
+
+        var session = ReadJson<Session>(path);
+        // "null" gelen metinler boş sayılır; tanımsız enum sayısı bozuk dosya demektir.
+        session.PartNumber ??= "";
+        session.OperationNumber ??= "";
+        session.SerialNumber ??= "";
+        session.Inspector ??= "";
+        session.Project ??= "";
+        if (!Enum.IsDefined(session.Status))
+            throw new InvalidDataException($"Dosyada geçersiz durum değeri: {path}");
+        return session;
     }
 
     public void SaveSession(string folder, Session session)
     {
-        AtomicFile.WriteAllText(
-            Path.Combine(folder, "session.json"),
-            JsonSerializer.Serialize(session, JsonOptions));
+        var path = Path.Combine(folder, "session.json");
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(session, JsonOptions));
+        MarkWritten(path);
     }
 
+    /// <summary>
+    /// Kusurları okur. Dosya adı "{numara}.json" olmalı ve içindeki Id adla aynı, pozitif olmalı; bozuk, uyuşmayan ya da
+    /// yinelenen dosya atlanır ve <see cref="TakeWarnings"/> ile bildirilir (tek bozuk dosya diğer kayıtları engellemez).
+    /// </summary>
     public List<Defect> LoadDefects(string folder)
     {
         var directory = Path.Combine(folder, "defects");
-        if (!Directory.Exists(directory))
+        if (!Directory.Exists(directory) || SafePath.IsReparsePoint(directory))
             return new List<Defect>();
 
-        return Directory.EnumerateFiles(directory, "*.json")
-            .Select(ReadJson<Defect>)
-            .OrderBy(d => d.Id)
-            .ToList();
+        var list = new List<Defect>();
+        foreach (var file in Directory.EnumerateFiles(directory, "*.json").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+        {
+            var name = Path.GetFileName(file);
+            if (!DefectFileName.IsMatch(name))
+            {
+                Warn($"{Rel(file)}: kusur dosyası adı '<numara>.json' değil, atlandı.");
+                continue;
+            }
+
+            var fileId = int.Parse(Path.GetFileNameWithoutExtension(name), System.Globalization.CultureInfo.InvariantCulture);
+            try
+            {
+                list.Add(ReadDefect(file, fileId));
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                Warn($"{Rel(file)}: okunamadı, atlandı ({ex.Message})");
+            }
+        }
+
+        return list.OrderBy(d => d.Id).ToList();
+    }
+
+    public IReadOnlyList<string> UnreadableDefectFiles(string folder)
+    {
+        var directory = Path.Combine(folder, "defects");
+        var bad = new List<string>();
+        if (!Directory.Exists(directory))
+            return bad;
+
+        foreach (var file in Directory.EnumerateFiles(directory, "*.json").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+        {
+            var name = Path.GetFileName(file);
+            if (!DefectFileName.IsMatch(name))
+            {
+                bad.Add(name);
+                continue;
+            }
+            try
+            {
+                ReadDefect(file, int.Parse(Path.GetFileNameWithoutExtension(name), System.Globalization.CultureInfo.InvariantCulture));
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                bad.Add(name);
+            }
+        }
+        TakeWarnings();   // bu denetim kendi uyarılarını yeniden üretir; kullanıcıya ayrıca gösterilmesin
+        return bad;
+    }
+
+    /// <summary>Bir sonraki kusur numarası. Okunamayan dosyaların numaraları da dolu sayılır (üzerine yazılmaz).</summary>
+    private int NextDefectId(string folder)
+    {
+        long max = 0;
+        var directory = Path.Combine(folder, "defects");
+        if (Directory.Exists(directory))
+        {
+            foreach (var file in Directory.EnumerateFiles(directory, "*.json"))
+            {
+                var stem = Path.GetFileNameWithoutExtension(file);
+                if (stem.Length is > 0 and <= 18 && stem.All(char.IsAsciiDigit)
+                    && long.Parse(stem, System.Globalization.CultureInfo.InvariantCulture) is var n && n > max)
+                    max = n;
+            }
+        }
+
+        // Dosya adı dışındaki kayıtlar da (adı bozuk ama içeriği okunabilen) hesaba katılır.
+        foreach (var d in LoadDefects(folder))
+            max = Math.Max(max, d.Id);
+
+        if (max >= MaxDefectId)
+            throw new InvalidOperationException($"Kusur numarası sınırına ({MaxDefectId}) ulaşıldı; yeni kusur eklenemez.");
+        return (int)max + 1;
+    }
+
+    /// <summary>
+    /// Tek kusur dosyasını okur ve doğrular: Id dosya adındaki numarayla aynı olmalı (aksi halde başka kaydın üzerine
+    /// yazılabilirdi), enum değerleri tanımlı olmalı, geçersiz fotoğraf adları atılır.
+    /// </summary>
+    private Defect ReadDefect(string path, int expectedId)
+    {
+        var defect = ReadJson<Defect>(path);
+        if (defect.Id != expectedId)
+            throw new InvalidDataException($"Dosya adındaki numara ({expectedId}) ile içindeki Id ({defect.Id}) uyuşmuyor: {path}");
+
+        var where = Rel(path);
+        defect.DefectType ??= "";
+        if (!Enum.IsDefined(defect.Unit))
+            throw new InvalidDataException($"Dosyada geçersiz birim değeri: {path}");
+
+        // Fotoğraf adları yalnızca düz, tanınan biçimde olabilir; diğerleri hiçbir yerde açılmaz.
+        var photos = defect.Photos.Where(p => PhotoMarkupValidator.IsPhotoFileName(p)).Distinct().ToList();
+        if (photos.Count != defect.Photos.Count)
+            Warn($"{where}: geçersiz fotoğraf adı yok sayıldı.");
+        defect.Photos = photos;
+
+        var markups = new Dictionary<string, PhotoMarkup>();
+        foreach (var (key, markup) in defect.Markups)
+        {
+            if (markup is null || !PhotoMarkupValidator.IsPhotoFileName(key))
+                continue;
+            markup.Shapes.RemoveAll(s => s is null);
+            if (markup.CleanedFile is not null && !PhotoMarkupValidator.IsPhotoFileName(markup.CleanedFile))
+            {
+                Warn($"{where}: geçersiz temiz kopya adı yok sayıldı.");
+                markup.CleanedFile = null;
+            }
+            markups[key] = markup;
+        }
+        defect.Markups = markups;
+
+        defect.Custom?.RemoveAll(c => c is null);
+        defect.MeasurementEdits.RemoveAll(e => e is null || e.Before is null || e.After is null);
+        defect.Dispositions.RemoveAll(d => d is null);
+        foreach (var d in defect.Dispositions)
+        {
+            if (!Enum.IsDefined(d.Decision) || !Enum.IsDefined(d.Source)
+                || (d.ReworkScope is ReworkScope scope && !Enum.IsDefined(scope))
+                || (d.PhotoOutcomes?.Values.Any(o => !Enum.IsDefined(o)) ?? false))
+                throw new InvalidDataException($"Dosyada geçersiz karar değeri: {path}");
+            d.DecidedBy ??= "";
+        }
+        return defect;
     }
 
     /// <summary>
@@ -77,8 +272,7 @@ public sealed class SessionStore : ISessionStore
     {
         using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
 
-        var existing = LoadDefects(folder);
-        var nextId = existing.Count == 0 ? 1 : existing.Max(d => d.Id) + 1;
+        var nextId = NextDefectId(folder);
 
         var defect = new Defect { Id = nextId, DefectType = defectType, Unit = unit };
         configure?.Invoke(defect);
@@ -95,7 +289,7 @@ public sealed class SessionStore : ISessionStore
         if (!File.Exists(path))
             throw new FileNotFoundException($"Kusur bulunamadı: #{defectId}", path);
 
-        var defect = ReadJson<Defect>(path);
+        var defect = ReadDefect(path, defectId);
         mutate(defect);
         WriteDefect(folder, defect);
         return defect;
@@ -115,7 +309,7 @@ public sealed class SessionStore : ISessionStore
             var path = DefectPath(folder, id);
             if (!File.Exists(path))
                 throw new FileNotFoundException($"Kusur bulunamadı: #{id}", path);
-            map[id] = ReadJson<Defect>(path);
+            map[id] = ReadDefect(path, id);
         }
 
         mutate(map);
@@ -142,7 +336,7 @@ public sealed class SessionStore : ISessionStore
         if (!File.Exists(parentPath))
             throw new FileNotFoundException($"Kusur bulunamadı: #{parentId}", parentPath);
 
-        var parent = ReadJson<Defect>(parentPath);
+        var parent = ReadDefect(parentPath, parentId);
 
         // Bölge adları kusurun kendi fotoğraflarından olmalı (bozuk istek diske yazılmasın).
         foreach (var photo in (result.PhotoOutcomes?.Keys ?? Enumerable.Empty<string>())
@@ -152,7 +346,7 @@ public sealed class SessionStore : ISessionStore
                 throw new InvalidOperationException($"Bölge #{parentId} kusurunda yok: {photo}");
         }
 
-        var nextId = LoadDefects(folder).Max(d => d.Id) + 1;
+        var nextId = NextDefectId(folder);
         // Yeni kusurlar ana kusurun birimini taşır.
         var children = result.NewDefects
             .Select((n, i) => new Defect
@@ -210,20 +404,20 @@ public sealed class SessionStore : ISessionStore
         if (!File.Exists(path))
             throw new FileNotFoundException($"Kusur bulunamadı: #{defectId}", path);
 
-        var defect = ReadJson<Defect>(path);
+        var defect = ReadDefect(path, defectId);
         DefectStateMachine.Apply(defect, Decision.Void, DecisionSource.Operator, by, note: note);
 
         Defect? reopened = null;
         if (defect.SupersedesId is int parentId && File.Exists(DefectPath(folder, parentId)))
         {
-            var parent = ReadJson<Defect>(DefectPath(folder, parentId));
+            var parent = ReadDefect(DefectPath(folder, parentId), parentId);
             var last = DefectStateMachine.Effective(parent).LastOrDefault(x => x.Source != DecisionSource.System);
             if (last is { Decision: Decision.AfterReworkNewDefect } && DefectRegions.ChildIdsOf(parent, last).Contains(defectId))
             {
                 // Aynı kararla açılan diğer yeni kusurlardan void olmayan kaldı mı?
                 var stillActive = DefectRegions.ChildIdsOf(parent, last)
                     .Where(id => id != defectId && File.Exists(DefectPath(folder, id)))
-                    .Any(id => DefectStateMachine.GetState(ReadJson<Defect>(DefectPath(folder, id))) != DefectState.Voided);
+                    .Any(id => DefectStateMachine.GetState(ReadDefect(DefectPath(folder, id), id)) != DefectState.Voided);
 
                 if (!stillActive)
                 {
@@ -255,7 +449,7 @@ public sealed class SessionStore : ISessionStore
         if (!File.Exists(path))
             throw new FileNotFoundException($"Kusur bulunamadı: #{defectId}", path);
 
-        var defect = ReadJson<Defect>(path);
+        var defect = ReadDefect(path, defectId);
         var target = DefectStateMachine.LastUndoable(defect)
             ?? throw new InvalidOperationException("Geri alınacak karar yok.");
         if (string.IsNullOrWhiteSpace(note))
@@ -269,7 +463,7 @@ public sealed class SessionStore : ISessionStore
             if (!File.Exists(childPath))
                 continue;
 
-            var child = ReadJson<Defect>(childPath);
+            var child = ReadDefect(childPath, childId);
             if (DefectStateMachine.GetState(child) == DefectState.Voided)
                 continue;
             if (DefectStateMachine.Effective(child).Count > 0)
@@ -296,23 +490,37 @@ public sealed class SessionStore : ISessionStore
 
     private void WriteDefect(string folder, Defect defect)
     {
+        if (defect.Id <= 0 || defect.Id > MaxDefectId)
+            throw new InvalidOperationException($"Kusur numarası geçersiz: {defect.Id}.");
+
         var directory = Path.Combine(folder, "defects");
         Directory.CreateDirectory(directory);
-        AtomicFile.WriteAllText(
-            DefectPath(folder, defect.Id),
-            JsonSerializer.Serialize(defect, JsonOptions));
+        var path = DefectPath(folder, defect.Id);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(defect, JsonOptions));
+        MarkWritten(path);
     }
 
     private static string DefectPath(string folder, int defectId) =>
         Path.Combine(folder, "defects", $"{defectId}.json");
 
+    /// <summary>
+    /// JSON dosyasını okur. Bozuk içerik (JsonException, geçersiz biçim) <see cref="InvalidDataException"/> olarak bildirilir:
+    /// çağıranlar tek tür beklenen hatayı yakalar, uygulama çökmez.
+    /// </summary>
     internal static T ReadJson<T>(string path)
     {
         if (new FileInfo(path).Length > MaxJsonBytes)
             throw new InvalidDataException($"Dosya boyut sınırını aşıyor: {path}");
 
-        using var stream = File.OpenRead(path);
-        return JsonSerializer.Deserialize<T>(stream, JsonOptions)
-            ?? throw new InvalidDataException($"Dosya boş ya da bozuk: {path}");
+        try
+        {
+            using var stream = File.OpenRead(path);
+            return JsonSerializer.Deserialize<T>(stream, JsonOptions)
+                ?? throw new InvalidDataException($"Dosya boş ya da bozuk: {path}");
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException or InvalidOperationException)
+        {
+            throw new InvalidDataException($"Dosya bozuk ya da geçersiz: {path} ({ex.Message})", ex);
+        }
     }
 }

@@ -171,8 +171,16 @@ public static partial class ViewModelTests
 
         Wait(c.Vm.CreateReportAsync());
         var html = Path.Combine(c.Folder, "reports", "Rapor_v1.html");
-        Check(c.Pdf.Calls.Single() == (html, Path.Combine(c.Folder, "reports", "Rapor_v1.pdf")), "PDF dönüştürücü HTML'den çağrılmalı");
-        Check(!File.Exists(html) && File.Exists(Path.ChangeExtension(html, ".pdf")), "PDF oluşunca HTML ara dosyası silinmeli");
+        // HTML ve fotoğraflar yerel geçici klasörde hazırlanır (paylaşımda değil); yalnızca PDF paylaşıma kopyalanır.
+        var call = c.Pdf.Calls.Single();
+        var temp = Path.GetFullPath(Path.GetTempPath());
+        Check(Path.GetFileName(call.Html) == "Rapor_v1.html" && Path.GetFullPath(call.Html).StartsWith(temp, StringComparison.OrdinalIgnoreCase)
+              && !Path.GetFullPath(call.Html).StartsWith(Path.GetFullPath(c.Folder), StringComparison.OrdinalIgnoreCase),
+            $"PDF dönüştürücü yerel geçici klasördeki HTML'den çağrılmalı: {call.Html}");
+        Check(Path.GetFileName(call.Pdf) == "Rapor_v1.pdf" && Path.GetFullPath(call.Pdf).StartsWith(temp, StringComparison.OrdinalIgnoreCase), "PDF önce yerel geçici klasöre yazılmalı");
+        Check(!File.Exists(call.Html) && !Directory.Exists(Path.GetDirectoryName(Path.GetDirectoryName(call.Html))), "Geçici klasör silinmeli");
+        Check(!File.Exists(html) && File.Exists(Path.ChangeExtension(html, ".pdf")), "Paylaşıma yalnızca PDF kopyalanmalı, HTML yazılmamalı");
+        Check(!Directory.EnumerateFiles(Path.Combine(c.Folder, "reports"), "*.tmp").Any(), "Paylaşımda .tmp kalmamalı");
         Check(c.Windows.OpenedFiles.Single() == Path.Combine(c.Folder, "reports", "Rapor_v1.pdf"), "PDF açılmalı");
         Check(c.Audit.Entries.Any(e => e.EndsWith("|report.create|Rapor_v1 (pdf)")), "Rapor denetim satırı");
         Check(!c.Notes.Any(n => n.Kind == StatusKind.Warning || n.Kind == StatusKind.Error), "PDF başarılıysa uyarı yok");
@@ -192,7 +200,8 @@ public static partial class ViewModelTests
 
         Wait(c.Vm.CreateReportAsync());
         var html = Path.Combine(c.Folder, "reports", "Rapor_v1.html");
-        Check(c.Windows.OpenedFiles.Single() == html && File.Exists(html), "PDF yoksa HTML kalmalı ve açılmalı");
+        Check(c.Windows.OpenedFiles.Single() == html && File.Exists(html), "PDF yoksa HTML paylaşıma yedek olarak yazılmalı ve açılmalı");
+        Check(!Directory.Exists(Path.GetDirectoryName(Path.GetDirectoryName(c.Pdf.Calls.Single().Html))), "Geçici klasör silinmeli");
         Check(c.Notes.Last() == ("Rapor v1 HTML olarak açıldı (PDF üretilemedi: Microsoft Edge bulunamadı). Tarayıcıdan 'PDF olarak kaydet' ile yazdırabilirsiniz.", StatusKind.Warning),
             $"Uyarı: {c.Notes.Last().Message}");
         Check(c.Audit.Entries.Any(e => e.EndsWith("|report.create|Rapor_v1")), "PDF'siz denetim satırı");

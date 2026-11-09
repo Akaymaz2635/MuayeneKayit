@@ -19,12 +19,25 @@ public partial class App : Application
         // MainWindow kökündeki RequestedTheme ile değişir; burası kod ile çözülen sistem fırçalarının başlangıç temasıdır.
         RequestedTheme = UserSettingsAdapter.LoadTheme() == AppTheme.Dark ? ApplicationTheme.Dark : ApplicationTheme.Light;
         InitializeComponent();
+        // Son çare: yakalanmamış hata günlüğe yazılır ve mesaj gösterilir; uygulama sessizce çökmez.
+        CrashReporter.Install(this);
         Services = ConfigureServices();
     }
 
     private static IServiceProvider ConfigureServices()
     {
-        var root = AppSettings.LoadRootPath();
+        string root;
+        try
+        {
+            root = AppSettings.LoadRootPath();
+        }
+        catch (InvalidDataException ex)
+        {
+            // Ayar dosyasındaki yol geçersiz (ör. göreli): yanlış klasöre yazmamak için açılmaz, admin düzeltmeli.
+            CrashReporter.Show("Ayar dosyası geçersiz", ex.Message);
+            Environment.Exit(1);
+            throw;
+        }
         var services = new ServiceCollection();
 
         // Depo ve denetim kaydı: ViewModel portlara (arayüzlere) bağlanır.

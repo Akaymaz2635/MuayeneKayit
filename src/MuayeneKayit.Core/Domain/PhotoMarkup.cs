@@ -54,7 +54,8 @@ public sealed class PhotoMarkup
 {
     public int ImageWidth { get; set; }
     public int ImageHeight { get; set; }
-    public List<Annotation> Shapes { get; set; } = new();
+    private List<Annotation> _shapes = new();
+    public List<Annotation> Shapes { get => _shapes; set => _shapes = value ?? new(); }
 
     /// <summary>Arka planı kaldırılmış kopyanın dosya adı. Null ise orijinal kullanılır (geri al).</summary>
     public string? CleanedFile { get; set; }
@@ -93,8 +94,23 @@ public static class PhotoMarkupValidator
     }
 
     /// <summary>Yalnızca kusur klasöründe üretilen adlar: "{id}_photo_NN.ext" ya da "..._clean.jpg".</summary>
-    public static bool IsPhotoFileName(string name) =>
-        System.Text.RegularExpressions.Regex.IsMatch(name, @"^\d{1,5}_photo_\d{2,3}(_clean)?\.(jpg|jpeg|png)$");
+    public static bool IsPhotoFileName(string? name) =>
+        name is not null && System.Text.RegularExpressions.Regex.IsMatch(name,
+            @"^[0-9]{1,5}_photo_[0-9]{2,3}(_clean)?\.(jpg|jpeg|png)\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Oturum klasöründeki "defects" altında, geçerli bir fotoğraf adının tam yolu. Ad yalnızca düz dosya adı olabilir
+    /// (ayraç, "..", mutlak / UNC yol, tanınmayan uzantı yok); aksi halde null döner ve dosya hiç açılmaz.
+    /// </summary>
+    public static string? ResolvePhotoPath(string sessionFolder, string? name)
+    {
+        if (name is null || !IsPhotoFileName(name))
+            return null;
+
+        var directory = Path.GetFullPath(Path.Combine(sessionFolder, "defects"));
+        var full = Path.GetFullPath(Path.Combine(directory, name));
+        return string.Equals(Path.GetDirectoryName(full), directory, StringComparison.OrdinalIgnoreCase) ? full : null;
+    }
 
     private static bool Unit(double v) => !double.IsNaN(v) && v >= 0 && v <= 1;
 }

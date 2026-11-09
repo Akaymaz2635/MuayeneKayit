@@ -109,6 +109,8 @@ public sealed partial class AdminShellViewModel : ObservableObject
         Settings.Load();
         IsLoggedIn = true;
         Navigate("records");
+        if (Login.PostLoginNotice.Length > 0)
+            Forward(Login.PostLoginNotice, StatusKind.Warning);
     }
 
     /// <summary>Gezinme etiketine göre sayfayı açar ("lock" oturumu kilitler).</summary>

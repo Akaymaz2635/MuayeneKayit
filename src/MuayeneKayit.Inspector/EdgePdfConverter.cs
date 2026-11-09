@@ -32,7 +32,11 @@ public sealed class EdgePdfConverter : IPdfConverter
                      {
                          "--headless", "--disable-gpu", "--no-first-run", "--disable-extensions", "--disable-sync",
                          "--disable-background-networking", "--disable-component-update",
-                         "--no-pdf-header-footer", "--allow-file-access-from-files",
+                         "--no-pdf-header-footer",
+                         // Dosya erişim bayrağı kaldırıldı: <img> aynı klasör ağacındaki yerel dosyayı zaten yükler (Edge 157'de
+                         // doğrulandı). Betikler raporun CSP'siyle (default-src 'none') engellenir; DNS çözümleme kapatılır,
+                         // böylece sayfa dışarıya istek yapamaz. (--blink-settings=scriptEnabled=false Edge'de PDF üretimini bozuyor.)
+                         "--host-resolver-rules=MAP * ~NOTFOUND",
                          "--user-data-dir=" + profile,
                          "--print-to-pdf=" + temp,
                          new Uri(htmlPath).AbsoluteUri,

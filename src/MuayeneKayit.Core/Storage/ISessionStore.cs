@@ -15,6 +15,15 @@ public interface ISessionStore
 
     List<Defect> LoadDefects(string folder);
 
+    /// <summary>
+    /// Yükleme sırasında atlanan (bozuk, adı ya da numarası uyuşmayan) dosyaların uyarıları. Çağrıldıkça liste boşalır;
+    /// bozuk dosya yüklenmeye devam ettikçe uyarı yeniden üretilir.
+    /// </summary>
+    IReadOnlyList<string> TakeWarnings();
+
+    /// <summary>Kusur klasöründeki okunamayan (bozuk, Id'si dosya adıyla uyuşmayan) kusur dosyalarının adları. Muayene kapatma ve rapor öncesi denetim için.</summary>
+    IReadOnlyList<string> UnreadableDefectFiles(string folder);
+
     Defect AddDefect(string folder, string defectType, Action<Defect>? configure = null, LengthUnit unit = LengthUnit.Mm);
 
     Defect UpdateDefect(string folder, int defectId, Action<Defect> mutate);

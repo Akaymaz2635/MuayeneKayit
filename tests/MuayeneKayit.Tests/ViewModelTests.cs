@@ -148,7 +148,7 @@ public static partial class ViewModelTests
         Check(c.Vm.SelectedStep == InspectionStep.Measure, "Başlangıçta Ölçüm");
 
         // Kusur ölçüm ve fotoğrafla ilerler; karar bekliyor.
-        c.Store.UpdateDefect(c.Folder, 1, d => { d.Depth = 0.1; d.Photos.Add("1_1.jpg"); });
+        c.Store.UpdateDefect(c.Folder, 1, d => { d.Depth = 0.1; d.Photos.Add("1_photo_01.jpg"); });
 
         c.Vm.ChangeSession();
         c.Vm.OpenSession();

@@ -767,6 +767,15 @@ public sealed partial class InspectionViewModel : ObservableObject
         RequireSession();
         AutoSave();
         var defects = _store.LoadDefects(_folder!);
+
+        // Okunamayan kusur dosyası açık bir kusuru gizliyor olabilir: muayene kapatılmaz.
+        var unreadable = _store.UnreadableDefectFiles(_folder!);
+        if (unreadable.Count > 0)
+        {
+            Send($"Muayene kapatılamaz: okunamayan kusur dosyası var ({string.Join(", ", unreadable.Take(3))}). Yöneticiye bildirin.", StatusKind.Error);
+            return;
+        }
+
         var blocking = SessionGate.BlockingDefects(defects);
 
         if (blocking.Count > 0)
@@ -787,7 +796,10 @@ public sealed partial class InspectionViewModel : ObservableObject
 
     private void Send(string message, StatusKind kind) => Notify?.Invoke(message, kind);
 
-    /// <summary>Beklenen hataları yakalar ve bildirir. Uygulama kapanmaz.</summary>
+    /// <summary>
+    /// Beklenen hataları yakalar ve bildirir. Uygulama kapanmaz. Bozuk kayıt dosyası (JSON, biçim) da beklenen hatadır;
+    /// yükleme sırasında atlanan dosyalar işlemden sonra uyarı olarak gösterilir.
+    /// </summary>
     private void Run(Action action)
     {
         try
@@ -795,9 +807,26 @@ public sealed partial class InspectionViewModel : ObservableObject
             action();
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
-                                    or TimeoutException or InvalidDataException or UnauthorizedAccessException)
+                                    or TimeoutException or InvalidDataException or UnauthorizedAccessException
+                                    or System.Text.Json.JsonException or FormatException)
         {
             Send(ex.Message, StatusKind.Error);
         }
+        finally
+        {
+            FlushLoadWarnings();
+        }
+    }
+
+    /// <summary>Yüklemede atlanan (bozuk, adı / numarası uyuşmayan) kayıt dosyalarını uyarı olarak bildirir.</summary>
+    private void FlushLoadWarnings()
+    {
+        var warnings = _store.TakeWarnings();
+        if (warnings.Count == 0)
+            return;
+        Send(warnings.Count == 1
+                ? $"Okunamayan kayıt dosyası atlandı: {warnings[0]}"
+                : $"{warnings.Count} kayıt dosyası atlandı (ilk: {warnings[0]}). Yöneticiye bildirin.",
+            StatusKind.Warning);
     }
 }
