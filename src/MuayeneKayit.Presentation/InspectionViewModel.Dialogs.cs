@@ -230,7 +230,7 @@ public sealed partial class InspectionViewModel
             .Where(id => all.FirstOrDefault(c => c.Id == id) is { } c && DefectStateMachine.GetState(c) != DefectState.Voided)
             .ToList();
         var reason = await _dialogs.AskUndoReasonAsync(new UndoRequest(
-            defect.Id, defect.DefectType, DefectSentence.DecisionLabel(last.Decision), last.DecidedAt, last.DecidedBy, children));
+            defect.Id, defect.DefectType, DefectPresentation.DecisionLabelTr(last), last.DecidedAt, last.DecidedBy, children));
         if (reason is null)
             return;
 
@@ -238,7 +238,7 @@ public sealed partial class InspectionViewModel
         _audit.Append(_user, "disposition.undo",
             $"#{defect.Id} {undone.Decision} (seq {undone.Seq}){(voided.Count > 0 ? $", child {DefectPresentation.IdList(voided)} void" : "")}");
         Refresh(defect.Id);
-        Send($"#{defect.Id}: '{DefectSentence.DecisionLabel(undone.Decision)}' geri alındı." +
+        Send($"#{defect.Id}: '{DefectPresentation.DecisionLabelTr(undone)}' geri alındı." +
              (voided.Count > 0 ? $" Yeni kusur {DefectPresentation.IdList(voided)} void edildi." : "") +
              $" Durum: {DefectPresentation.StateLabel(DefectStateMachine.GetState(Current ?? defect))}.", StatusKind.Success);
     });

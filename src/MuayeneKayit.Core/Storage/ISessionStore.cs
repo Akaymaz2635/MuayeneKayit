@@ -13,6 +13,15 @@ public interface ISessionStore
 
     void SaveSession(string folder, Session session);
 
+    /// <summary>
+    /// Oturumu tamamlar: açık kusur denetimi ve durum yazımı tek kilit altında yapılır. Açık kusur ya da okunamayan dosya
+    /// varsa InvalidOperationException; zaten tamamlanmışsa hiçbir şey yazmadan false döner.
+    /// </summary>
+    bool CompleteSession(string folder);
+
+    /// <summary>Tamamlanmış oturumda InvalidOperationException (fotoğraf kopyalanmadan önce erken ret).</summary>
+    void RequireWritable(string folder);
+
     List<Defect> LoadDefects(string folder);
 
     /// <summary>

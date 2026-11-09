@@ -10,8 +10,13 @@ public static class PhotoImporter
 
     private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png" };
 
-    /// <summary>Fotoğrafı kopyalar ve kusur klasöründeki dosya adını döndürür.</summary>
-    public static string Import(string folder, int defectId, string sourcePath)
+    /// <summary>
+    /// Fotoğrafı kopyalar ve kusur klasöründeki dosya adını döndürür. Sıradaki numara kusur kilidi altında, diskteki
+    /// mevcut dosyaların en büyük numarasından (ve <paramref name="reservedNames"/> içindeki adlardan) sonra seçilir;
+    /// dosya FileMode.CreateNew ile yazılır, ad yine de doluysa sıradaki numara denenir: boşluklu ya da paralel eklemede
+    /// var olan fotoğrafın üzerine yazılmaz ve çakışma hatası çıkmaz.
+    /// </summary>
+    public static string Import(string folder, int defectId, string sourcePath, IEnumerable<string>? reservedNames = null)
     {
         if (!File.Exists(sourcePath))
             throw new FileNotFoundException("Fotoğraf bulunamadı.", sourcePath);
@@ -32,27 +37,48 @@ public static class PhotoImporter
                 $"Fotoğraf çok büyük ({w}x{h}); en fazla {ImageHeader.MaxPixels / 1_000_000} megapiksel kabul edilir.");
 
         var directory = Path.Combine(folder, "defects");
-        Directory.CreateDirectory(directory);
-
-        var existing = Directory.EnumerateFiles(directory, $"{defectId}_photo_*")
-            .Count(p => !p.Contains("_clean", StringComparison.Ordinal) && !p.EndsWith(".tmp", StringComparison.Ordinal));
-        var fileName = $"{defectId}_photo_{existing + 1:00}{extension}";
-
-        var target = Path.Combine(directory, fileName);
 
         // Konum / cihaz üst verisi (EXIF, XMP) paylaşıma gitmez; görüntü verisi değişmez. Biçim tanınmazsa dosya olduğu gibi kopyalanır.
-        var clean = MetadataStripper.Strip(File.ReadAllBytes(sourcePath), extension);
-        if (clean is null)
+        var bytes = File.ReadAllBytes(sourcePath);
+        var clean = MetadataStripper.Strip(bytes, extension);
+        var payload = clean ?? bytes;
+
+        // Numara seçimi ve dosya oluşturma kusur (oturum) kilidi altında; oturum klasörü yoksa yeniden oluşturulmaz.
+        using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
+        Directory.CreateDirectory(directory);
+
+        var reserved = new HashSet<string>(reservedNames ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+        var pattern = new System.Text.RegularExpressions.Regex(
+            "^" + defectId + @"_photo_(\d{1,5})\.(jpg|jpeg|png)$",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var next = 1;
+        foreach (var path in Directory.EnumerateFiles(directory, $"{defectId}_photo_*"))
+            next = Math.Max(next, NumberOf(pattern, Path.GetFileName(path)) + 1);
+        foreach (var name in reserved)
+            next = Math.Max(next, NumberOf(pattern, name) + 1);
+
+        for (var attempt = 0; attempt < 200; attempt++, next++)
         {
-            File.Copy(sourcePath, target, overwrite: false);
+            var fileName = $"{defectId}_photo_{next:00}{extension}";
+            if (reserved.Contains(fileName))
+                continue;
+
+            try
+            {
+                using var stream = new FileStream(Path.Combine(directory, fileName), FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                stream.Write(payload);
+                return fileName;
+            }
+            catch (IOException) when (File.Exists(Path.Combine(directory, fileName)))
+            {
+                // Ad başkası tarafından alındı: sıradaki numara denenir.
+            }
         }
-        else
-        {
-            using var stream = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            stream.Write(clean);
-        }
-        return fileName;
+        throw new IOException("Fotoğraf için boş bir ad bulunamadı.");
     }
+
+    private static int NumberOf(System.Text.RegularExpressions.Regex pattern, string fileName) =>
+        pattern.Match(fileName) is { Success: true } m ? int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : 0;
 
     /// <summary>
     /// Arka planı kaldırılmış kopyayı "{orijinal}_clean.jpg" olarak yazar. Orijinal dosyaya dokunmaz;

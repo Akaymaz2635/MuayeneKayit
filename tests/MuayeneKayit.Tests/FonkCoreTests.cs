@@ -312,11 +312,16 @@ public static class FonkCoreTests
     {
         Directory.CreateDirectory(SharedConfig.Folder(root));
         var path = Path.Combine(SharedConfig.Folder(root), "defect_types.json");
-        foreach (var content in new[] { "çöp", "[]", "[{\"name\":\"A\"},{\"name\":\"a\"}]" })
+        foreach (var content in new[] { "çöp", "[]", "[null]" })
         {
             File.WriteAllText(path, content);
             Expect(SharedConfig.LoadDefectTypes(root).Count == 9, $"'{content}': varsayılan 9 tip beklenir");
         }
+
+        // Tek geçersiz / yinelenen kayıt tüm listeyi düşürmez: yalnızca o kayıt atlanır (B-21 ile aynı kural).
+        File.WriteAllText(path, "[{\"name\":\"A\"},{\"name\":\"a\"},{\"name\":\"Kötü#\"},{\"name\":\"B\"}]");
+        var kept = SharedConfig.LoadDefectTypes(root);
+        Expect(kept.Select(t => t.Name).SequenceEqual(new[] { "A", "B" }), $"geçerli tipler korunmalı: {string.Join(",", kept.Select(t => t.Name))}");
     });
 
     // F-ADM-FIELD-002..005
@@ -388,17 +393,18 @@ public static class FonkCoreTests
 
     public static void Fonk_LNC004_VersionFolderMissing() => WithTemp(tmp =>
     {
-        File.WriteAllText(Path.Combine(tmp, "surum.txt"), "v9");
+        // Sürüm metni sayısal biçimde olmalı (güvenlik düzeltmesi): "9.0.0".
+        File.WriteAllText(Path.Combine(tmp, "surum.txt"), "9.0.0");
         var ex = Assert.Throws<FileNotFoundException>(() => ProgramLayout.Resolve(tmp, "Inspector", false));
-        Expect(ex.Message.StartsWith("v9 sürümünde Inspector bulunamadı:"), ex.Message);
+        Expect(ex.Message.StartsWith("9.0.0 sürümünde Inspector bulunamadı:"), ex.Message);
     });
 
     public static void Fonk_LNC006_VersionFileFirstLineAndBom() => WithTemp(tmp =>
     {
-        var exe = Path.Combine(tmp, "vtest", "Inspector-x64", "MuayeneKayit.Inspector.exe");
+        var exe = Path.Combine(tmp, "1.2.3", "Inspector-x64", "MuayeneKayit.Inspector.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(exe)!);
         File.WriteAllText(exe, "x");
-        File.WriteAllText(Path.Combine(tmp, "surum.txt"), "vtest  \r\n2. satır", new UTF8Encoding(true));
+        File.WriteAllText(Path.Combine(tmp, "surum.txt"), "1.2.3  \r\n2. satır", new UTF8Encoding(true));
         Expect(ProgramLayout.Resolve(tmp, "Inspector", false) == exe, "ilk satır kırpılmalı, BOM sorun çıkarmamalı");
     });
 

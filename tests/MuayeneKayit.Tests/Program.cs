@@ -354,7 +354,8 @@ tests.AddRange(new (string Name, Action Body)[]
     ("FONK F-E2E-005: Mrb Rejected Flow", ViewModelTests.Fonk_E2E005_MrbRejectedFlow),
     ("FONK F-ADM-LOGIN-014: Weak Iterations Rejected", AdminViewModelTests.Fonk_LOGIN014_WeakIterationsRejected),
     ("FONK F-ADM-LOGIN-003: Pin Format Rules", AdminViewModelTests.Fonk_LOGIN003_PinFormatRules),
-    ("FONK F-ADM-LOGIN-013: Behaviour_Info", AdminViewModelTests.Fonk_LOGIN013_Behaviour_Info),
+    ("FONK F-ADM-LOGIN-013 [B-19]: admin.json silinince uyarı + onay + admin.pin.reset", AdminViewModelTests.Fonk_LOGIN013_DeletedAdminJsonNeedsConfirmedReset),
+    ("FONK F-ADM-LOGIN-013: temiz kökte onaysız ilk kurulum", AdminViewModelTests.Fonk_LOGIN013_FreshRootIsPlainFirstRun),
     ("FONK F-ADM-TYPE-003: Name Rules", AdminViewModelTests.Fonk_TYPE003_NameRules),
     ("FONK F-ADM-TYPE-004: Spec Length", AdminViewModelTests.Fonk_TYPE004_SpecLength),
     ("FONK F-ADM-TYPE-005: Apply Without Selection", AdminViewModelTests.Fonk_TYPE005_ApplyWithoutSelection),
@@ -400,6 +401,33 @@ tests.AddRange(new (string Name, Action Body)[]
     ("FONK F-LNC-006: Version File First Line And Bom", FonkCoreTests.Fonk_LNC006_VersionFileFirstLineAndBom),
     ("FONK F-LNC-008: Save Root Path Next To Version File", FonkCoreTests.Fonk_LNC008_SaveRootPathNextToVersionFile),
     ("FONK F-CONC-008: Lock Held Five Seconds Then Acquired", FonkCoreTests.Fonk_CONC008_LockHeldFiveSecondsThenAcquired),
+});
+// Düzeltilen hataların testleri (eski ŞÜPHELİ liste; hepsi artık ana listede) ve ek düzeltme testleri.
+tests.AddRange(FonkFixedTests.All);
+tests.AddRange(new (string Name, Action Body)[]
+{
+    ("DÜZELTME B-03: farklı alanlar iki kullanıcıdan da korunur", ViewModelTests.Fonk_DZ_B03_DifferentFieldsFromTwoUsersBothSurvive),
+    ("DÜZELTME B-03: aynı alan çakışması reddedilir, uyarılır, ekran yenilenir", ViewModelTests.Fonk_DZ_B03_SameFieldConflictIsRefusedWithWarning),
+    ("DÜZELTME B-03: üç yönlü birleştirme kuralları", FonkDuzeltmeCoreTests.RebaseRules),
+    ("DÜZELTME B-01: dokunulmayan kutular (renk, ek alan, sayı) kayıtlı ham değeri korur", ViewModelTests.Fonk_DZ_B01_UntouchedBoxesKeepExactStoredValues),
+    ("DÜZELTME B-04: tamamlanmış oturum her yazmayı reddeder", ViewModelTests.Fonk_DZ_B04_CompletedSessionRejectsEveryWrite),
+    ("DÜZELTME B-04/B-15: oturum tamamlama tek kilit altında, ikincisi no-op", FonkDuzeltmeCoreTests.CompleteSessionIsAtomicAndIdempotent),
+    ("DÜZELTME B-08: alt çizgiyle başlayan ad reddedilir, ortadaki serbest", ViewModelTests.Fonk_DZ_B08_UnderscorePrefixRejectedMiddleAllowed),
+    ("DÜZELTME B-10: fotoğraf adı boşluklu ve paralel eklemede çakışmaz", FonkDuzeltmeCoreTests.PhotoNamesNeverCollide),
+    ("DÜZELTME B-11: Kaydet bekleyen editör değişikliğini doğrulayıp uygular", AdminViewModelTests.Fonk_DZ_B11_SaveAutoAppliesPendingEditor),
+    ("DÜZELTME B-12: mevcut ek alanın türü değiştirilemez", AdminViewModelTests.Fonk_DZ_B12_ExistingFieldKindCannotChange),
+    ("DÜZELTME B-12: kayıtlı tür değişen tanımdan önce gelir", ViewModelTests.Fonk_DZ_B12_StoredKindWinsOverChangedDefinition),
+    ("DÜZELTME B-13: sıradaki adım şablondaki alanlara bağlı", ViewModelTests.Fonk_DZ_B13_NextStepDependsOnTemplateFields),
+    ("DÜZELTME B-20: sürüm numaraları kilit altında ayrılır", FonkDuzeltmeCoreTests.ReportVersionsAreReservedUnderLock),
+    ("DÜZELTME B-20: rapor sonrası boş yer tutucu kalmaz", ViewModelTests.Fonk_DZ_B20_ReportLeavesOnlyPdf),
+    ("DÜZELTME B-20: üretilemeyen rapor sürümü geri bırakır", ViewModelTests.Fonk_DZ_B20_FailedReportReleasesReservedVersion),
+    ("DÜZELTME B-22/B-23: hiçbir katman kökü yeniden oluşturmaz", FonkDuzeltmeCoreTests.RootIsNeverRecreatedImplicitly),
+    ("DÜZELTME B-23: oturum klasörü yeniden oluşturulmaz", FonkDuzeltmeCoreTests.MissingSessionFolderIsNotRecreated),
+    ("DÜZELTME B-22: kök yokken admin girişi kök mesajını gösterir", AdminViewModelTests.Fonk_DZ_B22_LoginWithRootGoneShowsRootMessage),
+    ("DÜZELTME B-06: rework sonrası muayene ölçüm ayrıştırma kuralı", FonkDuzeltmeCoreTests.ReinspectEntryParseRule),
+    ("DÜZELTME N-1: karar etiketleri Türkçe arayüzde Türkçe", ViewModelTests.Fonk_DZ_N1_DecisionLabelsAreTurkishInUi),
+    ("DÜZELTME N-2: kusur olmayan JSON dosyaları kusur sayılmaz", FonkDuzeltmeCoreTests.ForeignJsonFilesAreNeverDefects),
+    ("DÜZELTME N-3: Bakım denetim listesi büyük günlüğün sonunu okur", FonkDuzeltmeCoreTests.AuditTailReadsFromEndOfLargeLog),
 });
 if (args.Contains("--supheli"))
     tests.AddRange(FonkSupheliTests.All);

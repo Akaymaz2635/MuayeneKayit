@@ -8,9 +8,10 @@ namespace MuayeneKayit.Core;
 /// </summary>
 public static class SafePath
 {
-    // Harf/rakam/alt çizgi/tire ile başlar. Nokta ve boşluk ortada olabilir, sonda olamaz.
+    // Harf/rakam/tire ile başlar ("_" ile başlayan ad _config, _index gibi sistem klasörlerine ayrılmıştır).
+    // Alt çizgi, nokta ve boşluk ortada olabilir, sonda olamaz.
     private static readonly Regex SegmentPattern = new(
-        @"^[\p{L}\p{N}_\-][\p{L}\p{N}_. \-]{0,63}$",
+        @"^[\p{L}\p{N}\-][\p{L}\p{N}_. \-]{0,63}$",
         RegexOptions.CultureInvariant);
 
     // Windows'ta dosya adı olarak açılamayan aygıt adları (CON, NUL.txt gibi uzantılı olanlar dahil).
@@ -24,6 +25,8 @@ public static class SafePath
             throw new ArgumentException($"{field} boş olamaz.");
 
         var trimmed = value.Trim();
+        if (trimmed.StartsWith('_'))
+            throw new ArgumentException($"{field} '_' ile başlayamaz (_config, _index gibi sistem klasörlerine ayrılmıştır): '{value}'.");
         if (!SegmentPattern.IsMatch(trimmed) || trimmed.Contains("..") || trimmed.EndsWith('.') || trimmed.EndsWith(' '))
             throw new ArgumentException($"{field} geçersiz karakter içeriyor: '{value}'.");
 

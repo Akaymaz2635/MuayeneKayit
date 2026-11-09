@@ -25,7 +25,8 @@ public sealed class WinUiConfirmService : IConfirmService
             Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Width = 440 },
             PrimaryButtonText = confirmText,
             CloseButtonText = "Vazgeç",
-            DefaultButton = ContentDialogButton.None,
+            // Yalnızca metin içeren onay: varsayılan düğme vazgeç; Enter / Space onaylamaz.
+            DefaultButton = ContentDialogButton.Close,
             PrimaryButtonStyle = (Style)Application.Current.Resources["AccentButtonStyle"],
             XamlRoot = _xamlRoot?.Invoke() ?? throw new InvalidOperationException("Pencere henüz hazır değil."),
         };

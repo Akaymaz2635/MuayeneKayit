@@ -153,19 +153,36 @@ public sealed partial class TypesViewModel : AdminViewModelBase
     }
 
     /// <summary>Düzenlenen şablonu seçili tipe uygular (doğrulamalı); henüz ortak alana yazılmaz.</summary>
-    public void Apply() => Run(() =>
+    public void Apply() => Run(() => ApplyEditor(requireSelection: true));
+
+    private DefectTypeTemplate EditorCandidate() => new()
+    {
+        Name = Name.Trim(),
+        SpecName = string.IsNullOrWhiteSpace(SpecName) ? null : SpecName.Trim(),
+        Fields = CheckedFields(),
+        CustomFields = CustomToggles.Where(c => c.IsChecked).Select(c => c.Key).ToList(),
+    };
+
+    private static bool SameTemplate(DefectTypeTemplate a, DefectTypeTemplate b) =>
+        a.Name == b.Name && (a.SpecName ?? "") == (b.SpecName ?? "")
+        && a.Fields.OrderBy(f => f).SequenceEqual(b.Fields.OrderBy(f => f))
+        && a.CustomFields.OrderBy(k => k, StringComparer.Ordinal).SequenceEqual(b.CustomFields.OrderBy(k => k, StringComparer.Ordinal));
+
+    /// <summary>Editördeki şablonu seçili tipe yazar (doğrulamalı, hata fırlatır). Değişiklik yapıldıysa true.</summary>
+    private bool ApplyEditor(bool requireSelection)
     {
         var i = SelectedIndex;
-        if (i < 0)
-            throw new InvalidOperationException("Listeden bir tip seçin.");
-
-        var candidate = new DefectTypeTemplate
+        if (i < 0 || i >= _types.Count)
         {
-            Name = Name.Trim(),
-            SpecName = string.IsNullOrWhiteSpace(SpecName) ? null : SpecName.Trim(),
-            Fields = CheckedFields(),
-            CustomFields = CustomToggles.Where(c => c.IsChecked).Select(c => c.Key).ToList(),
-        };
+            if (requireSelection)
+                throw new InvalidOperationException("Listeden bir tip seçin.");
+            return false;
+        }
+
+        var candidate = EditorCandidate();
+        if (!requireSelection && SameTemplate(candidate, _types[i]))
+            return false;
+
         var trial = _types.ToList();
         trial[i] = candidate;
         var errors = SharedConfig.ValidateTypes(trial);
@@ -175,7 +192,8 @@ public sealed partial class TypesViewModel : AdminViewModelBase
         _types = trial;
         RefreshList(i);
         MarkDirty();
-    });
+        return true;
+    }
 
     public void Add()
     {
@@ -282,6 +300,15 @@ public sealed partial class TypesViewModel : AdminViewModelBase
         var i = SelectedFieldIndex;
         if (i < 0)
             throw new InvalidOperationException("Listeden bir ölçüm alanı seçin.");
+
+        // Tür değişirse kayıtlı değerler yeni türe göre yeniden yorumlanırdı (ör. 0.3 mm metin olurdu): tür sabittir.
+        var wanted = FieldFromEditor(_fields[i].Key).Kind;
+        if (wanted != _fields[i].Kind)
+        {
+            FieldKindIndex = (int)_fields[i].Kind;
+            throw new InvalidOperationException(
+                $"Mevcut ölçüm alanının türü değiştirilemez (kayıtlı değerler bozulur). '{FieldName.Trim()}' için farklı bir tür gerekiyorsa yeni bir alan oluşturun.");
+        }
         var trial = _fields.ToList();
         trial[i] = FieldFromEditor(_fields[i].Key);
         var errors = SharedConfig.ValidateCustomFields(trial);
@@ -317,6 +344,10 @@ public sealed partial class TypesViewModel : AdminViewModelBase
 
     public void Save() => Run(() =>
     {
+        // Editörde "Şablonu uygula"ya basılmamış değişiklik varsa kaybolmasın: doğrulanarak otomatik uygulanır
+        // (geçersizse hata verilir ve hiçbir şey kaydedilmez).
+        ApplyEditor(requireSelection: false);
+
         var typeErrors = SharedConfig.ValidateTypes(_types);
         if (typeErrors.Count > 0)
             throw new ArgumentException(string.Join(" ", typeErrors));

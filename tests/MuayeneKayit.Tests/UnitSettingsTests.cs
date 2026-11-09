@@ -114,6 +114,7 @@ public static partial class ViewModelTests
     public static void ChildDefectInheritsParentUnit()
     {
         var root = Path.Combine(Path.GetTempPath(), "MuayeneKayit-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);   // kök artık örtük oluşturulmaz (B-22)
         try
         {
             var store = new SessionStore(root);

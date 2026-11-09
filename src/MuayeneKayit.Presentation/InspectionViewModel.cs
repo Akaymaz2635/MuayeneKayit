@@ -40,6 +40,15 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// <summary>Seçili kusurun değerleri forma yazılırken otomatik kayıt çalışmaz.</summary>
     private bool _loadingForm;
 
+    /// <summary>
+    /// Forma yüklenen kayıtlı değerlerin tam (yuvarlanmamış) hâli. Kutu metni bunun biçimlenmiş hâliyle aynıysa değer
+    /// değişmemiş sayılır ve kayıtlı ham değer korunur; ayrıca başka kullanıcının sonradan yaptığı değişiklik bununla
+    /// karşılaştırılarak tespit edilir (bkz. <see cref="MeasurementEditor.Rebase"/>).
+    /// </summary>
+    private Loaded? _loaded;
+
+    private sealed record Loaded(int Id, MeasurementSnapshot Values, string? Notes, string? Parts, LengthUnit Unit);
+
     /// <summary>Otomatik kayıtta aynı kişinin bu süre içindeki ölçüm düzeltmeleri geçmişte tek satırda birleşir.</summary>
     private static readonly TimeSpan MeasurementMergeWindow = TimeSpan.FromMinutes(10);
 
@@ -301,7 +310,7 @@ public sealed partial class InspectionViewModel : ObservableObject
             _audit.Append(_user, "defect.add", $"#{defect.Id} {name}");
             added = true;
             Refresh(defect.Id);
-            Send($"Kusur #{defect.Id} ({name}) eklendi. Ölçümleri girin.", StatusKind.Success);
+            Send(TypeHasMeasureFields(name) ? $"Kusur #{defect.Id} ({name}) eklendi. Ölçümleri girin." : $"Kusur #{defect.Id} ({name}) eklendi. Fotoğraf çekin.", StatusKind.Success);
         });
         return added;
     }
@@ -345,6 +354,16 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// <summary>Listeyi diskten yeniler; seçim (selectId ya da mevcut) korunur, sekme değişmez.</summary>
     public void Refresh(int? selectId)
     {
+        // Oturum durumu diskten yenilenir: başka kullanıcı muayeneyi tamamlamış olabilir.
+        try
+        {
+            if (_store.LoadSession(_folder!) is Session fresh)
+                _session = fresh;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException)
+        {
+        }
+
         var defects = _store.LoadDefects(_folder!);
         var rows = defects.Select(d => ToItem(d, defects)).ToList();
 
@@ -388,7 +407,14 @@ public sealed partial class InspectionViewModel : ObservableObject
         }
     }
 
-    private static DefectItemViewModel ToItem(Defect d, IReadOnlyList<Defect> all)
+    /// <summary>Şablonda (yerleşik ya da ek) hiç ölçüm alanı var mı; şablonu bulunamayan eski tipte tüm alanlar gösterilir (var sayılır).</summary>
+    private bool TypeHasMeasureFields(string defectType)
+    {
+        var template = _types.FirstOrDefault(t => string.Equals(t.Name, defectType, StringComparison.OrdinalIgnoreCase));
+        return template is null || template.Fields.Count > 0 || SharedConfig.FieldsOf(template, _customFields).Any();
+    }
+
+    private DefectItemViewModel ToItem(Defect d, IReadOnlyList<Defect> all)
     {
         var state = DefectStateMachine.GetState(d);
         return new DefectItemViewModel
@@ -399,7 +425,7 @@ public sealed partial class InspectionViewModel : ObservableObject
             StateText = DefectPresentation.StateLabel(state),
             Tone = DefectPresentation.ToneFor(state),
             PhotoText = d.Photos.Count == 0 ? "fotoğraf yok" : $"{d.Photos.Count} fotoğraf",
-            NextStep = DefectPresentation.NextStepFor(d, state, all),
+            NextStep = DefectPresentation.NextStepFor(d, state, all, TypeHasMeasureFields(d.DefectType)),
         };
     }
 
@@ -461,9 +487,10 @@ public sealed partial class InspectionViewModel : ObservableObject
         Header = $"#{defect.Id}  {defect.DefectType}{(defect.HighMetal ? " + High metal" : "")}";
         StateTone = DefectPresentation.ToneFor(state);
         StateText = DefectPresentation.StateLabel(state);
-        NextStepText = DefectPresentation.NextStepFor(defect, state, all);
+        NextStepText = DefectPresentation.NextStepFor(defect, state, all, TypeHasMeasureFields(defect.DefectType));
         Sentence = DefectSentence.Describe(defect, all);
         ApplyUnitHeaders(defect.Unit);
+        _loaded = new Loaded(defect.Id, MeasurementEditor.Snapshot(defect), defect.Notes, defect.AffectedParts, defect.Unit);
         ApplyStepGuidance(defect, state, selectCurrent: newDefect);
 
         // Değişim satırı yalnızca rework sonrası gerçekten yeniden ölçüldüyse ("aynı kusur devam") gösterilir.
@@ -516,8 +543,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         var historyCount = DefectStateMachine.Effective(defect).Count + defect.MeasurementEdits.Count;
         HistoryTabLabel = historyCount == 0 ? "Geçmiş" : $"Geçmiş ({historyCount})";
 
-        IsEditable = state is not (DefectState.Closed or DefectState.Voided or DefectState.Superseded
-            or DefectState.AwaitingReinspect);
+        IsEditable = DefectPresentation.IsEditableState(state);
         IsReadOnly = !IsEditable;
         ApplyDecisionState(defect);
 
@@ -583,7 +609,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         try
         {
             var defs = CustomFieldsFor(template, defect.Custom);
-            if (!defs.Select(d => d.Key).SequenceEqual(CustomInputs.Select(i => i.Def.Key)))
+            if (!defs.Select(d => (d.Key, d.Kind)).SequenceEqual(CustomInputs.Select(i => (i.Def.Key, i.Def.Kind))))
             {
                 CustomInputs.Clear();
                 foreach (var def in defs)
@@ -608,6 +634,15 @@ public sealed partial class InspectionViewModel : ObservableObject
     private List<CustomFieldDef> CustomFieldsFor(DefectTypeTemplate? template, IReadOnlyList<CustomMeasure>? values)
     {
         var defs = SharedConfig.FieldsOf(template, _customFields).ToList();
+
+        // Kayıtlı değerin türü, alanın şimdiki tanımından farklıysa (tür Admin'de sonradan değişmişse) kayıttaki tanım kullanılır:
+        // değer yeni türe göre yeniden yorumlanıp yazılmaz.
+        for (var i = 0; i < defs.Count; i++)
+        {
+            if (CustomMeasures.Find(values, defs[i].Key) is CustomMeasure stored && stored.Kind != defs[i].Kind)
+                defs[i] = CustomMeasures.DefOf(stored);
+        }
+
         foreach (var m in CustomMeasures.Clean(values))
         {
             if (defs.All(d => d.Key != m.Key))
@@ -619,7 +654,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// <summary>Adım sekmeleri: tamamlanan ✓, sıradaki kalın; vurgulu düğme sıradaki adımdaki düğmedir.</summary>
     private void ApplyStepGuidance(Defect d, DefectState state, bool selectCurrent)
     {
-        var step = DefectPresentation.CurrentStep(d, state);
+        var step = DefectPresentation.CurrentStep(d, state, TypeHasMeasureFields(d.DefectType));
         var measured = DefectPresentation.HasMeasurement(d);
         var photographed = d.Photos.Count > 0;
         // Açık kusurda (ilk karar, rework sonrası ya da yeniden açma) karar bekleniyor: tamamlanmış sayılmaz.
@@ -666,7 +701,7 @@ public sealed partial class InspectionViewModel : ObservableObject
         CanUndo = undoable is not null;
         UndoText = undoable is null
             ? ""
-            : $"Son karar: {DefectSentence.DecisionLabel(undoable.Decision)} ({undoable.DecidedAt:dd.MM HH:mm}, {undoable.DecidedBy})";
+            : $"Son karar: {DefectPresentation.DecisionLabelTr(undoable)} ({undoable.DecidedAt:dd.MM HH:mm}, {undoable.DecidedBy})";
 
         DecisionHint = defect is null
             ? "Karar vermek için listeden bir kusur seçin."
@@ -691,43 +726,100 @@ public sealed partial class InspectionViewModel : ObservableObject
         {
             // Geçersiz parça listesi burada ArgumentException fırlatır: hiçbir şey kaydedilmez, hata bildirilir.
             var (values, notes, parts) = ReadForm();
-            if (values == MeasurementEditor.Snapshot(shown) && notes == shown.Notes && parts == shown.AffectedParts)
+            // Karşılaştırma ekrana yüklenen kayıtlı değerlerle yapılır (başkası sonradan değiştirmiş olsa da değişmemiş alan yazılmaz).
+            var unchanged = _loaded is { } l && l.Id == shown.Id
+                ? values == l.Values && notes == l.Notes && parts == l.Parts
+                : values == MeasurementEditor.Snapshot(shown) && notes == shown.Notes && parts == shown.AffectedParts;
+            if (unchanged)
                 return;
 
-            StoreForm(shown.Id, values, notes, parts);
+            var result = StoreForm(shown.Id, values, notes, parts);
             AutoSaveText = $"Otomatik kaydedildi {DateTime.Now:HH:mm}";
             if (reload)
                 Refresh(shown.Id);
+            if (result.Conflicts.Count > 0)
+                Send(ConflictMessage(shown.Id, result.Conflicts), StatusKind.Warning);
         });
     }
 
-    private (MeasurementSnapshot Values, string? Notes, string? Parts) ReadForm() => (
-        new MeasurementSnapshot(
-            DefectPresentation.ParseOptional(DepthText, "Derinlik"),
-            DefectPresentation.ParseOptional(WidthText, "Genişlik"),
-            DefectPresentation.ParseOptional(LengthText, "Uzunluk"),
-            DefectPresentation.ParseOptional(RadiusText, "Çap"),
-            DefectPresentation.ParseOptional(AngleText, "Açı"),
-            string.IsNullOrWhiteSpace(ColorText) ? null : ColorText.Trim(),
-            HighMetal,
-            CustomMeasures.Clean(CustomInputs.Select(i => i.Read())) is { Count: > 0 } custom ? custom : null),
-        string.IsNullOrWhiteSpace(NotesText) ? null : NotesText.Trim(),
-        PartList.Normalize(AffectedPartsText) is { Length: > 0 } normalized ? normalized : null);
+    private static string ConflictMessage(int id, IReadOnlyList<string> conflicts) =>
+        $"#{id}: başka bir kullanıcı şu alanları siz düzenlerken değiştirdi, bu alanlardaki değişikliğiniz kaydedilmedi: " +
+        $"{string.Join(", ", conflicts)}. Ekran güncel değerlerle yenilendi; gerekirse yeniden girin.";
 
-    /// <summary>Formu kusura yazar (doğrulama, düzeltme geçmişi, denetim satırı). Ölçüm değiştiyse true.</summary>
-    private bool StoreForm(int id, MeasurementSnapshot values, string? notes, string? parts)
+    /// <summary>
+    /// Formu değerlere çevirir. Kutu metni, forma yüklenen kayıtlı değerin biçimlenmiş hâliyle (0.## / 0.#### yuvarlaması)
+    /// aynıysa kutu değiştirilmemiştir ve kayıtlı ham değer aynen korunur; yalnızca kullanıcı metni gerçekten değiştirdiyse ayrıştırılır.
+    /// </summary>
+    private (MeasurementSnapshot Values, string? Notes, string? Parts) ReadForm()
+    {
+        var l = _loaded is { } x && x.Id == SelectedId ? x : null;
+        var stored = l?.Values;
+        var unit = l?.Unit ?? Current?.Unit ?? _settings.Unit;
+
+        double? Box(string text, string label, double? old, bool lengthUnit) =>
+            stored is not null && text.Trim() == (lengthUnit ? DefectPresentation.Fmt(old, unit) : DefectPresentation.Fmt(old))
+                ? old
+                : DefectPresentation.ParseOptional(text, label);
+
+        var custom = CustomInputs.Select(i =>
+        {
+            var old = CustomMeasures.Find(stored?.Custom, i.Def.Key);
+            return old is not null && i.Text.Trim() == CustomMeasures.EditText(old, unit).Trim() ? old : i.Read();
+        }).ToList();
+
+        string? Text(string text, string? old) =>
+            stored is not null && text.Trim() == (old ?? "").Trim() ? old
+            : string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+        return (
+            new MeasurementSnapshot(
+                Box(DepthText, "Derinlik", stored?.Depth, true),
+                Box(WidthText, "Genişlik", stored?.Width, true),
+                Box(LengthText, "Uzunluk", stored?.Length, true),
+                Box(RadiusText, "Çap", stored?.Radius, true),
+                Box(AngleText, "Açı", stored?.AngleDeg, false),
+                Text(ColorText, stored?.Color),
+                HighMetal,
+                CustomMeasures.Clean(custom) is { Count: > 0 } c ? c : null),
+            Text(NotesText, l?.Notes),
+            stored is not null && AffectedPartsText.Trim() == (l?.Parts ?? "").Trim()
+                ? l?.Parts
+                : PartList.Normalize(AffectedPartsText) is { Length: > 0 } normalized ? normalized : null);
+    }
+
+    private sealed record StoreResult(bool Changed, IReadOnlyList<string> Conflicts);
+
+    /// <summary>
+    /// Formu kusura yazar (doğrulama, düzeltme geçmişi, denetim satırı). Yazma kilit altında diskteki güncel kayıtla birleştirilir:
+    /// kullanıcının değiştirmediği alan başkasının yeni değerinde kalır, aynı alanı iki taraf da değiştirdiyse yazılmaz ve
+    /// <see cref="StoreResult.Conflicts"/> ile bildirilir.
+    /// </summary>
+    private StoreResult StoreForm(int id, MeasurementSnapshot values, string? notes, string? parts)
     {
         var by = _user;
         var changed = false;
+        IReadOnlyList<string> conflicts = Array.Empty<string>();
+        var baseline = _loaded is { } b && b.Id == id ? b : null;
 
         _store.UpdateDefect(_folder!, id, d =>
         {
+            // Başka kullanıcı bu arada kusuru kapatmış / void etmiş / devretmiş olabilir.
+            var state = DefectStateMachine.GetState(d);
+            if (!DefectPresentation.IsEditableState(state))
+                throw new InvalidOperationException($"#{id} kusuru artık düzenlenemez ({DefectPresentation.StateLabel(state)}); değişiklik kaydedilmedi. Ekranı yenileyin.");
+
+            // Ekranın yüklendiği değerler yoksa diskteki mevcut kayıt temel alınır (tüm form yazılır).
+            var rebased = baseline is not null
+                ? MeasurementEditor.Rebase(baseline.Values, baseline.Notes, baseline.Parts, values, notes, parts, d)
+                : new RebasedForm(values, notes, parts, Array.Empty<string>());
+            conflicts = rebased.Conflicts;
+
             var probe = new Defect
             {
                 DefectType = d.DefectType,
-                Depth = values.Depth, Width = values.Width, Length = values.Length,
-                Radius = values.Radius, AngleDeg = values.AngleDeg, Color = values.Color,
-                Custom = values.Custom?.ToList(),
+                Depth = rebased.Values.Depth, Width = rebased.Values.Width, Length = rebased.Values.Length,
+                Radius = rebased.Values.Radius, AngleDeg = rebased.Values.AngleDeg, Color = rebased.Values.Color,
+                Custom = rebased.Values.Custom?.ToList(),
             };
 
             // Doğrulama başarısızsa mutate hata fırlatır ve dosya yazılmaz.
@@ -735,14 +827,14 @@ public sealed partial class InspectionViewModel : ObservableObject
             if (errors.Count > 0)
                 throw new InvalidOperationException(string.Join(" ", errors));
 
-            changed = MeasurementEditor.Apply(d, values, by, mergeWithin: MeasurementMergeWindow);
-            d.Notes = notes;
+            changed = MeasurementEditor.Apply(d, rebased.Values, by, mergeWithin: MeasurementMergeWindow);
+            d.Notes = rebased.Notes;
             // Not gibi: ölçüm düzeltme geçmişine yazılmaz.
-            d.AffectedParts = parts;
+            d.AffectedParts = rebased.Parts;
         });
 
         _audit.Append(by, "defect.measure", $"#{id}");
-        return changed;
+        return new StoreResult(changed, conflicts);
     }
 
     public void SaveMeasurements() => Run(() =>
@@ -750,8 +842,15 @@ public sealed partial class InspectionViewModel : ObservableObject
         RequireSelection();
 
         var (values, notes, parts) = ReadForm();
-        var changed = StoreForm(SelectedId!.Value, values, notes, parts);
+        var result = StoreForm(SelectedId!.Value, values, notes, parts);
+        var changed = result.Changed;
         Refresh(SelectedId);
+
+        if (result.Conflicts.Count > 0)
+        {
+            Send(ConflictMessage(SelectedId!.Value, result.Conflicts), StatusKind.Warning);
+            return;
+        }
 
         // Ölçüm bitti, fotoğraf yoksa sıradaki adıma geç.
         if (Current is { Photos.Count: 0 } && DefectPresentation.HasMeasurement(Current))
@@ -765,6 +864,15 @@ public sealed partial class InspectionViewModel : ObservableObject
     public void Complete() => Run(() =>
     {
         RequireSession();
+
+        // Zaten tamamlanmışsa (bu ekranda ya da başka kullanıcıca) ikinci denetim satırı yazılmaz.
+        if (_store.LoadSession(_folder!)?.Status == SessionStatus.Completed)
+        {
+            Refresh(SelectedId);
+            Send("Bu muayene zaten tamamlandı.", StatusKind.Info);
+            return;
+        }
+
         AutoSave();
         var defects = _store.LoadDefects(_folder!);
 
@@ -785,8 +893,14 @@ public sealed partial class InspectionViewModel : ObservableObject
             return;
         }
 
-        _session!.Status = SessionStatus.Completed;
-        _store.SaveSession(_folder!, _session);
+        // Açık kusur denetimi ve durum yazımı mağazada tek kilit altında yinelenir (tamamlama / kusur ekleme yarışı).
+        if (!_store.CompleteSession(_folder!))
+        {
+            Refresh(SelectedId);
+            Send("Bu muayene zaten tamamlandı.", StatusKind.Info);
+            return;
+        }
+        _session = _store.LoadSession(_folder!) ?? _session;
         _audit.Append(_user, "session.complete", _folder!);
         UpdateSessionHeader(defects);
         Send("Muayene tamamlandı. Rapor oluşturabilirsiniz.", StatusKind.Success);

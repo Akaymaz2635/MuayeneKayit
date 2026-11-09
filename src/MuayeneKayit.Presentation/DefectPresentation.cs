@@ -21,6 +21,29 @@ public static class DefectPresentation
         (Decision.Reopen, "Yeniden aç"),
     };
 
+    /// <summary>Ölçüm / not / işaret düzenlenebilir mi: kapalı, void, devredilmiş ve rework sonrası muayene bekleyen kusur kilitlidir.</summary>
+    public static bool IsEditableState(DefectState state) =>
+        state is not (DefectState.Closed or DefectState.Voided or DefectState.Superseded or DefectState.AwaitingReinspect);
+
+    /// <summary>
+    /// Karar etiketi, Türkçe arayüz için (raporlardaki iki dilli karar adları <see cref="DefectSentence.DecisionLabel(Decision)"/> ile aynen kalır).
+    /// </summary>
+    public static string DecisionLabelTr(Decision decision) => decision switch
+    {
+        Decision.AfterReworkConforms => "Rework sonrası uygun",
+        Decision.AfterReworkSameDefect => "Rework sonrası: aynı kusur devam ediyor",
+        Decision.AfterReworkNewDefect => "Rework sonrası: yeni hata bulundu",
+        Decision.Reopen => "Yeniden açıldı",
+        Decision.Undo => "Geri alındı",
+        Decision.Void => "Void",
+        _ => DecisionOrder.Where(x => x.Decision == decision).Select(x => x.Label).FirstOrDefault() ?? decision.ToString(),
+    };
+
+    public static string DecisionLabelTr(Disposition d) =>
+        d.Decision == Decision.Rework && d.ReworkScope == ReworkScope.HighMetalOnly
+            ? "Rework → Reinspect (yalnızca high metal)"
+            : DecisionLabelTr(d.Decision);
+
     public static string StateLabel(DefectState state) => state switch
     {
         DefectState.Open => "Açık",
@@ -52,9 +75,10 @@ public static class DefectPresentation
     /// Muayenecinin bu kusurda yapması gereken sıradaki iş. <paramref name="all"/>: oturumun kusurları;
     /// verilirse void edilen yeni kusurlar anılmaz.
     /// </summary>
-    public static string NextStepFor(Defect d, DefectState state, IReadOnlyList<Defect>? all = null)
+    public static string NextStepFor(Defect d, DefectState state, IReadOnlyList<Defect>? all = null, bool typeHasMeasureFields = true)
     {
-        var hasMeasure = HasMeasurement(d);
+        // Şablonunda hiç ölçüm alanı olmayan tipte ölçüm adımı yoktur: sıradaki iş fotoğraftır.
+        var hasMeasure = HasMeasurement(d) || !typeHasMeasureFields;
         return state switch
         {
             DefectState.Open when !hasMeasure => "Sıradaki adım: ölçümleri girin.",
@@ -108,13 +132,13 @@ public static class DefectPresentation
         || CustomMeasures.Clean(d.Custom).Count > 0;
 
     /// <summary>Kusurun sıradaki adımı: ölçüm, fotoğraf, karar; kapalı / devredilmiş / void için yok (null).</summary>
-    public static InspectionStep? CurrentStep(Defect d, DefectState state)
+    public static InspectionStep? CurrentStep(Defect d, DefectState state, bool typeHasMeasureFields = true)
     {
         if (state is DefectState.Closed or DefectState.Voided or DefectState.Superseded)
             return null;
         if (state == DefectState.AwaitingReinspect)
             return InspectionStep.Measure;
-        if (state == DefectState.Open && !HasMeasurement(d))
+        if (state == DefectState.Open && !HasMeasurement(d) && typeHasMeasureFields)
             return InspectionStep.Measure;
         if (state == DefectState.Open && d.Photos.Count == 0)
             return InspectionStep.Photo;
@@ -168,7 +192,7 @@ public static class DefectPresentation
         {
             var parts = new List<string>
             {
-                $"{x.DecidedAt:dd.MM HH:mm}  {x.DecidedBy}  ·  {DefectSentence.DecisionLabel(x)}",
+                $"{x.DecidedAt:dd.MM HH:mm}  {x.DecidedBy}  ·  {DecisionLabelTr(x)}",
             };
             if (!string.IsNullOrWhiteSpace(x.Note)) parts.Add($"not: {x.Note}");
             if (!string.IsNullOrWhiteSpace(x.Reference)) parts.Add($"ref: {x.Reference}");

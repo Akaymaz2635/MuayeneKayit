@@ -91,8 +91,13 @@ public static class SharedConfig
             if (!File.Exists(path))
                 return Defaults;
 
+            // Yalnızca geçersiz tipler atlanır; hiç geçerli tip kalmazsa varsayılanlar döner.
             var list = SessionStore.ReadJson<List<DefectTypeTemplate>>(path);
-            return ValidateTypes(list).Count == 0 && list.Count > 0 ? list : Defaults;
+            if (ValidateTypes(list).Count == 0 && list.Count > 0)
+                return list;
+            // 100'ü aşan liste yapısal olarak şüphelidir: tamamı yerine varsayılanlar kullanılır.
+            var valid = list.Count > 100 ? new List<DefectTypeTemplate>() : KeepValidTypes(list);
+            return valid.Count > 0 ? valid : Defaults;
         }
         catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -133,6 +138,8 @@ public static class SharedConfig
         if (errors.Count > 0)
             throw new ArgumentException(string.Join(" ", errors));
 
+        // Kök yoksa (ağ kaybı) yeni bir kök oluşturulmaz; yalnızca var olan kökte _config oluşturulur.
+        RootGuard.Require(root);
         Directory.CreateDirectory(Folder(root));
         AtomicFile.WriteAllText(Path.Combine(Folder(root), TypesFile), JsonSerializer.Serialize(types, SessionStore.JsonOptions));
     }
@@ -157,13 +164,36 @@ public static class SharedConfig
             if (!File.Exists(path))
                 return Array.Empty<CustomFieldDef>();
 
+            // Yalnızca geçersiz kayıtlar atlanır; geçerli alanlar yüklenmeye devam eder (tek bozuk giriş listeyi düşürmez).
             var list = SessionStore.ReadJson<List<CustomFieldDef>>(path);
-            return ValidateCustomFields(list).Count == 0 ? list : Array.Empty<CustomFieldDef>();
+            return ValidateCustomFields(list).Count == 0 ? list : KeepValidFields(list);
         }
         catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
         {
             return Array.Empty<CustomFieldDef>();
         }
+    }
+
+    private static IReadOnlyList<CustomFieldDef> KeepValidFields(List<CustomFieldDef> list)
+    {
+        var kept = new List<CustomFieldDef>();
+        foreach (var f in list)
+        {
+            if (f is not null && ValidateCustomFields(kept.Append(f).ToList()).Count == 0)
+                kept.Add(f);
+        }
+        return kept;
+    }
+
+    private static List<DefectTypeTemplate> KeepValidTypes(List<DefectTypeTemplate> list)
+    {
+        var kept = new List<DefectTypeTemplate>();
+        foreach (var t in list)
+        {
+            if (t is not null && kept.Count < 100 && ValidateTypes(kept.Append(t).ToList()).Count == 0)
+                kept.Add(t);
+        }
+        return kept;
     }
 
     public static IReadOnlyList<string> ValidateCustomFields(IReadOnlyList<CustomFieldDef> fields)
@@ -206,6 +236,8 @@ public static class SharedConfig
         if (errors.Count > 0)
             throw new ArgumentException(string.Join(" ", errors));
 
+        // Kök yoksa (ağ kaybı) yeni bir kök oluşturulmaz; yalnızca var olan kökte _config oluşturulur.
+        RootGuard.Require(root);
         Directory.CreateDirectory(Folder(root));
         AtomicFile.WriteAllText(Path.Combine(Folder(root), CustomFieldsFile), JsonSerializer.Serialize(fields, SessionStore.JsonOptions));
     }
@@ -286,6 +318,8 @@ public static class SharedConfig
         if (errors.Count > 0)
             throw new ArgumentException(string.Join(" ", errors));
 
+        // Kök yoksa (ağ kaybı) yeni bir kök oluşturulmaz; yalnızca var olan kökte _config oluşturulur.
+        RootGuard.Require(root);
         Directory.CreateDirectory(Folder(root));
         var clean = texts.ToDictionary(t => t.Key, t => t.Value.Trim());
         AtomicFile.WriteAllText(Path.Combine(Folder(root), DecisionTextsFile), JsonSerializer.Serialize(clean, SessionStore.JsonOptions));
@@ -316,6 +350,8 @@ public static class SharedConfig
 
     public static void SaveUseWindowsUser(string root, bool value)
     {
+        // Kök yoksa (ağ kaybı) yeni bir kök oluşturulmaz; yalnızca var olan kökte _config oluşturulur.
+        RootGuard.Require(root);
         Directory.CreateDirectory(Folder(root));
         AtomicFile.WriteAllText(Path.Combine(Folder(root), IdentityFile),
             JsonSerializer.Serialize(new IdentitySettings(value), SessionStore.JsonOptions));
@@ -342,6 +378,8 @@ public static class SharedConfig
             Iterations = PinIterations,
         };
 
+        // Kök yoksa (ağ kaybı) yeni bir kök oluşturulmaz; yalnızca var olan kökte _config oluşturulur.
+        RootGuard.Require(root);
         Directory.CreateDirectory(Folder(root));
         AtomicFile.WriteAllText(Path.Combine(Folder(root), PinFile), JsonSerializer.Serialize(record, SessionStore.JsonOptions));
     }

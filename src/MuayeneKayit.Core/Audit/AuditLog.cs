@@ -52,6 +52,7 @@ public static class AuditLog
 
     public static void Append(SessionStore store, string actor, string action, string details)
     {
+        RootGuard.Require(store.Root);
         var path = Path.Combine(store.Root, FileName);
 
         using var _ = FileLock.Acquire(Path.Combine(store.Root, LockName));
@@ -219,18 +220,10 @@ public static class AuditLog
         if (!File.Exists(path))
             return new List<AuditEntry>();
 
-        var queue = new Queue<string>();
-        foreach (var line in File.ReadLines(path))
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-            queue.Enqueue(line);
-            if (queue.Count > count)
-                queue.Dequeue();
-        }
+        var queue = TailLines(path, count);
 
         var entries = new List<AuditEntry>();
-        foreach (var line in queue.Reverse())
+        foreach (var line in queue.AsEnumerable().Reverse())
         {
             try
             {
@@ -242,6 +235,37 @@ public static class AuditLog
             }
         }
         return entries;
+    }
+
+    /// <summary>
+    /// Dosyanın son <paramref name="count"/> boş olmayan satırı. Dosya sondan bloklarla okunur: günlük yıllarca büyüse de
+    /// Bakım sayfasının açılışı (arayüz iş parçacığında) dosyanın tamamını taramaz.
+    /// </summary>
+    private static List<string> TailLines(string path, int count)
+    {
+        const int block = 64 * 1024;
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var position = stream.Length;
+        var chunks = new List<byte[]>();
+        List<string> lines = new();
+
+        while (true)
+        {
+            var size = (int)Math.Min(block, position);
+            position -= size;
+            var buffer = new byte[size];
+            stream.Seek(position, SeekOrigin.Begin);
+            stream.ReadExactly(buffer);
+            chunks.Insert(0, buffer);
+
+            var text = Encoding.UTF8.GetString(chunks.SelectMany(c => c).ToArray());
+            lines = text.Split('\n').Select(l => l.TrimEnd('\r')).Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+            // Başlangıca varılmadıysa ilk satır yarım olabilir: bir fazla satır toplanana dek okunur.
+            if (position == 0 || lines.Count > count)
+                break;
+        }
+
+        return lines.Count > count ? lines.GetRange(lines.Count - count, count) : lines;
     }
 
     /// <summary>Günlükte daha önce bir "admin." eylemi (PIN, ayar, giriş) yazılmış mı. Admin PIN'inin sıfırlandığını anlamak için.</summary>

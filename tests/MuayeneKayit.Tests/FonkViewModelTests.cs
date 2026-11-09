@@ -398,12 +398,25 @@ public static partial class ViewModelTests
         var editor = c.Windows.Editors.Single();
 
         c.Store.UpdateDefect(c.Folder, 1, d => DefectStateMachine.Apply(d, Decision.Accept, DecisionSource.Engineer, "Başka Kullanıcı"));
-        editor.OnSave(new PhotoEditResultData(
-            new PhotoMarkup { ImageWidth = 100, ImageHeight = 100, Shapes = { Annotation.CenterSquare(100, 100, 1) } }, null));
+        // Gerçek düzenleyici penceresi bu hatayı yakalayıp ekranda gösterir ("Kaydedilemedi: ..."); pencere açık kalır.
+        string? refusal = null;
+        try
+        {
+            editor.OnSave(new PhotoEditResultData(
+                new PhotoMarkup { ImageWidth = 100, ImageHeight = 100, Shapes = { Annotation.CenterSquare(100, 100, 1) } }, null));
+        }
+        catch (InvalidOperationException ex)
+        {
+            refusal = ex.Message;
+        }
 
         var written = Load(c, 1).Markups.ContainsKey("1_photo_01.jpg");
-        Check(!written, "B-14 doğrulandı: kapatılmış kusura işaret yazıldı (geri çağrı durumu kontrol etmiyor)");
+        Check(!written, "B-14: kapatılmış kusura işaret yazıldı (geri çağrı durumu kontrol etmiyor)");
+        Check(refusal is not null && refusal.Contains("kaydedilmedi"), $"B-14: kullanıcıya açık ret mesajı verilmeli: '{refusal}'");
+        Check(!Audit(c).Any(e => e.Contains("|defect.markup|")), "B-14: reddedilen kayıt için denetim satırı yazılmamalı");
     });
+
+    private static List<string> Audit(Ctx c) => c.Audit.Entries;
 
     // B-20 F-CONC-013
     public static void Fonk_CONC013_ParallelReportsGetDistinctVersions() => WithRoot(root =>

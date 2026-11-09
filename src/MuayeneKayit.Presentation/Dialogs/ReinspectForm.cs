@@ -8,6 +8,37 @@ namespace MuayeneKayit.Presentation;
 /// </summary>
 public static class ReinspectForm
 {
+    /// <summary>Ölçüm kutusundaki metnin durumu: boş, geçerli sayı ya da (sayı olmayan) hatalı.</summary>
+    public enum EntryState
+    {
+        Empty,
+        Valid,
+        Invalid,
+    }
+
+    /// <summary>
+    /// Ölçüm kutusu ayrıştırma kuralı (pencere ve test aynı kuralı kullanır): boş metin boştur (önceki değer kalır),
+    /// sayı (güncel kültür ya da nokta ayraçlı) geçerlidir, başka her metin hatalıdır. Hatalı metin sessizce "boş" sayılmaz:
+    /// pencere satır içi hata gösterir ve Kaydet kapalı kalır.
+    /// </summary>
+    public static EntryState ParseEntry(string? text, out double? value)
+    {
+        value = null;
+        var trimmed = text?.Trim() ?? "";
+        if (trimmed.Length == 0)
+            return EntryState.Empty;
+
+        if (double.TryParse(trimmed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out var v)
+            || double.TryParse(trimmed, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v))
+        {
+            if (double.IsNaN(v) || double.IsInfinity(v))
+                return EntryState.Invalid;
+            value = v;
+            return EntryState.Valid;
+        }
+        return EntryState.Invalid;
+    }
+
     /// <summary>Boş bırakılan alan önceki değerinde kalır; high metal cevabı yoksa öncekini korur.</summary>
     public static MeasurementSnapshot Merge(MeasurementSnapshot before, MeasurementSnapshot entered, bool? highMetalStillThere) =>
         new(entered.Depth ?? before.Depth, entered.Width ?? before.Width, entered.Length ?? before.Length,

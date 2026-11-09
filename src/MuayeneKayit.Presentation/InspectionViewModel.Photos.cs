@@ -74,7 +74,9 @@ public sealed partial class InspectionViewModel
 
         var id = SelectedId!.Value;
         var folder = _folder!;
-        var name = PhotoImporter.Import(folder, id, path);
+        // Tamamlanmış muayeneye fotoğraf eklenmez (dosya kopyalanmadan önce erken ret; asıl denetim kilit altındadır).
+        _store.RequireWritable(folder);
+        var name = PhotoImporter.Import(folder, id, path, Current?.Photos);
 
         _store.UpdateDefect(folder, id, d => d.Photos.Add(name));
         _audit.Append(_user, "defect.photo", $"#{id} {name}");
@@ -101,7 +103,8 @@ public sealed partial class InspectionViewModel
         _windows.OpenCamera(new CameraRequest(target, id),
             photo =>
             {
-                var name = PhotoImporter.Import(folder, id, photo.TempPath);
+                _store.RequireWritable(folder);
+                var name = PhotoImporter.Import(folder, id, photo.TempPath, _store.LoadDefects(folder).FirstOrDefault(d => d.Id == id)?.Photos);
                 _store.UpdateDefect(folder, id, d =>
                 {
                     d.Photos.Add(name);
@@ -175,15 +178,22 @@ public sealed partial class InspectionViewModel
             result =>
             {
                 var markup = result.Markup;
-                if (result.NewCleanJpeg is not null)
-                    markup.CleanedFile = PhotoImporter.WriteCleaned(folder, photo, result.NewCleanJpeg);
-
-                var errors = PhotoMarkupValidator.Validate(markup);
-                if (errors.Count > 0)
-                    throw new InvalidOperationException(string.Join(" ", errors));
 
                 _store.UpdateDefect(folder, id, d =>
                 {
+                    // Düzenleyici açıkken kusur başka kullanıcıca kapatılmış / void edilmiş / devredilmiş olabilir: kilit altında denetlenir.
+                    var state = DefectStateMachine.GetState(d);
+                    if (!DefectPresentation.IsEditableState(state))
+                        throw new InvalidOperationException(
+                            $"#{id} kusuru düzenleyici açıkken değişti ({DefectPresentation.StateLabel(state)}); işaretler kaydedilmedi.");
+
+                    if (result.NewCleanJpeg is not null)
+                        markup.CleanedFile = PhotoImporter.WriteCleaned(folder, photo, result.NewCleanJpeg);
+
+                    var errors = PhotoMarkupValidator.Validate(markup);
+                    if (errors.Count > 0)
+                        throw new InvalidOperationException(string.Join(" ", errors));
+
                     if (markup.Shapes.Count == 0 && markup.CleanedFile is null)
                         d.Markups.Remove(photo);
                     else
@@ -218,16 +228,20 @@ public sealed partial class InspectionViewModel
     {
         AutoSave();
         string? workDir = null;
+        int? reservedVersion = null;
         try
         {
             RequireSession();
             IsReportRunning = true;
 
             var folder = _folder!;
+            RootGuard.Require(_store.Root);
             var reportsDir = Path.Combine(folder, "reports");
-            Directory.CreateDirectory(reportsDir);
 
-            var version = ReportFiles.LatestVersion(folder) + 1;
+            // Sürüm numarası reports klasörü kilidi altında ayrılır: eşzamanlı raporlar farklı sürüm alır.
+            // Oturum klasörü yoksa (kök kaybı) hiçbir klasör yeniden oluşturulmaz.
+            var version = ReportFiles.Reserve(folder);
+            reservedVersion = version;
             var htmlPath = Path.Combine(reportsDir, $"Rapor_v{version}.html");
             var pdfPath = Path.ChangeExtension(htmlPath, ".pdf");
 
@@ -260,9 +274,15 @@ public sealed partial class InspectionViewModel
             // PDF asıl kayıttır (fotoğraflar içinde) ve paylaşıma kopyalanır. HTML yalnızca ara dosyadır: PDF üretilemediyse
             // yedek olarak paylaşıma yazılır ve açılır.
             if (pdfError is null)
+            {
                 PublishReport(workPdf, pdfPath);
+                ReportFiles.DeleteHtml(htmlPath);   // ayrılan boş yer tutucu
+            }
             else
+            {
                 AtomicFile.WriteAllText(htmlPath, html);
+            }
+            reservedVersion = null;   // sürüm kullanıldı (PDF ya da yedek HTML yazıldı)
 
             _audit.Append(_user, "report.create", $"Rapor_v{version}{(pdfError is null ? " (pdf)" : "")}");
             _windows.OpenFile(pdfError is null ? pdfPath : htmlPath);
@@ -277,6 +297,9 @@ public sealed partial class InspectionViewModel
             IsReportRunning = false;
             if (workDir is not null)
                 DeleteQuietly(workDir);
+            // Rapor üretilemediyse ayrılan boş sürüm yer tutucusu kalmaz.
+            if (reservedVersion is int unused && _folder is not null)
+                ReportFiles.Release(_folder, unused);
         }
     });
 

@@ -80,14 +80,32 @@ public static partial class AdminViewModelTests
         }
     });
 
-    // B-19 F-ADM-LOGIN-013
-    public static void Fonk_LOGIN013_DeletedAdminJsonDoesNotOfferFirstRun() => With(c =>
+    // B-19 F-ADM-LOGIN-013: ürün kararı. admin.json yokken ama kökte önceki admin etkinliği varken PIN sessizce yeniden
+    // belirlenemez: uyarı + açık onay istenir ve "admin.pin.reset" denetim satırı yazılır.
+    public static void Fonk_LOGIN013_DeletedAdminJsonNeedsConfirmedReset() => With(c =>
     {
-        c.SetupPin();
+        c.SignIn();                       // admin.login denetim satırı: kökte önceki admin etkinliği var
         File.Delete(AdminFile(c));
         c.Shell.Lock(null);
-        Check(!c.Login.IsFirstRun,
-            "B-19 doğrulandı: ortak alanda admin.json silinince giriş ekranı 'İlk kurulum' (yeni PIN belirleme) sunuyor — ürün kararı");
+        Check(c.Login.NeedsResetConfirm && c.Login.Hint.StartsWith("UYARI") && c.Login.ButtonText == "PIN'i sıfırla ve gir",
+            $"sıfırlama uyarısı ve onay beklenir (NeedsResetConfirm={c.Login.NeedsResetConfirm}, düğme='{c.Login.ButtonText}')");
+
+        c.Login.Pin = NewPin8;
+        c.Login.PinRepeat = NewPin8;
+        c.Login.Login();
+        Check(!c.Shell.IsLoggedIn && !SharedConfig.HasPin(c.Root) && c.Login.Error.Contains("onay"),
+            $"onay verilmeden PIN belirlenmemeli (hata='{c.Login.Error}')");
+
+        c.Login.ResetConfirmed = true;
+        c.Login.Login();
+        Check(c.Shell.IsLoggedIn && SharedConfig.VerifyPin(c.Root, NewPin8), $"onaydan sonra yeni PIN ile giriş (hata='{c.Login.Error}')");
+        Check(c.AuditActions().Contains("admin.pin.reset"), "denetim kaydında admin.pin.reset olmalı: " + string.Join(",", c.AuditActions()));
+    });
+
+    // B-19 (karşıt durum): kökte hiç admin etkinliği yoksa gerçek ilk kurulumdur, onay istenmez.
+    public static void Fonk_LOGIN013_FreshRootIsPlainFirstRun() => With(c =>
+    {
+        Check(c.Login.IsFirstRun && !c.Login.NeedsResetConfirm, "temiz kökte onaysız ilk kurulum");
     });
 
     // B-16 F-ADM-LOGIN-008
@@ -143,32 +161,24 @@ public static partial class AdminViewModelTests
         File.WriteAllText(AdminFile(c), System.Text.Json.JsonSerializer.Serialize(rec, SessionStore.JsonOptions));
         c.Login.Pin = Pin;
         c.Login.Login();
-        Check(c.Login.Error == "PIN hatalı." && !c.Shell.IsLoggedIn, $"zayıf kayıt kabul edilmemeli: '{c.Login.Error}'");
+        // PBKDF2 tur sayısı 10 000-5 000 000 dışındaki kayıt (5000) kabul edilmez; açık hata verilir.
+        Check(c.Login.Error.Contains("tur sayısı (5000)") && !c.Shell.IsLoggedIn, $"zayıf kayıt kabul edilmemeli: '{c.Login.Error}'");
     });
 
     // F-ADM-LOGIN-003
     public static void Fonk_LOGIN003_PinFormatRules() => With(c =>
     {
-        foreach (var bad in new[] { "12345", "abc123", "", "1234567890123" })
+        foreach (var bad in new[] { "12345", "1234567", "abc12345", "", "1234567890123" })
         {
             c.Login.Pin = bad;
             c.Login.PinRepeat = bad;
             c.Login.Login();
-            Check(c.Login.Error == "PIN 6-12 haneli rakam olmalı." && !SharedConfig.HasPin(c.Root), $"'{bad}': {c.Login.Error}");
+            Check(c.Login.Error == "PIN 8-12 haneli rakam (0-9) olmalı." && !SharedConfig.HasPin(c.Root), $"'{bad}': {c.Login.Error}");
         }
         c.Login.Pin = "123456789012";
         c.Login.PinRepeat = "123456789012";
         c.Login.Login();
         Check(c.Shell.IsLoggedIn && SharedConfig.VerifyPin(c.Root, "123456789012"), "12 hane kabul edilmeli");
-    });
-
-    // F-ADM-LOGIN-013 (davranış kaydı: ilk kurulum yeniden görünür)
-    public static void Fonk_LOGIN013_Behaviour_Info() => With(c =>
-    {
-        c.SetupPin();
-        File.Delete(AdminFile(c));
-        c.Shell.Lock(null);
-        Console.WriteLine($"        BİLGİ F-ADM-LOGIN-013: admin.json silinince İlk kurulum ekranı görünür = {c.Login.IsFirstRun} (B-19)");
     });
 
     private static void TypeError(Ctx c, string contains)
@@ -362,7 +372,8 @@ public static partial class AdminViewModelTests
         {
             c.SettingsVm.RootText = v;
             c.SettingsVm.SaveRoot();
-            TypeError(c, "Klasöre erişilemiyor.");
+            // Boş / göreli yol tam yol kuralıyla reddedilir (güvenlik düzeltmesi, B-09).
+            TypeError(c, "Ortak alan yolu tam yol olmalı");
         }
         Check(c.Settings.Saved.Count == 0, "settings değişmemeli");
     });

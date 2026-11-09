@@ -26,7 +26,9 @@ public sealed class FileLock : IDisposable
     {
         var directory = Path.GetDirectoryName(lockPath)
             ?? throw new ArgumentException("Geçersiz kilit yolu.", nameof(lockPath));
-        Directory.CreateDirectory(directory);
+        // Klasör yoksa oluşturulmaz: kaybolan kök ya da oturum klasörü sessizce yeniden yaratılmasın (RootGuard).
+        if (!Directory.Exists(directory))
+            throw new DirectoryNotFoundException($"Klasör bulunamadı, kilit alınamadı: {directory}");
 
         var deadline = DateTime.UtcNow + (timeout ?? DefaultTimeout);
 
@@ -43,6 +45,11 @@ public sealed class FileLock : IDisposable
                     FileOptions.DeleteOnClose);
                 WriteOwner(stream);
                 return new FileLock(stream);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // Kilit alınmaya çalışılırken klasör kayboldu (ağ kopması): bekleme döngüsüne girmeden bildirilir.
+                throw new DirectoryNotFoundException($"Klasör bulunamadı, kilit alınamadı: {directory}");
             }
             catch (IOException)
             {

@@ -49,6 +49,21 @@ public sealed partial class LoginViewModel : ObservableObject
     /// <summary>Giriş ekranını (yeniden) hazırlar; message varsa hata satırında gösterilir.</summary>
     public void Reset(string? message)
     {
+        // Kök erişilemiyorsa (ağ kaybı) "ilk kurulum" sunulmaz: PIN belirlemek kökü yeniden oluştururdu.
+        if (!Directory.Exists(_ctx.Root))
+        {
+            IsFirstRun = false;
+            NeedsResetConfirm = false;
+            ResetConfirmed = false;
+            PostLoginNotice = "";
+            Hint = RootGuard.Message(_ctx.Root);
+            ButtonText = "Giriş";
+            Error = message ?? RootGuard.Message(_ctx.Root);
+            RootText = $"Ortak alan: {_ctx.Root}";
+            Pin = PinRepeat = "";
+            return;
+        }
+
         var first = !SafeHasPin();
         var prior = first && SafePriorActivity();
         IsFirstRun = first;
@@ -98,6 +113,8 @@ public sealed partial class LoginViewModel : ObservableObject
     {
         try
         {
+            // Kök yoksa ne PIN doğrulanır ne de ilk kurulum yapılır (kök yeniden oluşturulmaz).
+            RootGuard.Require(_ctx.Root);
             var now = _clock.Now;
             var state = LoginThrottle.Load(_ctx.Root);
             if (now < state.LockedUntil)

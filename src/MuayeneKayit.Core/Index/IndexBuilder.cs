@@ -36,6 +36,7 @@ public static class IndexBuilder
     /// </summary>
     public static List<IndexRow> Rebuild(SessionStore store, List<string>? problems)
     {
+        RootGuard.Require(store.Root);
         var rows = new List<IndexRow>();
 
         foreach (var partDir in SubDirectories(store.Root))

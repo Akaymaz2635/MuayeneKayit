@@ -27,7 +27,11 @@ public sealed class WinUiDialogService : IDialogService
 
     private static Visibility Vis(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
 
-    private ContentDialog NewDialog(string title, object content, string primary, string close, bool primaryEnabled = true)
+    /// <param name="safeDefault">
+    /// İçinde odaklanacak giriş kutusu olmayan (yalnızca metin) onay pencereleri için true: varsayılan düğme vazgeç düğmesidir,
+    /// Enter / Space onaylamaz ("Enter hiçbir onay düğmesini tetiklemez").
+    /// </param>
+    private ContentDialog NewDialog(string title, object content, string primary, string close, bool primaryEnabled = true, bool safeDefault = false)
     {
         var xamlRoot = _xamlRoot?.Invoke() ?? throw new InvalidOperationException("Pencere henüz hazır değil.");
         var dialog = new ContentDialog
@@ -36,7 +40,7 @@ public sealed class WinUiDialogService : IDialogService
             Content = content,
             PrimaryButtonText = primary,
             CloseButtonText = close,
-            DefaultButton = ContentDialogButton.None,
+            DefaultButton = safeDefault ? ContentDialogButton.Close : ContentDialogButton.None,
             PrimaryButtonStyle = ConfirmButtonStyle,
             IsPrimaryButtonEnabled = primaryEnabled,
             XamlRoot = xamlRoot,
@@ -198,7 +202,7 @@ public sealed class WinUiDialogService : IDialogService
                     ? $"Parça şimdi tekrar muayene edilecekse sonucu hemen girin. Parça rework'e gittiyse 'Sonra' deyin; kusur 'rework'te' olarak bekler, döndüğünde #{defectId} seçilip sonuç girilir."
                     : $"Kontrol şimdi yapılıyorsa sonucu hemen girin. Değilse 'Sonra' deyin; #{defectId} kontrol bekliyor olarak kalır.",
             },
-            "Sonucu şimdi gir", "Sonra");
+            "Sonucu şimdi gir", "Sonra", safeDefault: true);
         return await ask.ShowAsync() == ContentDialogResult.Primary;
     }
 
@@ -383,12 +387,26 @@ public sealed class WinUiDialogService : IDialogService
             .Select(r => new RegionChoice(r.Info.Photo, (r.Choice.SelectedItem as RadioButton)?.Tag as PhotoOutcome?, r.News.Types))
             .ToList();
 
+        // Sayı olmayan ölçüm metni "boş" sayılmaz: satır içi hata gösterilir, Kaydet kapalı kalır (kural ReinspectForm.ParseEntry).
+        var entryError = new TextBlock { TextWrapping = TextWrapping.Wrap, Style = Res("WarnTextStyle"), Visibility = Visibility.Collapsed };
+        samePanel.Children.Add(entryError);
+
+        List<string> InvalidEntries()
+        {
+            var bad = new List<string>();
+            foreach (var (field, box) in boxes)
+                if (ReinspectForm.ParseEntry(box.Text, out _) == ReinspectForm.EntryState.Invalid)
+                    bad.Add(headers.First(h => h.Field == field).Header);
+            foreach (var (def, box) in customBoxes)
+                if (def.Kind != CustomFieldKind.Text && ReinspectForm.ParseEntry(box.Text, out _) == ReinspectForm.EntryState.Invalid)
+                    bad.Add(CustomMeasures.Header(def, request.Unit));
+            return bad;
+        }
+
         MeasurementSnapshot ReadValues()
         {
             static double? Try(TextBox? b) =>
-                b is null || string.IsNullOrWhiteSpace(b.Text) ? null
-                : double.TryParse(b.Text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out var v) ||
-                  double.TryParse(b.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) ? v : null;
+                b is not null && ReinspectForm.ParseEntry(b.Text, out var v) == ReinspectForm.EntryState.Valid ? v : null;
             return new MeasurementSnapshot(
                 Try(boxes.GetValueOrDefault(MeasureField.Depth)), Try(boxes.GetValueOrDefault(MeasureField.Width)),
                 Try(boxes.GetValueOrDefault(MeasureField.Length)), Try(boxes.GetValueOrDefault(MeasureField.Radius)),
@@ -399,6 +417,9 @@ public sealed class WinUiDialogService : IDialogService
 
         void Refresh()
         {
+            var invalid = InvalidEntries();
+            entryError.Text = invalid.Count == 0 ? "" : "Sayı olmalı: " + string.Join(", ", invalid) + ". Boş bırakırsanız önceki değer kalır.";
+            entryError.Visibility = Vis(invalid.Count > 0);
             var entered = ReadValues();
             var anyValue = ReinspectForm.AnyValue(entered);
             bool showMeasure;
@@ -410,14 +431,14 @@ public sealed class WinUiDialogService : IDialogService
                     news.Visibility = Vis((choice.SelectedItem as RadioButton)?.Tag as PhotoOutcome? == PhotoOutcome.NewDefect);
                 showMeasure = ReinspectForm.AnyContinues(choices);
                 summary.Text = ReinspectForm.Summary(request.DefectId, choices);
-                dialog.IsPrimaryButtonEnabled = ReinspectForm.CanSaveRegions(choices, hadHighMetal, HighMetalAnswer(), anyValue);
+                dialog.IsPrimaryButtonEnabled = invalid.Count == 0 && ReinspectForm.CanSaveRegions(choices, hadHighMetal, HighMetalAnswer(), anyValue);
             }
             else
             {
                 var tag = Selected();
                 newPanel.Visibility = Vis(tag == ReinspectOutcome.New);
                 showMeasure = tag == ReinspectOutcome.Same;
-                dialog.IsPrimaryButtonEnabled = ReinspectForm.CanSave(tag, hadHighMetal, HighMetalAnswer(), anyValue, singleNews!.Types);
+                dialog.IsPrimaryButtonEnabled = invalid.Count == 0 && ReinspectForm.CanSave(tag, hadHighMetal, HighMetalAnswer(), anyValue, singleNews!.Types);
             }
 
             samePanel.Visibility = Vis(showMeasure);
@@ -530,7 +551,7 @@ public sealed class WinUiDialogService : IDialogService
                 TextWrapping = TextWrapping.Wrap,
                 Text = $"#{defectId} kusurundan {photo} kaldırılacak; rapora girmez. Dosya ortak alanda saklanmaya devam eder.",
             },
-            "Kaldır", "Vazgeç");
+            "Kaldır", "Vazgeç", safeDefault: true);
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 

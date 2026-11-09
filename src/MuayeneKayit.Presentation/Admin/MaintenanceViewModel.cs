@@ -8,6 +8,9 @@ public sealed partial class MaintenanceViewModel : AdminViewModelBase
 {
     private const int AuditTail = 300;
 
+    /// <summary>Listede gösterilen satır uzunluğu sınırı: çok uzun tek satırlık ayrıntılar (yüzlerce dosya özeti) arayüzü yavaşlatmasın; tamamı denetim dosyasında durur.</summary>
+    private const int MaxLineChars = 400;
+
     private readonly AdminContext _ctx;
     private readonly IConfirmService _confirm;
 
@@ -53,6 +56,7 @@ public sealed partial class MaintenanceViewModel : AdminViewModelBase
     {
         AuditLines = AuditLog.ReadTail(_ctx.Store, AuditTail)
             .Select(a => $"{(DateTime.TryParse(a.Ts, out var ts) ? ts.ToString("dd.MM.yyyy HH:mm:ss") : a.Ts)}   {a.Actor,-14}   {a.Action,-22}   {ShortenHashes(a.Details)}")
+            .Select(l => l.Length > MaxLineChars ? l[..MaxLineChars] + "…" : l)
             .ToList();
     });
 

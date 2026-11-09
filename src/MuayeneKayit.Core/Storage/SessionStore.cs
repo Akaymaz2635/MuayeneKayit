@@ -36,6 +36,8 @@ public sealed class SessionStore : ISessionStore
     public (string Folder, Session Session) OpenOrCreate(Session input)
     {
         var folder = FolderFor(input.PartNumber, input.OperationNumber, input.SerialNumber);
+        // Kök yoksa (ağ yolu / sürücü kayıp) yeni, boş bir kök oluşturulmaz.
+        RootGuard.Require(_root);
         var existing = LoadSession(folder);
         if (existing is not null)
             return (folder, existing);
@@ -43,6 +45,65 @@ public sealed class SessionStore : ISessionStore
         Directory.CreateDirectory(folder);
         SaveSession(folder, input);
         return (folder, input);
+    }
+
+    /// <summary>Oturum ve kusur işlemleri için kilit: kök ve oturum klasörü yoksa yeniden oluşturulmaz, anlaşılır hata verilir.</summary>
+    private FileLock AcquireSessionLock(string folder)
+    {
+        RootGuard.Require(_root);
+        if (!Directory.Exists(folder))
+            throw new DirectoryNotFoundException($"Oturum klasörü bulunamadı: {folder}. Ortak alana erişimi kontrol edin.");
+        return FileLock.Acquire(Path.Combine(folder, "session.lock"));
+    }
+
+    /// <summary>Tamamlanmış oturuma yeni kusur, karar, ölçüm ya da fotoğraf yazılmaz (kilit altında çağrılır).</summary>
+    private void EnsureWritableLocked(string folder)
+    {
+        Session? session;
+        try
+        {
+            session = LoadSession(folder);
+        }
+        catch (InvalidDataException)
+        {
+            // Okunamayan oturum dosyası: durum bilinmiyor; oturum açma zaten ayrıca reddeder.
+            return;
+        }
+        if (session?.Status == SessionStatus.Completed)
+            throw new InvalidOperationException("Bu muayene tamamlandı; yeni kusur, karar, ölçüm ya da fotoğraf eklenemez.");
+    }
+
+    /// <summary>Oturum tamamlanmışsa hata verir (fotoğraf dosyası kopyalanmadan önce erken ret için; asıl denetim kilit altındadır).</summary>
+    public void RequireWritable(string folder)
+    {
+        RootGuard.Require(_root);
+        EnsureWritableLocked(folder);
+    }
+
+    /// <summary>
+    /// Oturumu tamamlar. Açık kusur denetimi ve durum yazımı aynı kilit altındadır: tamamlama ile kusur ekleme yarışırsa
+    /// "tamamlanmış ama açık kusurlu" oturum oluşmaz. Zaten tamamlanmışsa hiçbir şey yazmaz ve false döner.
+    /// </summary>
+    public bool CompleteSession(string folder)
+    {
+        using var _ = AcquireSessionLock(folder);
+
+        var session = LoadSession(folder) ?? throw new InvalidOperationException("Oturum bulunamadı.");
+        if (session.Status == SessionStatus.Completed)
+            return false;
+
+        var unreadable = UnreadableDefectFiles(folder);
+        if (unreadable.Count > 0)
+            throw new InvalidOperationException($"Muayene kapatılamaz: okunamayan kusur dosyası var ({string.Join(", ", unreadable.Take(3))}). Yöneticiye bildirin.");
+
+        var blocking = SessionGate.BlockingDefects(LoadDefects(folder));
+        if (blocking.Count > 0)
+            throw new InvalidOperationException(
+                "Muayene kapatılamaz, açık kusurlar var: " + string.Join(", ", blocking.Select(d => $"#{d.Id}")));
+
+        session.Status = SessionStatus.Completed;
+        SaveSession(folder, session);
+        return true;
     }
 
     /// <summary>En büyük kusur numarası: fotoğraf adındaki numara 5 hane ("{id}_photo_NN") olabildiği için.</summary>
@@ -122,6 +183,9 @@ public sealed class SessionStore : ISessionStore
 
     public void SaveSession(string folder, Session session)
     {
+        RootGuard.Require(_root);
+        if (!Directory.Exists(folder))
+            throw new DirectoryNotFoundException($"Oturum klasörü bulunamadı: {folder}. Ortak alana erişimi kontrol edin.");
         var path = Path.Combine(folder, "session.json");
         AtomicFile.WriteAllText(path, JsonSerializer.Serialize(session, JsonOptions));
         MarkWritten(path);
@@ -270,7 +334,8 @@ public sealed class SessionStore : ISessionStore
     /// </summary>
     public Defect AddDefect(string folder, string defectType, Action<Defect>? configure = null, LengthUnit unit = LengthUnit.Mm)
     {
-        using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
+        using var _ = AcquireSessionLock(folder);
+        EnsureWritableLocked(folder);
 
         var nextId = NextDefectId(folder);
 
@@ -283,7 +348,8 @@ public sealed class SessionStore : ISessionStore
     /// <summary>Kusuru kilit altında günceller. Değişiklik kaydedilmeden önce mutate çalışır.</summary>
     public Defect UpdateDefect(string folder, int defectId, Action<Defect> mutate)
     {
-        using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
+        using var _ = AcquireSessionLock(folder);
+        EnsureWritableLocked(folder);
 
         var path = DefectPath(folder, defectId);
         if (!File.Exists(path))
@@ -301,7 +367,8 @@ public sealed class SessionStore : ISessionStore
     /// </summary>
     public void UpdateDefects(string folder, Action<IDictionary<int, Defect>> mutate, IEnumerable<int> ids)
     {
-        using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
+        using var _ = AcquireSessionLock(folder);
+        EnsureWritableLocked(folder);
 
         var map = new Dictionary<int, Defect>();
         foreach (var id in ids)
@@ -330,7 +397,8 @@ public sealed class SessionStore : ISessionStore
         DecisionSource source = DecisionSource.Engineer,
         string? reference = null)
     {
-        using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
+        using var _ = AcquireSessionLock(folder);
+        EnsureWritableLocked(folder);
 
         var parentPath = DefectPath(folder, parentId);
         if (!File.Exists(parentPath))
@@ -398,7 +466,8 @@ public sealed class SessionStore : ISessionStore
     /// </summary>
     public int? VoidDefect(string folder, int defectId, string by, string note)
     {
-        using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
+        using var _ = AcquireSessionLock(folder);
+        EnsureWritableLocked(folder);
 
         var path = DefectPath(folder, defectId);
         if (!File.Exists(path))
@@ -443,7 +512,8 @@ public sealed class SessionStore : ISessionStore
     /// </summary>
     public (Disposition Undone, IReadOnlyList<int> VoidedChildIds) UndoLastDecision(string folder, int defectId, string by, string? note)
     {
-        using var _ = FileLock.Acquire(Path.Combine(folder, "session.lock"));
+        using var _ = AcquireSessionLock(folder);
+        EnsureWritableLocked(folder);
 
         var path = DefectPath(folder, defectId);
         if (!File.Exists(path))
