@@ -37,7 +37,7 @@ public static class CsvExport
         var v = value ?? "";
         if (v.Length > 0 && v[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
             v = "'" + v;
-        return v.IndexOfAny(new[] { ';', '"', '\n', '\r' }) >= 0 ? "\"" + v.Replace("\"", "\"\"") + "\"" : v;
+        return v.IndexOfAny(new[] { ';', ',', '"', '\n', '\r' }) >= 0 ? "\"" + v.Replace("\"", "\"\"") + "\"" : v;
     }
 
     private static string Line(params string?[] cells) => string.Join(";", cells.Select(Cell));

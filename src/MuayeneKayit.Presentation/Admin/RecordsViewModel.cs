@@ -107,8 +107,11 @@ public sealed partial class RecordsViewModel : AdminViewModelBase
     /// <summary>Indeksi diskten yeniden üretir ve süzgeçleri uygular.</summary>
     public void Refresh() => Run(() =>
     {
-        _all = IndexBuilder.Rebuild(_ctx.Store);
+        var problems = new List<string>();
+        _all = IndexBuilder.Rebuild(_ctx.Store, problems);
         ApplyFilters();
+        if (problems.Count > 0)
+            Say($"{problems.Count} kayıt dosyası okunamadı ve atlandı (ilk: {problems[0]}).", StatusKind.Warning);
     });
 
     private List<IndexRow> Filtered()
@@ -140,20 +143,30 @@ public sealed partial class RecordsViewModel : AdminViewModelBase
     /// <summary>Klasörü Gezgin'de açar. Yol, kök altında olduğu doğrulanmış index satırından gelir.</summary>
     public void OpenFolder(AdminRecordRowViewModel row) => Run(() =>
     {
+        // Ayraçlı kök denetimi ("Veri2", "Veri" kökünün altında sayılmaz) ve yeniden çözümleme noktası (junction) reddi.
         var full = Path.GetFullPath(row.Folder);
-        if (!full.StartsWith(Path.GetFullPath(_ctx.Root), StringComparison.OrdinalIgnoreCase) || !Directory.Exists(full))
+        if (!SafePath.IsUnderRootWithoutLinks(_ctx.Root, full) || !Directory.Exists(full))
             throw new InvalidOperationException("Klasör bulunamadı.");
         _shell.OpenFolder(full);
     });
 
     public void OpenLatestReport(AdminRecordRowViewModel row) => Run(() =>
     {
-        var version = ReportFiles.LatestVersion(row.Folder);
+        var folder = Path.GetFullPath(row.Folder);
+        if (!SafePath.IsUnderRootWithoutLinks(_ctx.Root, folder))
+            throw new InvalidOperationException("Klasör bulunamadı.");
+
+        var version = ReportFiles.LatestVersion(folder);
         if (version == 0)
             throw new InvalidOperationException("Bu kayıt için rapor yok.");
-        var pdf = Path.Combine(row.Folder, "reports", $"Rapor_v{version}.pdf");
+
+        // PDF asıl rapordur ve tercih edilir. PDF üretilememişse yedek HTML yalnızca kök içinden açılır (yukarıdaki denetim).
+        var pdf = Path.Combine(folder, "reports", $"Rapor_v{version}.pdf");
         var html = Path.ChangeExtension(pdf, ".html");
-        _shell.OpenFile(File.Exists(pdf) ? pdf : html);
+        var target = File.Exists(pdf) ? pdf : html;
+        if (!SafePath.IsUnderRootWithoutLinks(_ctx.Root, target))
+            throw new InvalidOperationException("Rapor dosyası kök klasör içinde değil.");
+        _shell.OpenFile(target);
     });
 
     /// <summary>Süzülmüş kayıtların tamamını (kart sınırı olmadan) UTF-8 BOM'lu CSV olarak yazar.</summary>

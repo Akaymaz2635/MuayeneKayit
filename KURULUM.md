@@ -79,14 +79,21 @@ Parça / operasyon / seri öneri listesinde "×" ile gizlenen öneriler de bu kl
 ## 2. İlk açılış
 
 1. Programı açın, sol menünün altındaki **Admin**'e tıklayın; admin paneli ayrı pencerede açılır. Ortak klasörde PIN yoksa
-   PIN belirleme ekranı gelir (6-12 rakam). Pencere kapanınca ya da 10 dakika işlem yapılmazsa kilitlenir.
+   PIN belirleme ekranı gelir (8-12 rakam; yalnızca 0-9). Eski sürümlerde belirlenmiş 6 haneli PIN'ler girişte çalışmaya devam eder, girişten sonra değiştirilmesi önerilir. Pencere kapanınca ya da 10 dakika işlem yapılmazsa kilitlenir.
 2. **Kusur tipleri** sayfasında tipleri ve her tipin ölçüm alanlarını düzenleyip **Tümünü ortak alana kaydet**.
 3. İsterseniz **Karar açıklamaları** sayfasında, Inspector'ın karar seçince gördüğü açıklamaları düzenleyip **Ortak alana kaydet**.
 4. Muayene ekranı kusur tiplerini programın bir sonraki açılışında, karar açıklamalarını bir sonraki karar seçiminde kullanır
    (admin penceresi kapanınca yeniden açma uyarısı çıkar).
 
-PIN unutulursa: admin, ortak klasördeki `_config\admin.json` dosyasını silip PIN'i yeniden belirler.
-Bu yüzden `_config` klasörüne yalnızca admin grubu yazabilmelidir.
+PIN unutulursa: admin, ortak klasördeki `_config\admin.json` dosyasını silip PIN'i yeniden belirler. Kökte daha önce admin kaydı
+varsa (`_config` altında başka dosya ya da denetim kaydında admin eylemi) giriş ekranı "ilk kurulum" yerine **sıfırlama uyarısı**
+gösterir, açık onay ister ve işlem denetim kaydına `admin.pin.reset` olarak yazılır. `_config` klasörüne yalnızca admin grubu
+yazabilmelidir: yazabilen biri `admin.json`'u silip kendi PIN'ini belirleyebilir (iz bırakır ama engellenmez).
+
+Admin girişi 5 hatalı denemede 60 saniye kilitlenir; sayaç bu bilgisayarın yerel profilinde (`%LOCALAPPDATA%\MuayeneKayit`) kalıcıdır,
+programı kapatıp açmak sıfırlamaz. Her hatalı deneme `admin.login.fail` olarak denetim kaydına yazılır. `admin.json` muayene
+bilgisayarlarında okunabilir olmak zorundadır (PIN doğrulaması orada yapılır); bu yüzden PIN yalnızca özet olarak saklanır ve PBKDF2 tur
+sayısı yüksektir, ama özeti okuyan biri çevrimdışı deneme yapabilir: PIN'i 8-12 haneli ve tahmin edilmesi zor seçin.
 
 ## 3. Ağ klasörü izinleri (NTFS)
 
@@ -121,8 +128,31 @@ Bu ikinci düzende `_config` için kurulan ayrı izinler aynen kalır. İzinleri
 muayene açma, fotoğraf ekleme, rapor ve dashboard yenilemeyi deneyin.
 
 Program bu izinleri aşamaz; yazma izni olmayan klasörde "erişim reddedildi" mesajı gösterir.
-Denetim zinciri (`_audit.log`) bir dosyanın silindiğini ya da değiştirildiğini gösterir ama engellemez.
+Denetim kaydı (`_audit.log`) **kurcalamayı engellemez; yalnızca çoğu durumda fark edilmesini sağlar**: her satır öncekinin SHA-256 özetine
+bağlıdır, kök klasördeki `_audit.head` son satır sayısını ve özetini tutar, kayıt yazan satırlar kayıt dosyasının özetini taşır.
+Admin > Bakım > *Denetim zincirini doğrula* satır değişikliğini, günlüğün kısaltılmasını / silinmesini ve denetimden sonra elle
+düzenlenmiş kayıt dosyalarını ("kayıt denetim dışı değiştirilmiş") bildirir. Zincir anahtarsızdır: ortak alana tam yazma yetkisi olan
+biri günlüğü, `_audit.head`'i ve kayıtları birlikte tutarlı biçimde yeniden yazarsa program bunu yakalayamaz. Bu yüzden:
+`_audit.log` için muayeneciye yalnız-ekleme izni verin (aşağıda); gölge kopya / gece yedeğiyle günlüğün bağımsız bir kopyasını saklayın.
+`_audit.head` her denetim satırında yeniden yazıldığı için yalnız-ekleme yapılamaz (muayeneci yazabilmelidir).
+
+```bat
+rem Yalnız-ekleme: muayeneci _audit.log'a satır ekleyebilir, mevcut içeriği değiştiremez / silemez (WD ve D verilmez).
+rem DENEME ŞART: canlıya almadan önce test kullanıcısıyla Inspector'dan işlem yapıp denetim satırının eklendiğini doğrulayın;
+rem eklenemiyorsa bu izni uygulamayın (yalnız-ekleme izninin her ortamda çalıştığı bu çalışmada sınanmadı).
+icacls "%ROOT%\_audit.log" /inheritance:r
+icacls "%ROOT%\_audit.log" /grant "MK_Admin:F" "MK_Muayene:(R,AD)" "MK_Okuma:R" "SYSTEM:F"
+```
+
+İkinci izin düzeninde (yukarıdaki), muayeneciye kökte dosya oluşturma izni verildiği için `_audit.log` silinebilir: bu, denetim günlüğü
+silinmiş olsa bile Bakım doğrulamasında ("kayıtlar var ama günlük yok") görünür, ama geri getirilemez. Yalnız-ekleme izni ve yedek bu riski azaltır.
 Paylaşım için düzenli yedek (gölge kopya ya da gece yedeği) alın.
+
+**Kişisel veri / saklama:** Denetim kaydı muayeneci adını (ya da sicil no'yu) ve bilgisayar adını içerir; okuma izni olan herkes (`MK_Okuma`)
+görebilir. Saklama süresini ve okuyucu erişimini kurumun KVKK politikasına göre belirleyin; program kayıtları kendiliğinden silmez.
+**Program klasörü:** Admin panelinden ortak veri yolu değiştirilirse `MuayeneKayit.settings.json` program klasörüne yazılır; bunun için
+yalnızca admin hesabına program klasöründe yazma izni verin (muayenecilere okuma yeter). Fotoğraflarda konum / cihaz üst verisi (EXIF, XMP)
+içe aktarmada ayıklanır; EXIF yönü korunur.
 
 ## 4. Kamera
 

@@ -13,6 +13,9 @@ public static class ProgramLayout
 {
     public const string VersionFile = "surum.txt";
 
+    private static readonly System.Text.RegularExpressions.Regex VersionPattern =
+        new(@"^[0-9]+(\.[0-9]+){1,3}\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     /// <summary>Açılacak exe'nin yolu. ARM64 sürümü yoksa x64 (ARM64 Windows'ta öykünmeyle çalışır) kullanılır.</summary>
     /// <exception cref="FileNotFoundException">Sürüm dosyası ya da exe bulunamadı (mesaj kullanıcıya gösterilir).</exception>
     public static string Resolve(string programRoot, string app, bool arm64)
@@ -22,7 +25,8 @@ public static class ProgramLayout
             throw new FileNotFoundException($"Sürüm dosyası bulunamadı:\n{versionPath}\n\nProgram klasörünün kurulumunu kontrol edin.");
 
         var version = File.ReadLines(versionPath).FirstOrDefault()?.Trim() ?? "";
-        if (version.Length == 0 || version.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || version.Contains(".."))
+        // Yalnızca "1.0.2" biçimi: rakam ve nokta (".", "abc", "1.0 x", "CON" sürüm klasörü olarak kullanılmaz).
+        if (!VersionPattern.IsMatch(version))
             throw new FileNotFoundException($"{VersionFile} geçersiz: \"{version}\"");
 
         foreach (var arch in arm64 ? new[] { "arm64", "x64" } : new[] { "x64" })

@@ -57,8 +57,8 @@ public static class ConcurrencyTests
             var id = a.AddDefect(folder, "Dent").Id;
 
             const int each = 20;
-            var ta = Task.Run(() => { for (var i = 0; i < each; i++) a.UpdateDefect(folder, id, d => d.Photos.Add($"a{i}")); });
-            var tb = Task.Run(() => { for (var i = 0; i < each; i++) b.UpdateDefect(folder, id, d => d.Photos.Add($"b{i}")); });
+            var ta = Task.Run(() => { for (var i = 0; i < each; i++) a.UpdateDefect(folder, id, d => d.Photos.Add($"{id}_photo_{i + 1:00}.jpg")); });
+            var tb = Task.Run(() => { for (var i = 0; i < each; i++) b.UpdateDefect(folder, id, d => d.Photos.Add($"{id}_photo_{i + 21:00}.jpg")); });
             Task.WaitAll(ta, tb);
 
             var photos = a.LoadDefects(folder).Single().Photos;

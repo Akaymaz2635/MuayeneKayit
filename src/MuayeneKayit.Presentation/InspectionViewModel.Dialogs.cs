@@ -303,9 +303,14 @@ public sealed partial class InspectionViewModel
             await action();
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IOException
-                                    or TimeoutException or InvalidDataException or UnauthorizedAccessException)
+                                    or TimeoutException or InvalidDataException or UnauthorizedAccessException
+                                    or System.Text.Json.JsonException or FormatException)
         {
             Send(ex.Message, StatusKind.Error);
+        }
+        finally
+        {
+            FlushLoadWarnings();
         }
     }
 }

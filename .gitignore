@@ -7,3 +7,14 @@ packages/
 .vs/
 dist/
 packages-offline/
+
+# Gizli bilgi / anahtar / yerel veri (depoya girmemeli)
+*.pfx
+*.snk
+*.key
+_config/
+admin.json
+_audit.log
+_audit.head
+_audit.lock
+_index.json

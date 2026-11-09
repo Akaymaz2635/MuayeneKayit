@@ -63,13 +63,34 @@ public sealed partial class SettingsViewModel : AdminViewModelBase
     public void SaveRoot() => Run(() =>
     {
         var root = Environment.ExpandEnvironmentVariables(RootText.Trim());
+        if (!Path.IsPathFullyQualified(root))
+            throw new InvalidOperationException("Ortak alan yolu tam yol olmalı (ör. D:\\Veri ya da \\\\sunucu\\paylasim); göreli yol kabul edilmez.");
         if (!Directory.Exists(root))
             throw new InvalidOperationException("Klasöre erişilemiyor. Yolu ve ağ bağlantısını kontrol edin.");
 
+        var oldRoot = _ctx.Root;
+        var oldAudit = _ctx.Audit;
         _settings.SaveRootPath(RootText.Trim());
         _ctx.SetRoot(root);
+
+        // Kök değişimi her iki köke de yazılır (eski kökte "nereye taşındı", yeni kökte "nereden geldi" görünür).
+        var details = $"{oldRoot} -> {root} ({Environment.MachineName})";
+        TryAudit(oldAudit, details);
+        TryAudit(_ctx.Audit, details);
         LockRequested?.Invoke("Ortak alan değişti; yeni alandaki PIN ile tekrar giriş yapın.");
     });
+
+    /// <summary>Kök değişimi denetim satırı; yazılamayan kökte (erişim, kilit) değişiklik yine de uygulanır.</summary>
+    private static void TryAudit(IAuditTrail audit, string details)
+    {
+        try
+        {
+            audit.Append("admin", "admin.root.change", details);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or TimeoutException or InvalidOperationException)
+        {
+        }
+    }
 
     public void ChangePin() => Run(() =>
     {

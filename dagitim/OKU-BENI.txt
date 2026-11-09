@@ -17,6 +17,11 @@ Bu paketin tamamı ağdaki bir PROGRAM klasörüne kopyalanır, örneğin:
          { "rootPath": "\\\\sunucu\\MuayeneKayit\\Veri" }
      (JSON'da her ters bölü iki kez yazılır.)
    - Kullanıcıların VERİ klasörüne okuma + yazma izni olmalı. PROGRAM klasörüne yalnızca okuma yeterli.
+   - İSTİSNA: VERİ klasörünün içindeki "_config" alt klasörüne muayeneciler YALNIZCA OKUR; yalnızca admin grubu yazabilmelidir
+     (PIN özeti, kusur tipleri ve kararlar orada durur; yazabilen biri admin PIN'ini sıfırlayabilir). İzin örnekleri için
+     KURULUM.md bölüm 3'ü uygulayın. Admin paneli ayarı değiştirince "MuayeneKayit.settings.json" program klasörüne yazılır:
+     o dosya için yalnızca admin hesabına yazma izni verin.
+   - "rootPath" tam yol olmalıdır (D:\Veri ya da \\sunucu\paylasim); göreli yol kabul edilmez.
    - Admin paneli programın içindedir: sol menünün altındaki "Admin" > PIN. İlk açılışta PIN belirlenir,
      kusur tipleri ve karar açıklamaları oradan düzenlenir. Kusur tipi ya da veri klasörü değişince
      programı kapatıp yeniden açın.

@@ -26,6 +26,11 @@ public static class PhotoImporter
         if (!HasImageSignature(sourcePath, extension))
             throw new InvalidDataException("Dosya içeriği uzantısıyla eşleşmiyor, görüntü olarak kabul edilmedi.");
 
+        // Çok büyük görüntü (piksel bombası) kodu çözülmeden reddedilir; düzenleyici tam çözünürlükte belleğe açar.
+        if (ImageHeader.TryReadSize(sourcePath) is var (w, h) && ImageHeader.ExceedsLimit(w, h))
+            throw new InvalidDataException(
+                $"Fotoğraf çok büyük ({w}x{h}); en fazla {ImageHeader.MaxPixels / 1_000_000} megapiksel kabul edilir.");
+
         var directory = Path.Combine(folder, "defects");
         Directory.CreateDirectory(directory);
 
@@ -33,7 +38,19 @@ public static class PhotoImporter
             .Count(p => !p.Contains("_clean", StringComparison.Ordinal) && !p.EndsWith(".tmp", StringComparison.Ordinal));
         var fileName = $"{defectId}_photo_{existing + 1:00}{extension}";
 
-        File.Copy(sourcePath, Path.Combine(directory, fileName), overwrite: false);
+        var target = Path.Combine(directory, fileName);
+
+        // Konum / cihaz üst verisi (EXIF, XMP) paylaşıma gitmez; görüntü verisi değişmez. Biçim tanınmazsa dosya olduğu gibi kopyalanır.
+        var clean = MetadataStripper.Strip(File.ReadAllBytes(sourcePath), extension);
+        if (clean is null)
+        {
+            File.Copy(sourcePath, target, overwrite: false);
+        }
+        else
+        {
+            using var stream = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            stream.Write(clean);
+        }
         return fileName;
     }
 

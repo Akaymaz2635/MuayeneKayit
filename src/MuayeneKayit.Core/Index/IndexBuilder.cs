@@ -28,23 +28,39 @@ public static class IndexBuilder
     public const string FileName = "_index.json";
     private const string LockName = "_index.lock";
 
-    public static List<IndexRow> Rebuild(SessionStore store)
+    public static List<IndexRow> Rebuild(SessionStore store) => Rebuild(store, null);
+
+    /// <summary>
+    /// Kökü tarar ve indeksi yeniden üretir. Okunamayan oturum atlanır ve <paramref name="problems"/> listesine yazılır
+    /// (tek bozuk kayıt diğerlerini engellemez). Kök içindeki yeniden çözümleme noktaları (junction) izlenmez.
+    /// </summary>
+    public static List<IndexRow> Rebuild(SessionStore store, List<string>? problems)
     {
         var rows = new List<IndexRow>();
 
-        foreach (var partDir in Directory.EnumerateDirectories(store.Root))
+        foreach (var partDir in SubDirectories(store.Root))
         {
             if (Path.GetFileName(partDir).StartsWith('_'))
                 continue;
 
-            foreach (var opDir in Directory.EnumerateDirectories(partDir))
-            foreach (var serialDir in Directory.EnumerateDirectories(opDir))
+            foreach (var opDir in SubDirectories(partDir))
+            foreach (var serialDir in SubDirectories(opDir))
             {
-                var session = store.LoadSession(serialDir);
-                if (session is null)
+                Session? session;
+                List<Defect> defects;
+                try
+                {
+                    session = store.LoadSession(serialDir);
+                    if (session is null)
+                        continue;
+                    defects = store.LoadDefects(serialDir);
+                }
+                catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+                {
+                    problems?.Add($"{Path.GetRelativePath(store.Root, serialDir)}: {ex.Message}");
                     continue;
+                }
 
-                var defects = store.LoadDefects(serialDir);
                 var blocking = SessionGate.BlockingDefects(defects);
 
                 rows.Add(new IndexRow(
@@ -68,6 +84,11 @@ public static class IndexBuilder
             }
         }
 
+        if (problems is not null)
+            problems.AddRange(store.TakeWarnings());
+        else
+            store.TakeWarnings();
+
         using (FileLock.Acquire(Path.Combine(store.Root, LockName)))
         {
             AtomicFile.WriteAllText(
@@ -76,6 +97,12 @@ public static class IndexBuilder
         }
 
         return rows;
+    }
+
+    private static IEnumerable<string> SubDirectories(string folder)
+    {
+        var options = new EnumerationOptions { AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = true };
+        return Directory.EnumerateDirectories(folder, "*", options);
     }
 
     public static List<IndexRow> Read(SessionStore store)

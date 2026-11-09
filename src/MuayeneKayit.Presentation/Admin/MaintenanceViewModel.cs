@@ -27,21 +27,38 @@ public sealed partial class MaintenanceViewModel : AdminViewModelBase
         Say($"Index yeniden oluşturuldu: {rows.Count} kayıt.", StatusKind.Success);
     });
 
+    /// <summary>
+    /// Zinciri ve kayıtları doğrular: zincir kırığı, günlüğün kısalması / silinmesi ve denetimden sonra elle değiştirilmiş
+    /// kayıt dosyaları ("kayıt denetim dışı değiştirilmiş"). Bulgular denetim listesinin başında gösterilir.
+    /// </summary>
     public void VerifyAudit() => Run(() =>
     {
-        var (ok, bad) = AuditLog.Verify(_ctx.Store);
-        Say(ok ? "Denetim zinciri sağlam." : $"Denetim zinciri {bad}. satırda bozuk: kayıt değiştirilmiş ya da silinmiş.",
-            ok ? StatusKind.Success : StatusKind.Error);
+        var check = AuditLog.Check(_ctx.Store);
+        var all = check.All;
+        if (check.Ok)
+            Say("Denetim zinciri sağlam.", StatusKind.Success);
+        else if (check.BadLine is int bad)
+            Say($"Denetim zinciri {bad}. satırda bozuk: kayıt değiştirilmiş ya da silinmiş." +
+                (all.Count > 1 ? $" (+{all.Count - 1} bulgu daha; listeye bakın)" : ""), StatusKind.Error);
+        else
+            Say($"Denetim doğrulaması başarısız: {all[0]}" + (all.Count > 1 ? $" (+{all.Count - 1} bulgu daha; listeye bakın)" : ""), StatusKind.Error);
+
         LoadAudit();
+        if (!check.Ok)
+            AuditLines = all.Select(x => "!! " + x).Concat(AuditLines).ToList();
     });
 
     /// <summary>Son 300 denetim satırını okur.</summary>
     public void LoadAudit() => Run(() =>
     {
         AuditLines = AuditLog.ReadTail(_ctx.Store, AuditTail)
-            .Select(a => $"{(DateTime.TryParse(a.Ts, out var ts) ? ts.ToString("dd.MM.yyyy HH:mm:ss") : a.Ts)}   {a.Actor,-14}   {a.Action,-22}   {a.Details}")
+            .Select(a => $"{(DateTime.TryParse(a.Ts, out var ts) ? ts.ToString("dd.MM.yyyy HH:mm:ss") : a.Ts)}   {a.Actor,-14}   {a.Action,-22}   {ShortenHashes(a.Details)}")
             .ToList();
     });
+
+    /// <summary>Ayrıntıdaki kayıt özetleri (64 hane) listede 8 haneye kısaltılır; denetim dosyasında tam hali durur.</summary>
+    private static string ShortenHashes(string details) =>
+        System.Text.RegularExpressions.Regex.Replace(details, "=([0-9a-f]{8})[0-9a-f]{56}", "=$1…");
 
     public void ScanLocks() => Run(() =>
     {
@@ -58,8 +75,9 @@ public sealed partial class MaintenanceViewModel : AdminViewModelBase
             Say("Listeden bir kilit seçin.", StatusKind.Error);
             return;
         }
+        var owner = FileLock.DescribeOwner(path);
         if (!await _confirm.ConfirmAsync("Kilidi sil",
-                $"{path}\n\nBu kilit 10 dakikadan eski. Silmeden önce o kayıtta çalışan kimse olmadığından emin olun; " +
+                $"{path}{(owner is null ? "" : $"\nSahibi: {owner}")}\n\nBu kilit 10 dakikadan eski ya da ileri tarihli. Silmeden önce o kayıtta çalışan kimse olmadığından emin olun; " +
                 "işlem denetim kaydına yazılır.", "Kilidi sil"))
             return;
 

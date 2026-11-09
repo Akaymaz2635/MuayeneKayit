@@ -15,7 +15,8 @@ public static class BackgroundRemover
 
     public static bool[] ComputeMask(byte[] bgra, int width, int height, PixelRect rect)
     {
-        if (width <= 0 || height <= 0 || bgra.Length < width * height * 4)
+        // long aritmetiği: width * height * 4 int'te taşıp 0'a sarabilir (65536x65536). Piksel sayısı sınırlıdır.
+        if (ImageHeader.ExceedsLimit(width, height) || bgra.Length < (long)width * height * 4)
             throw new ArgumentException("Görüntü verisi geçersiz.");
         rect = Clamp(rect, width, height);
         if (rect.Width < 10 || rect.Height < 10)

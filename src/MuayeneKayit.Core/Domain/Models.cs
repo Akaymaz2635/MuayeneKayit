@@ -48,10 +48,16 @@ public sealed class Defect
     /// <summary>Kabul kağıdının numarası.</summary>
     public string? AcceptanceReference { get; set; }
 
-    public List<string> Photos { get; set; } = new();
+    private List<string> _photos = new();
+    private Dictionary<string, PhotoMarkup> _markups = new();
+    private List<Disposition> _dispositions = new();
+    private List<MeasurementEdit> _measurementEdits = new();
+
+    // Bozuk dosyada "null" gelen koleksiyonlar boş liste sayılır (okuma sırasında NullReferenceException çıkmasın).
+    public List<string> Photos { get => _photos; set => _photos = value ?? new(); }
 
     /// <summary>Fotoğraf adına göre işaretler ve arka plan sonucu. Orijinal fotoğraflar değişmez.</summary>
-    public Dictionary<string, PhotoMarkup> Markups { get; set; } = new();
+    public Dictionary<string, PhotoMarkup> Markups { get => _markups; set => _markups = value ?? new(); }
 
     /// <summary>Bu kusurun yerini aldığı önceki kusur (child ise dolu).</summary>
     public int? SupersedesId { get; set; }
@@ -65,10 +71,10 @@ public sealed class Defect
     /// </summary>
     public int? SupersededById { get; set; }
 
-    public List<Disposition> Dispositions { get; set; } = new();
+    public List<Disposition> Dispositions { get => _dispositions; set => _dispositions = value ?? new(); }
 
     /// <summary>Karar vermeden yapılan ölçüm düzeltmeleri (önce / sonra).</summary>
-    public List<MeasurementEdit> MeasurementEdits { get; set; } = new();
+    public List<MeasurementEdit> MeasurementEdits { get => _measurementEdits; set => _measurementEdits = value ?? new(); }
 }
 
 /// <summary>Bir kararın anındaki ölçümlerin görüntüsü. Rework öncesi / sonrası karşılaştırması için.</summary>

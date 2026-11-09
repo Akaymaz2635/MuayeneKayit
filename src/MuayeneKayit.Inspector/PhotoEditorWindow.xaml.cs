@@ -79,7 +79,9 @@ public sealed partial class PhotoEditorWindow : Window
             presenter.Maximize();
 
         Hint("Fotoğraf yükleniyor...");
-        _ = LoadAsync();
+        _ = LoadAsync().ContinueWith(
+            t => { if (t.Exception is not null) CrashReporter.Log("PhotoEditorWindow.LoadAsync", t.Exception); },
+            TaskContinuationOptions.OnlyOnFaulted);
     }
 
     // ───────────────────────── Yükleme ─────────────────────────
@@ -115,9 +117,13 @@ public sealed partial class PhotoEditorWindow : Window
             ToolHint();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
-                                    or System.Runtime.InteropServices.COMException)
+                                    or System.Runtime.InteropServices.COMException or OutOfMemoryException
+                                    or InvalidDataException)
         {
-            Hint("Fotoğraf açılamadı: " + ex.Message);
+            // Çok büyük ya da bozuk görüntü: düzenleyici açılmaz, kayıt etkilenmez (belleğe sığmayan görüntü OutOfMemory verebilir).
+            _pixels = null;
+            _cleanPixels = null;
+            Hint("Fotoğraf açılamadı: " + (ex is OutOfMemoryException ? "görüntü bellek için çok büyük." : ex.Message));
         }
     }
 
@@ -127,6 +133,11 @@ public sealed partial class PhotoEditorWindow : Window
         var file = await StorageFile.GetFileFromPathAsync(path);
         using var stream = await file.OpenReadAsync();
         var decoder = await BitmapDecoder.CreateAsync(stream);
+
+        // Tam çözünürlükte BGRA'ya açmak piksel başına 4 bayt ister (60 MP = 240 MB); sınırı aşan görüntü açılmaz.
+        if (ImageHeader.ExceedsLimit((int)Math.Min(decoder.OrientedPixelWidth, int.MaxValue), (int)Math.Min(decoder.OrientedPixelHeight, int.MaxValue)))
+            throw new InvalidDataException(
+                $"Görüntü çok büyük ({decoder.OrientedPixelWidth}x{decoder.OrientedPixelHeight}); en fazla {ImageHeader.MaxPixels / 1_000_000} megapiksel açılır.");
         var data = await decoder.GetPixelDataAsync(
             BitmapPixelFormat.Bgra8,
             BitmapAlphaMode.Premultiplied,

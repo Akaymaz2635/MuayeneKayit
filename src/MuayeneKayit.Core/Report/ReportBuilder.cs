@@ -11,6 +11,10 @@ namespace MuayeneKayit.Core;
 /// </summary>
 public static class ReportBuilder
 {
+    /// <summary>Raporun içerik güvenlik ilkesi: betik yok, ağ yok; görüntü yalnızca file: / data:, stil satır içi.</summary>
+    public const string ContentSecurityPolicy =
+        "default-src 'none'; img-src file: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+
     public static string Build(Session session, IReadOnlyList<Defect> allDefects, int version)
     {
         // Void edilen kayıtlar rapora girmez; ham dosyalarda kalır.
@@ -25,6 +29,8 @@ public static class ReportBuilder
         var opened = ReportDates.Day(session.CreatedAt);
 
         sb.Append("<!doctype html><html lang=\"tr\"><head><meta charset=\"utf-8\"/>");
+        // Rapor betik çalıştırmaz, dışarıya istek yapmaz: yalnızca yerel / gömülü görüntü ve satır içi stil.
+        sb.Append("<meta http-equiv=\"Content-Security-Policy\" content=\"" + ContentSecurityPolicy + "\"/>");
         sb.Append($"<title>Rapor v{version} — {E(session.PartNumber)} / {E(session.SerialNumber)}</title>");
         sb.Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>");
         sb.Append("<style>").Append(Css).Append("</style></head><body>");
@@ -57,6 +63,26 @@ public static class ReportBuilder
 
         sb.Append("</body></html>");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Raporun başvurduğu fotoğraf dosyaları (void kusurlar hariç; arka planı kaldırılmış kopya varsa o). Rapor yerel geçici
+    /// klasörde dönüştürülürken yalnızca bunlar kopyalanır. Geçersiz adlar atlanır.
+    /// </summary>
+    public static IReadOnlyList<string> PhotoFiles(IReadOnlyList<Defect> allDefects)
+    {
+        var files = new List<string>();
+        foreach (var d in allDefects.Where(d => DefectStateMachine.GetState(d) != DefectState.Voided))
+        {
+            foreach (var photo in d.Photos)
+            {
+                if (!PhotoMarkupValidator.IsPhotoFileName(photo))
+                    continue;
+                var clean = d.Markups.GetValueOrDefault(photo)?.CleanedFile;
+                files.Add(PhotoMarkupValidator.IsPhotoFileName(clean) ? clean! : photo);
+            }
+        }
+        return files.Distinct().ToList();
     }
 
     /// <summary>Tek satırlık iki dilli başlık: parça / operasyon / seri.</summary>
@@ -98,7 +124,11 @@ public static class ReportBuilder
         else
         {
             var photo = d.Photos[photoIndex];
-            sb.Append(PhotoFigure(photo, d.Markups.GetValueOrDefault(photo)));
+            // Yalnızca "{id}_photo_NN.ext" biçimindeki düz adlar rapora girer; başka ad "fotoğraf yok" sayılır (yol dolaşımı olmaz).
+            if (PhotoMarkupValidator.IsPhotoFileName(photo))
+                sb.Append(PhotoFigure(photo, d.Markups.GetValueOrDefault(photo)));
+            else
+                sb.Append($"<div class=\"no-photo\">{E(ReportText.NoPhoto)}</div>");
         }
         sb.Append("</div>");
 

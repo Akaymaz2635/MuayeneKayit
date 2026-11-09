@@ -3,6 +3,9 @@ using MuayeneKayit.Presentation;
 using static ViewModelTests;
 
 // Bağımlılıksız test koşucusu. Dış test paketi kullanılmıyor (güncelleme riski yok).
+// Admin girişinin kalıcı kilitlenme durumu testlerde gerçek yerel profile (LocalAppData) yazılmaz.
+LoginThrottle.StateFolder = Path.Combine(Path.GetTempPath(), "MuayeneKayit-test-durum-" + Guid.NewGuid().ToString("N"));
+
 var tests = new List<(string Name, Action Body)>
 {
     ("Yol doğrulama: güvenli segmentler kabul edilir", SafePathAcceptsValid),
@@ -219,6 +222,79 @@ var tests = new List<(string Name, Action Body)>
     ("Güvenlik S-LAUNCH-001: surum.txt dolaşım / mutlak / UNC / boş reddedilir", SecurityTests.ProgramLayoutRejectsEscapingVersions),
     ("Güvenlik S-LAUNCH-005: ayar dosyası arama derinliği (3 üst)", SecurityTests.InstallSettingsSearchDepth),
     ("Güvenlik S-NTFS-003: salt okunur _config kontrollü hata verir", SecurityTests.ReadOnlyConfigGivesControlledError),
+
+    // ───── Güvenlik düzeltmeleri: eskiden 'AÇIK BULGU' olan testler ve yeni regresyonlar (docs/test/GUVENLIK-TEST-RAPORU.md > Düzeltmeler) ─────
+    ("Güvenlik S-PATH-003 [ÖB-13]: ayrılmış aygıt adları (CON, NUL, COM1...) reddedilir", SecurityTests.SegmentsRejectReservedDeviceNames),
+    ("Güvenlik S-PATH-006 [ÖB-13]: kök içindeki junction izlenmez", SecurityTests.JunctionInsideRootIsNotFollowed),
+    ("Güvenlik S-PATH-007 [ÖB-16]: admin klasörü aç kardeş klasöre (Veri2) çıkmaz", SecurityTests.AdminOpenFolderRejectsSiblingPrefix),
+    ("Güvenlik S-PATH-008 [ÖB-16]: admin son rapor kök altında kalır", SecurityTests.AdminOpenLatestReportStaysUnderRoot),
+    ("Güvenlik S-PATH-010 [ÖB-01]: kapalı kusurda CleanedFile kusur klasörü dışına çıkmaz", SecurityTests.ClosedDefectCleanedFileStaysInDefects),
+    ("Güvenlik S-PATH-011 [ÖB-01]: mutlak / UNC CleanedFile reddedilir", SecurityTests.ClosedDefectAbsoluteAndUncCleanedFileRejected),
+    ("Güvenlik S-PATH-012 [ÖB-02]: Photos adları kusur klasörüne bağlıdır", SecurityTests.PhotoNamesTraversalDoesNotEscapeDefectsFolder),
+    ("Güvenlik S-PATH-013 [ÖB-02]: UNC fotoğraf adı yol üretmez", SecurityTests.PhotoNameUncDoesNotProducePath),
+    ("Güvenlik S-PATH-014 [ÖB-02]: rapor görsel kaynağı kusur klasöründe kalır", SecurityTests.ReportPhotoSourceStaysInDefectsFolder),
+    ("Güvenlik S-HTML-011 [ÖB-09]: raporda CSP var", SecurityTests.ReportHasContentSecurityPolicy),
+    ("Güvenlik S-HTML-014 [ÖB-09]: admin son raporda PDF tercih edilir, HTML yalnızca kök içinden açılır", SecurityTests.AdminLatestReportPrefersPdfAndHtmlOnlyInsideRoot),
+    ("Güvenlik S-CSV-005 [YENİ]: virgül ayraçlı yerel ayarda formül hücresi oluşmaz", SecurityTests.CsvCommaDelimitedLocaleDoesNotCreateFormulaCell),
+    ("Güvenlik S-JSON-001 [ÖB-03]: yarım session.json dashboard'u düşürmez", SecurityTests.DashboardSurvivesTruncatedSession),
+    ("Güvenlik S-JSON-002 [ÖB-03]: bozuk defects\\N.json muayene ekranını düşürmez", SecurityTests.CorruptDefectDoesNotCrashInspection),
+    ("Güvenlik S-JSON-003 [ÖB-03]: null koleksiyonlar boş liste gibi davranır", SecurityTests.NullCollectionsBehaveLikeEmpty),
+    ("Güvenlik S-JSON-005 [ÖB-03]: derin iç içe JSON VM'de yakalanır", SecurityTests.DeepNestingIsHandledByViewModel),
+    ("Güvenlik S-JSON-006 [ÖB-03]: aralık dışı enum sayısı reddedilir", SecurityTests.EnumOutOfRangeRejected),
+    ("Güvenlik S-JSON-007 [ÖB-03]: bilinmeyen enum metni VM'de yakalanır", SecurityTests.EnumUnknownTextHandledByViewModel),
+    ("Güvenlik S-JSON-008 [ÖB-03]: index yeniden üretimi tek bozuk kayıtla durmaz", SecurityTests.IndexRebuildSurvivesOneCorruptSession),
+    ("Güvenlik S-JSON-009 [ÖB-03]: admin Kayıtlar bozuk kayıtla açılır", SecurityTests.AdminRecordsOpensWithCorruptSession),
+    ("Güvenlik S-JSON-010 [ÖB-03]: kusur tipi şablonu bozuk / null varyantları", SecurityTests.DefectTypeTemplateFileVariantsFallBackToDefaults),
+    ("Güvenlik S-JSON-011 [ÖB-03]: diğer _config dosyaları bozuksa varsayılan", SecurityTests.OtherConfigFilesFallBackToDefaults),
+    ("Güvenlik S-JSON-012 [ÖB-03]: bozuk _index.json okuması kontrollü", SecurityTests.CorruptIndexFileReadIsControlled),
+    ("Güvenlik S-JSON-013 [ÖB-10]: dosya adı / Id uyuşmazlığı başka kaydı ezmez", SecurityTests.IdMismatchDoesNotOverwrite),
+    ("Güvenlik S-JSON-014 [ÖB-10]: yinelenen Id algılanır", SecurityTests.DuplicateIdsAreDetected),
+    ("Güvenlik S-JSON-015 [ÖB-10]: sonraki kusur numarası taşmaz", SecurityTests.NextIdDoesNotOverflow),
+    ("Güvenlik S-JSON-016 [ÖB-10]: sıfır / negatif Id reddedilir", SecurityTests.NonPositiveIdsRejectedOnLoad),
+    ("Güvenlik S-JSON-017 [ÖB-10]: kusur dışı .json yok sayılır", SecurityTests.NonDefectJsonFilesAreIgnored),
+    ("Güvenlik S-JSON-020b [ÖB-03]: dosyada NaN koordinat VM'de yakalanır", SecurityTests.NanCoordinateInFileHandledByViewModel),
+    ("Güvenlik S-PIN-004 [ÖB-06]: kilitlenme yeniden açılışta sürer", SecurityTests.LockoutSurvivesNewLoginViewModel),
+    ("Güvenlik S-PIN-005 [ÖB-06]: tek tek hatalı denemeler denetlenir", SecurityTests.FailedLoginIsAudited),
+    ("Güvenlik S-PIN-007 [ÖB-07]: admin.json silinince ilk kurulum sessizce açılmaz", SecurityTests.AdminJsonDeletionDoesNotSilentlyResetPin),
+    ("Güvenlik S-PIN-008 [ÖB-08]: PBKDF2 tur sayısına üst sınır", SecurityTests.HugeIterationCountDoesNotFreezeVerify),
+    ("Güvenlik S-PIN-009 [ÖB-08]: bozuk Base64 admin.json login'i düşürmez", SecurityTests.BadBase64AdminJsonHandled),
+    ("Güvenlik S-PIN-010 [ÖB-08]: bozuk admin.json login'i düşürmez", SecurityTests.CorruptAdminJsonHandled),
+    ("Güvenlik S-PIN-011b [YENİ]: PIN yalnızca ASCII rakam", SecurityTests.PinRejectsNonAsciiDigits),
+    ("Güvenlik S-AUD-002 [ÖB-05]: sondan satır silinmesi başlık dosyasıyla yakalanır", SecurityTests.AuditTailDeletionIsDetected),
+    ("Güvenlik S-AUD-003 [ÖB-05]: yeniden hesaplanmış sahte zincir başlık özetiyle (_audit.head) yakalanır", SecurityTests.AuditChainIsKeyed),
+    ("Güvenlik S-AUD-004 [ÖB-05]: kayıt içeriği özeti denetimde; elle düzenleme bildirilir", SecurityTests.RecordContentIsBoundToAudit),
+    ("Güvenlik S-AUD-006 [ÖB-04]: bozuk son satır işlemi bozmaz (yeni zincir bölümü)", SecurityTests.CorruptAuditTailDoesNotBreakOperations),
+    ("Güvenlik S-AUD-008 [ÖB-05]: _audit.log silinmesi yakalanır", SecurityTests.AuditFileDeletionIsDetected),
+    ("Güvenlik S-AUD-011b [YENİ]: admin kök değişimi denetlenir", SecurityTests.AdminRootChangeIsAudited),
+    ("Güvenlik S-LOCK-003 [ÖB-12]: ileri tarihli kilit sonsuza kadar engellemez", SecurityTests.FutureDatedLockIsNotAnEndlessTimeout),
+    ("Güvenlik S-LOCK-004 [ÖB-12]: admin ileri tarihli kilidi görür", SecurityTests.AdminListsFutureDatedLock),
+    ("Güvenlik S-PHOTO-004 [ÖB-11]: arka plan aracı boyut taşması", SecurityTests.BackgroundMaskRejectsOverflowingDimensions),
+    ("Güvenlik S-PHOTO-005 [ÖB-14]: içe aktarmada EXIF temizlenir", SecurityTests.ImportStripsExif),
+    ("Güvenlik S-LAUNCH-002 [YENİ]: surum.txt = '.' reddedilir", SecurityTests.ProgramLayoutRejectsDotVersion),
+    ("Güvenlik S-LAUNCH-003 [YENİ]: yalnızca sayısal sürüm biçimi", SecurityTests.ProgramLayoutAcceptsOnlyNumericVersions),
+    ("Güvenlik S-LAUNCH-006 [YENİ]: göreli rootPath açık hatayla reddedilir", SecurityTests.RootPathExpansionAndRelativeHandling),
+    ("Güvenlik [ÖB-03]: bozuk kusur dosyası muayene kapatmayı ve raporu engeller", SecurityTests.CorruptDefectBlocksCompleteAndReport),
+    ("Güvenlik [ÖB-10]: bozuk dosyanın kusur numarası yeniden kullanılmaz", SecurityTests.NextDefectIdNeverReusesCorruptFileNumber),
+    ("Güvenlik [ÖB-02]: geçersiz fotoğraf adları yüklemede atılır ve uyarı verir", SecurityTests.MalformedPhotoNamesAreDroppedOnLoadWithWarning),
+    ("Güvenlik [ÖB-06]: yeni PIN yüksek turla yazılır, eski kayıt doğrulanır", SecurityTests.PinNewRecordsUseHigherIterationsAndLegacyStillVerifies),
+    ("Güvenlik [ÖB-08]: tur sayısı aralık dışı admin.json açık hata verir", SecurityTests.PinIterationsOutsideRangeAreRejectedClearly),
+    ("Güvenlik [ÖB-06]: yeni PIN 8-12 ASCII rakam", SecurityTests.PinLengthRulesForNewAndLegacyPins),
+    ("Güvenlik [ÖB-06]: eski 6 haneli PIN girer, değiştirme önerilir", SecurityTests.LegacySixDigitPinLogsInAndSuggestsChange),
+    ("Güvenlik [ÖB-07]: PIN sıfırlama açık onay ister ve admin.pin.reset yazılır", SecurityTests.AdminPinResetNeedsExplicitConfirmationAndIsAudited),
+    ("Güvenlik [ÖB-07]: _config dolu kökte de sıfırlama uyarısı", SecurityTests.PriorAdminConfigFilesAlsoTriggerResetWarning),
+    ("Güvenlik [ÖB-06]: kilitlenme yeniden açılışta sürer, süre dolunca açılır, her deneme denetlenir", SecurityTests.LockoutPersistsAcrossRestartAndIsExpiredByClock),
+    ("Güvenlik [ÖB-04]: bozuk satırdan sonra zincir bölümü başlar ve Verify bildirir", SecurityTests.CorruptAuditTailStartsReportedChainSegment),
+    ("Güvenlik [ÖB-05]: Bakım doğrulaması denetim dışı değişen kaydı bildirir", SecurityTests.MaintenanceReportsRecordsChangedOutsideAudit),
+    ("Güvenlik [ÖB-12]: kilit sahibi yazılır, ileri tarihli kilit eski sayılır", SecurityTests.LockFileRecordsOwnerAndFutureLockMessageNamesIt),
+    ("Güvenlik [ÖB-12]: kilit sahibi metni okunabilir", SecurityTests.NewLockWritesOwnerText),
+    ("Güvenlik [ÖB-13]: junction ardındaki kilit listelenmez ve silinmez", SecurityTests.StaleLocksSkipJunctionAndRemoveRefusesIt),
+    ("Güvenlik [ÖB-13]: ayrılmış ad uzantılı / sonda boşluklu da reddedilir", SecurityTests.SegmentsRejectReservedNamesWithExtensionAndTrailingSpace),
+    ("Güvenlik [ÖB-16]: kök denetimi ayraçlıdır ve bağ izlemez", SecurityTests.UnderRootCheckRejectsSiblingPrefix),
+    ("Güvenlik [ÖB-11]: devasa piksel sayılı görüntü çözülmeden reddedilir", SecurityTests.ImportRejectsHugePixelCountWithoutDecoding),
+    ("Güvenlik [ÖB-14]: içe aktarmada GPS ayıklanır, EXIF yönü korunur", SecurityTests.ImportStripsGpsButKeepsOrientation),
+    ("Güvenlik [ÖB-01]: bilinmeyen dosya türleri açılmaz", SecurityTests.EdgeBrowserNeverOpensUnknownFileTypes),
+    ("Güvenlik: sayısal sürüm biçimi kabul edilir", SecurityTests.ProgramLayoutAcceptsNumericVersion),
+    ("Güvenlik: virgül içeren CSV hücresi tırnaklanır", SecurityTests.CsvQuotesCommaCells),
 };
 
 // Güvenlik testleri (docs/test/GUVENLIK-TEST-PLANI.md). Bugün başarısız olması beklenen, bilinen açık bulguları
@@ -226,55 +302,6 @@ var tests = new List<(string Name, Action Body)>
 // (normal listeye taşıyın).
 var openFindings = new List<(string Id, string Name, Action Body)>
 {
-    ("ÖB-13", "S-PATH-003 ayrılmış aygıt adları (CON, NUL, COM1...) reddedilir", SecurityTests.SegmentsRejectReservedDeviceNames),
-    ("ÖB-13", "S-PATH-006 kök içindeki junction izlenmez", SecurityTests.JunctionInsideRootIsNotFollowed),
-    ("ÖB-16", "S-PATH-007 admin klasörü aç kardeş klasöre (Veri2) çıkmaz", SecurityTests.AdminOpenFolderRejectsSiblingPrefix),
-    ("ÖB-16", "S-PATH-008 admin son rapor kök altında kalır", SecurityTests.AdminOpenLatestReportStaysUnderRoot),
-    ("ÖB-01", "S-PATH-010 kapalı kusurda CleanedFile kusur klasörü dışına çıkmaz", SecurityTests.ClosedDefectCleanedFileStaysInDefects),
-    ("ÖB-01", "S-PATH-011 mutlak / UNC CleanedFile reddedilir", SecurityTests.ClosedDefectAbsoluteAndUncCleanedFileRejected),
-    ("ÖB-02", "S-PATH-012 Photos adları kusur klasörüne bağlıdır", SecurityTests.PhotoNamesTraversalDoesNotEscapeDefectsFolder),
-    ("ÖB-02", "S-PATH-013 UNC fotoğraf adı yol üretmez", SecurityTests.PhotoNameUncDoesNotProducePath),
-    ("ÖB-02", "S-PATH-014 rapor görsel kaynağı kusur klasöründe kalır", SecurityTests.ReportPhotoSourceStaysInDefectsFolder),
-    ("ÖB-09", "S-HTML-011 raporda CSP var", SecurityTests.ReportHasContentSecurityPolicy),
-    ("ÖB-09", "S-HTML-014 admin son raporda paylaşımdaki HTML'i açmaz", SecurityTests.AdminLatestReportDoesNotOpenHtmlOnShare),
-    ("YENİ", "S-CSV-005 virgül ayraçlı yerel ayarda formül hücresi oluşmaz", SecurityTests.CsvCommaDelimitedLocaleDoesNotCreateFormulaCell),
-    ("ÖB-03", "S-JSON-001 yarım session.json dashboard'u düşürmez", SecurityTests.DashboardSurvivesTruncatedSession),
-    ("ÖB-03", "S-JSON-002 bozuk defects\\N.json muayene ekranını düşürmez", SecurityTests.CorruptDefectDoesNotCrashInspection),
-    ("ÖB-03", "S-JSON-003 null koleksiyonlar boş liste gibi davranır", SecurityTests.NullCollectionsBehaveLikeEmpty),
-    ("ÖB-03", "S-JSON-005 derin iç içe JSON VM'de yakalanır", SecurityTests.DeepNestingIsHandledByViewModel),
-    ("ÖB-03", "S-JSON-006 aralık dışı enum sayısı reddedilir", SecurityTests.EnumOutOfRangeRejected),
-    ("ÖB-03", "S-JSON-007 bilinmeyen enum metni VM'de yakalanır", SecurityTests.EnumUnknownTextHandledByViewModel),
-    ("ÖB-03", "S-JSON-008 index yeniden üretimi tek bozuk kayıtla durmaz", SecurityTests.IndexRebuildSurvivesOneCorruptSession),
-    ("ÖB-03", "S-JSON-009 admin Kayıtlar bozuk kayıtla açılır", SecurityTests.AdminRecordsOpensWithCorruptSession),
-    ("ÖB-03", "S-JSON-010 kusur tipi şablonu bozuk / null varyantları", SecurityTests.DefectTypeTemplateFileVariantsFallBackToDefaults),
-    ("ÖB-03", "S-JSON-011 diğer _config dosyaları bozuksa varsayılan", SecurityTests.OtherConfigFilesFallBackToDefaults),
-    ("ÖB-03", "S-JSON-012 bozuk _index.json okuması kontrollü", SecurityTests.CorruptIndexFileReadIsControlled),
-    ("ÖB-10", "S-JSON-013 dosya adı / Id uyuşmazlığı başka kaydı ezmez", SecurityTests.IdMismatchDoesNotOverwrite),
-    ("ÖB-10", "S-JSON-014 yinelenen Id algılanır", SecurityTests.DuplicateIdsAreDetected),
-    ("ÖB-10", "S-JSON-015 sonraki kusur numarası taşmaz", SecurityTests.NextIdDoesNotOverflow),
-    ("ÖB-10", "S-JSON-016 sıfır / negatif Id reddedilir", SecurityTests.NonPositiveIdsRejectedOnLoad),
-    ("ÖB-10", "S-JSON-017 kusur dışı .json yok sayılır", SecurityTests.NonDefectJsonFilesAreIgnored),
-    ("ÖB-03", "S-JSON-020b dosyada NaN koordinat VM'de yakalanır", SecurityTests.NanCoordinateInFileHandledByViewModel),
-    ("ÖB-06", "S-PIN-004 kilitlenme yeniden açılışta sürer", SecurityTests.LockoutSurvivesNewLoginViewModel),
-    ("ÖB-06", "S-PIN-005 tek tek hatalı denemeler denetlenir", SecurityTests.FailedLoginIsAudited),
-    ("ÖB-07", "S-PIN-007 admin.json silinince ilk kurulum sessizce açılmaz", SecurityTests.AdminJsonDeletionDoesNotSilentlyResetPin),
-    ("ÖB-08", "S-PIN-008 PBKDF2 tur sayısına üst sınır", SecurityTests.HugeIterationCountDoesNotFreezeVerify),
-    ("ÖB-08", "S-PIN-009 bozuk Base64 admin.json login'i düşürmez", SecurityTests.BadBase64AdminJsonHandled),
-    ("ÖB-08", "S-PIN-010 bozuk admin.json login'i düşürmez", SecurityTests.CorruptAdminJsonHandled),
-    ("YENİ", "S-PIN-011b PIN yalnızca ASCII rakam", SecurityTests.PinRejectsNonAsciiDigits),
-    ("ÖB-05", "S-AUD-002 sondan satır silinmesi yakalanır", SecurityTests.AuditTailDeletionIsDetected),
-    ("ÖB-05", "S-AUD-003 denetim zinciri anahtarlı", SecurityTests.AuditChainIsKeyed),
-    ("ÖB-05", "S-AUD-004 kayıt içeriği denetime bağlı", SecurityTests.RecordContentIsBoundToAudit),
-    ("ÖB-04", "S-AUD-006 bozuk son satır işlemi bozmaz", SecurityTests.CorruptAuditTailDoesNotBreakOperations),
-    ("ÖB-05", "S-AUD-008 _audit.log silinmesi yakalanır", SecurityTests.AuditFileDeletionIsDetected),
-    ("YENİ", "S-AUD-011b admin kök değişimi denetlenir", SecurityTests.AdminRootChangeIsAudited),
-    ("ÖB-12", "S-LOCK-003 ileri tarihli kilit sonsuza kadar engellemez", SecurityTests.FutureDatedLockIsNotAnEndlessTimeout),
-    ("ÖB-12", "S-LOCK-004 admin ileri tarihli kilidi görür", SecurityTests.AdminListsFutureDatedLock),
-    ("ÖB-11", "S-PHOTO-004 arka plan aracı boyut taşması", SecurityTests.BackgroundMaskRejectsOverflowingDimensions),
-    ("ÖB-14", "S-PHOTO-005 içe aktarmada EXIF temizlenir", SecurityTests.ImportStripsExif),
-    ("YENİ", "S-LAUNCH-002 surum.txt = '.' reddedilir", SecurityTests.ProgramLayoutRejectsDotVersion),
-    ("YENİ", "S-LAUNCH-003 yalnızca sayısal sürüm biçimi", SecurityTests.ProgramLayoutAcceptsOnlyNumericVersions),
-    ("YENİ", "S-LAUNCH-006 göreli rootPath reddedilir / belgelenir", SecurityTests.RootPathExpansionAndRelativeHandling),
 };
 
 int failed = 0;
@@ -1116,19 +1143,25 @@ static void AdminPinRules()
     var root = TempRoot();
     try
     {
-        Expect(!SharedConfig.HasPin(root) && !SharedConfig.VerifyPin(root, "123456"), "PIN yokken giriş olmamalı");
+        Expect(!SharedConfig.HasPin(root) && !SharedConfig.VerifyPin(root, "12345678"), "PIN yokken giriş olmamalı");
 
         var rejected = false;
         try { SharedConfig.SetPin(root, "1234"); }
         catch (ArgumentException) { rejected = true; }
         Expect(rejected, "Kısa PIN reddedilmeli");
 
-        SharedConfig.SetPin(root, "482913");
-        Expect(SharedConfig.VerifyPin(root, "482913"), "Doğru PIN kabul edilmeli");
-        Expect(!SharedConfig.VerifyPin(root, "482914"), "Yanlış PIN reddedilmeli");
+        // Yeni PIN'ler 8-12 hane olmalı; 6 haneli PIN artık belirlenemez.
+        rejected = false;
+        try { SharedConfig.SetPin(root, "482913"); }
+        catch (ArgumentException) { rejected = true; }
+        Expect(rejected, "6 haneli yeni PIN reddedilmeli");
+
+        SharedConfig.SetPin(root, "48291357");
+        Expect(SharedConfig.VerifyPin(root, "48291357"), "Doğru PIN kabul edilmeli");
+        Expect(!SharedConfig.VerifyPin(root, "48291358"), "Yanlış PIN reddedilmeli");
 
         var raw = File.ReadAllText(Path.Combine(SharedConfig.Folder(root), "admin.json"));
-        Expect(!raw.Contains("482913"), "PIN düz metin saklanmamalı");
+        Expect(!raw.Contains("48291357"), "PIN düz metin saklanmamalı");
     }
     finally { Directory.Delete(root, true); }
 }
