@@ -4,8 +4,8 @@ namespace MuayeneKayit.Core;
 /// Ağ klasöründen çalıştırma düzeni. Program klasörünün kökünde başlatıcı (MuayeneKayit.exe) ve surum.txt durur;
 /// her sürüm kendi klasöründedir:
 /// <code>
-/// Program\MuayeneKayit.exe, MuayeneKayit Admin.exe, surum.txt ("1.0.1"), MuayeneKayit.settings.json
-/// Program\1.0.1\Inspector-x64\MuayeneKayit.Inspector.exe   (Inspector-arm64, Admin-x64, Admin-arm64)
+/// Program\MuayeneKayit.exe, surum.txt ("1.0.1"), MuayeneKayit.settings.json
+/// Program\1.0.1\Inspector-x64\MuayeneKayit.Inspector.exe   (Inspector-arm64; admin paneli bu programın içindedir)
 /// </code>
 /// Güncelleme: yeni sürüm klasörü kopyalanır, surum.txt değiştirilir. Açık programlar eski klasörden çalışmaya devam eder.
 /// </summary>

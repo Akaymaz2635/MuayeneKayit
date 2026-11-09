@@ -29,7 +29,16 @@
         PaneDisplayMode="Left"
         IsPaneOpen="False"
         OpenPaneLength="190"
-        SelectionChanged="Nav_SelectionChanged">
+        SelectionChanged="Nav_SelectionChanged"
+        ItemInvoked="Nav_ItemInvoked">
+
+        <NavigationView.FooterMenuItems>
+            <!-- Seçili sayfa olmaz: tıklanınca PIN korumalı admin penceresi açılır. -->
+            <NavigationViewItem Content="Admin" Tag="admin" SelectsOnInvoked="False" AutomationProperties.AutomationId="AdminNavItem"
+                                ToolTipService.ToolTip="Admin paneli (PIN)">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="ProtectedDocument" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+        </NavigationView.FooterMenuItems>
 
         <NavigationView.MenuItems>
             <NavigationViewItem Content="Muayene" Tag="inspect">

@@ -8,12 +8,13 @@ using MuayeneKayit.Presentation;
 namespace MuayeneKayit.Admin;
 
 /// <summary>
-/// Admin paneli. PIN ile açılır; kusur tipi şablonlarını, ortak alan bakımını ve tüm kayıtların
-/// salt okunur görünümünü yönetir. Muayene kayıtlarını değiştirmez.
+/// Admin paneli: muayene programının sol menüsündeki "Admin" ile açılan ayrı pencere. PIN ile açılır; kusur tipi
+/// şablonlarını, ortak alan bakımını ve tüm kayıtların salt okunur görünümünü yönetir. Muayene kayıtlarını değiştirmez.
+/// Pencere kapanınca oturum kilitlenir; bir sonraki açılışta PIN yeniden sorulur.
 /// Mantık AdminShellViewModel ve alt ViewModel'lerindedir; burası bağlama, kart çizimi, boşta kilit
 /// zamanlayıcısı ve gezinme ile sınırlıdır.
 /// </summary>
-public sealed partial class MainWindow : Window
+public sealed partial class AdminWindow : Window
 {
     private readonly DispatcherTimer _idleTimer = new() { Interval = TimeSpan.FromSeconds(30) };
 
@@ -22,28 +23,58 @@ public sealed partial class MainWindow : Window
 
     public AdminShellViewModel Shell { get; }
 
-    public MainWindow(AdminShellViewModel shell, WinUiConfirmService confirm, WinUiFileSaver saver)
+    /// <summary>
+    /// Kusur tipleri ya da ortak alan bu pencerede değişti: muayene ekranı bunları açılışta okuduğu için
+    /// programın yeniden açılması gerekir.
+    /// </summary>
+    public bool RestartNeeded { get; private set; }
+
+    public AdminWindow(AdminShellViewModel shell, WinUiConfirmService confirm, WinUiFileSaver saver)
     {
         Shell = shell;
         InitializeComponent();
         Title = $"MuayeneKayit Admin {AppInfo.Version}";
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 860));
 
-        // Onay pencereleri ana pencerenin kökünde açılır; kaydetme seçicisi ana pencereye bağlanır.
+        // Onay pencereleri bu pencerenin kökünde açılır; kaydetme seçicisi bu pencereye bağlanır.
         confirm.Attach(() => Nav.XamlRoot);
         saver.Attach(() => this);
 
-        Shell.Notify += (message, kind) => Show(message, SeverityFor(kind));
+        // ViewModel'ler uygulama boyunca yaşar; pencere kapanınca abonelikler bırakılır.
+        Shell.Notify += Shell_Notify;
         Shell.PropertyChanged += Shell_PropertyChanged;
         Shell.Records.PropertyChanged += Records_PropertyChanged;
+        Shell.Types.Saved += Types_Saved;
+        Shell.Settings.LockRequested += Settings_LockRequested;
 
         // Boşta kalan oturum kilitlenir: admin ekranı açık bırakılırsa başkası kullanamaz.
         Root.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler((_, _) => Shell.RegisterInput()), true);
         Root.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler((_, _) => Shell.RegisterInput()), true);
-        _idleTimer.Tick += (_, _) => Shell.CheckIdle();
+        _idleTimer.Tick += IdleTimer_Tick;
         _idleTimer.Start();
 
+        Closed += AdminWindow_Closed;
         PinBox.Focus(FocusState.Programmatic);
+    }
+
+    private void Shell_Notify(string message, StatusKind kind) => Show(message, SeverityFor(kind));
+
+    private void Types_Saved(IReadOnlyList<string> names) => RestartNeeded = true;
+
+    private void Settings_LockRequested(string message) => RestartNeeded = true;
+
+    private void IdleTimer_Tick(object? sender, object e) => Shell.CheckIdle();
+
+    private void AdminWindow_Closed(object sender, WindowEventArgs args)
+    {
+        _idleTimer.Stop();
+        _idleTimer.Tick -= IdleTimer_Tick;
+        Shell.Notify -= Shell_Notify;
+        Shell.PropertyChanged -= Shell_PropertyChanged;
+        Shell.Records.PropertyChanged -= Records_PropertyChanged;
+        Shell.Types.Saved -= Types_Saved;
+        Shell.Settings.LockRequested -= Settings_LockRequested;
+        Shell.Lock(null);
     }
 
     private FrameworkElement Root => (FrameworkElement)Content;

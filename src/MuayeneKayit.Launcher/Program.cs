@@ -7,7 +7,7 @@ namespace MuayeneKayit.Launcher;
 /// <summary>
 /// Ağ klasöründeki başlatıcı (MuayeneKayit.exe). Kurulum yapmaz, hiçbir şey kopyalamaz: surum.txt'deki güncel sürümün
 /// exe'sini bilgisayarın mimarisine göre (x64 / ARM64) ağ klasöründen açar ve kapanır.
-/// Adında "Admin" geçen kopyası (MuayeneKayit Admin.exe) admin uygulamasını açar.
+/// Admin paneli muayene programının içindedir; ayrı admin başlatıcısı yoktur.
 /// </summary>
 internal static class Program
 {
@@ -17,8 +17,9 @@ internal static class Program
         try
         {
             var self = Environment.ProcessPath ?? "";
-            var app = Path.GetFileNameWithoutExtension(self).Contains("Admin", StringComparison.OrdinalIgnoreCase) ? "Admin" : "Inspector";
-            var exe = ProgramLayout.Resolve(AppContext.BaseDirectory, app, RuntimeInformation.OSArchitecture == Architecture.Arm64);
+            // Admin paneli muayene programının içindedir (sol menü > Admin). Eski kurulumlardan kalan
+            // "MuayeneKayit Admin.exe" kopyası da muayene programını açar.
+            var exe = ProgramLayout.Resolve(AppContext.BaseDirectory, "Inspector", RuntimeInformation.OSArchitecture == Architecture.Arm64);
 
             var start = new ProcessStartInfo(exe)
             {

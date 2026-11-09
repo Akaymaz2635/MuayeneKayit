@@ -1,4 +1,6 @@
 ﻿using System.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
+using MuayeneKayit.Admin;
 using MuayeneKayit.Core;
 using MuayeneKayit.Presentation;
 using Microsoft.UI.Xaml;
@@ -104,6 +106,31 @@ public sealed partial class MainWindow : Window
         SettingsPanel.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
         if (tag == "dash")
             Dash.Refresh();
+    }
+
+    private AdminWindow? _adminWindow;
+
+    /// <summary>Sol menüdeki "Admin": admin penceresini açar (açıksa öne getirir). PIN pencerede sorulur.</summary>
+    private void Nav_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if ((args.InvokedItemContainer as NavigationViewItem)?.Tag as string != "admin")
+            return;
+
+        if (_adminWindow is not null)
+        {
+            _adminWindow.Activate();
+            return;
+        }
+
+        _adminWindow = App.Services.GetRequiredService<AdminWindow>();
+        _adminWindow.Closed += (_, _) =>
+        {
+            if (_adminWindow?.RestartNeeded == true)
+                Show("Admin'de kusur tipleri ya da ortak alan değişti. Muayene ekranında geçerli olması için programı kapatıp yeniden açın.",
+                    InfoBarSeverity.Warning);
+            _adminWindow = null;
+        };
+        _adminWindow.Activate();
     }
 
     /// <summary>

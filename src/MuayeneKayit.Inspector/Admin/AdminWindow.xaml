@@ -1,5 +1,5 @@
 <Window
-    x:Class="MuayeneKayit.Admin.MainWindow"
+    x:Class="MuayeneKayit.Admin.AdminWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:pres="using:MuayeneKayit.Presentation">

@@ -18,9 +18,9 @@ Visual Studio Installer > Değiştir > iş yükleri:
 2. `MuayeneKayit.sln` açılır. Üst çubukta **Release** ve **x64** seçin, **Derle > Çözümü Derle**.
    İlk derlemede paketler (~240 MB) nuget.org'dan kendiliğinden iner.
 3. Yayın: Çözüm Gezgini'nde `MuayeneKayit.Inspector` > sağ tık > **Yayımla** > profil `win-x64` > **Yayımla**.
-   Çıktı: depo kökünde `publish\Inspector-x64\`. Admin için aynısı `MuayeneKayit.Admin` ile.
+   Çıktı: depo kökünde `publish\Inspector-x64\`. Admin paneli bu programın içindedir; ayrı yayın gerekmez.
    Tek komutla tüm paket: **Görünüm > Terminal** içinde `.\build-release.ps1` → `dist\MuayeneKayit-<sürüm>.zip`
-   (testler + başlatıcı + Inspector / Admin, x64 + ARM64). Yalnızca x64 için: `.\build-release.ps1 -X64Only`.
+   (testler + başlatıcı + program, x64 + ARM64). Yalnızca x64 için: `.\build-release.ps1 -X64Only`.
 
 **Paketler inmiyorsa** (nuget.org'a erişim yok / proxy): Releases sayfasından `MuayeneKayit-paketler-offline.zip`'i depo
 köküne indirin, terminalde
@@ -38,10 +38,9 @@ klasöründen çalışır. Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğ
 
 | Dosya / klasör | Ne işe yarar |
 |---|---|
-| `MuayeneKayit.exe` | Başlatıcı (12 MB): `surum.txt`'deki sürümün muayene programını açar. Kullanıcılar bunu açar. |
-| `MuayeneKayit Admin.exe` | Aynı başlatıcı; admin programını açar (yalnızca yöneticiler). |
-| `surum.txt` | Açılacak sürüm (ör. `1.0.0`). |
-| `1.0.0\Inspector-x64`, `Inspector-arm64`, `Admin-x64`, `Admin-arm64` | Sürüm klasörü. Surface Pro 9 5G (SQ3) ARM64 sürümünü kendiliğinden açar. |
+| `MuayeneKayit.exe` | Başlatıcı (12 MB): `surum.txt`'deki sürümün programını açar. Herkes bunu açar; admin paneli programın sol menüsündedir (**Admin**, PIN ile). |
+| `surum.txt` | Açılacak sürüm (ör. `1.0.2`). |
+| `1.0.2\Inspector-x64`, `Inspector-arm64` | Sürüm klasörü. Surface Pro 9 5G (SQ3) ARM64 sürümünü kendiliğinden açar. |
 | `MuayeneKayit.settings.example.json` | Ortak ayar örneği |
 | `OKU-BENI.txt` | Bu bölümün kısa hâli |
 
@@ -49,9 +48,10 @@ klasöründen çalışır. Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğ
    İnternetten inen zip'e sağ tık > **Özellikler** > **Engellemeyi kaldır** > Tamam, sonra çıkarın; yoksa Windows programı engelleyebilir.
    Ağda iki klasör açın: `Program` (zip'in içi) ve boş `Veri` (kayıt, fotoğraf, rapor buraya yazılır).
 1. **Verinin yazılacağı yer** — iki yoldan biri:
-   - **Admin'den (önerilen):** program klasöründen `MuayeneKayit Admin.exe`'yi açın, PIN belirleyin, **Ayarlar > Ortak alan > Kök klasör**
-     kutusuna veri klasörünü yazıp **Kaydet ve yeniden bağlan**'a basın (klasör önceden açılmış olmalı). Yol program klasöründeki
-     `MuayeneKayit.settings.json` dosyasına yazılır; yeni veri klasörü için PIN bir kez daha sorulur.
+   - **Admin'den (önerilen):** `MuayeneKayit.exe`'yi açın, sol menünün altındaki **Admin**'e tıklayın, PIN belirleyin,
+     **Ayarlar > Ortak alan > Kök klasör** kutusuna veri klasörünü yazıp **Kaydet ve yeniden bağlan**'a basın (klasör önceden
+     açılmış olmalı). Yol program klasöründeki `MuayeneKayit.settings.json` dosyasına yazılır; yeni veri klasörü için PIN bir
+     kez daha sorulur. Admin penceresini kapatıp programı yeniden açın; muayene ekranı yeni klasörü kullanır.
    - **Elle:** örnekten aynı klasörde `MuayeneKayit.settings.json` oluşturup ortak **veri** klasörünü yazın (program klasörü değil):
      ```json
      { "rootPath": "\\\\SUNUCU\\MuayeneKayit\\Veri" }
@@ -62,8 +62,9 @@ klasöründen çalışır. Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğ
 2. **Kullanıcılar:** ağdaki `MuayeneKayit.exe` > sağ tık > *Gönder > Masaüstü (kısayol oluştur)*. Kısayolu BT grup ilkesiyle de dağıtabilir.
 3. **Güncelleme** (program açıkken de yapılabilir): yeni paketteki sürüm klasörünü (ör. `1.0.1`) program klasörüne kopyalayın,
    sonra `surum.txt`'yi `1.0.1` yapın. Kullanıcılar bir sonraki açışta yeni sürümü açar; açık programlar eski klasörden
-   çalışmaya devam eder. Eski sürüm klasörü herkes kapattıktan sonra silinebilir. Başlatıcılara ve
-   `MuayeneKayit.settings.json`'a dokunmayın.
+   çalışmaya devam eder. Eski sürüm klasörü herkes kapattıktan sonra silinebilir. Başlatıcıya ve
+   `MuayeneKayit.settings.json`'a dokunmayın. 1.0.1 ve öncesinden geçerken eski `MuayeneKayit Admin.exe` silinebilir
+   (kalırsa o da programı açar).
 
 İzinler: kullanıcılara program klasöründe yalnızca **okuma**, veri klasöründe **okuma + yazma** (bölüm 3).
 Program ~210 MB olduğu için ağdan ilk açılış birkaç saniye sürebilir (Wi-Fi'da daha uzun). Şirketin uygulama kısıtlamaları
@@ -77,10 +78,12 @@ Parça / operasyon / seri öneri listesinde "×" ile gizlenen öneriler de bu kl
 
 ## 2. İlk açılış
 
-1. Admin exe'sini açın. Ortak klasörde PIN yoksa PIN belirleme ekranı gelir (6-12 rakam).
+1. Programı açın, sol menünün altındaki **Admin**'e tıklayın; admin paneli ayrı pencerede açılır. Ortak klasörde PIN yoksa
+   PIN belirleme ekranı gelir (6-12 rakam). Pencere kapanınca ya da 10 dakika işlem yapılmazsa kilitlenir.
 2. **Kusur tipleri** sayfasında tipleri ve her tipin ölçüm alanlarını düzenleyip **Tümünü ortak alana kaydet**.
 3. İsterseniz **Karar açıklamaları** sayfasında, Inspector'ın karar seçince gördüğü açıklamaları düzenleyip **Ortak alana kaydet**.
-4. Muayene exe'leri kusur tiplerini bir sonraki açılışta, karar açıklamalarını bir sonraki karar seçiminde kullanır.
+4. Muayene ekranı kusur tiplerini programın bir sonraki açılışında, karar açıklamalarını bir sonraki karar seçiminde kullanır
+   (admin penceresi kapanınca yeniden açma uyarısı çıkar).
 
 PIN unutulursa: admin, ortak klasördeki `_config\admin.json` dosyasını silip PIN'i yeniden belirler.
 Bu yüzden `_config` klasörüne yalnızca admin grubu yazabilmelidir.

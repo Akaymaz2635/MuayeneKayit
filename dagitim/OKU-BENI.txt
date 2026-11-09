@@ -5,10 +5,9 @@ Kurulum yoktur, yönetici yetkisi gerekmez. Program ağ klasöründen çalışı
 
 Bu paketin tamamı ağdaki bir PROGRAM klasörüne kopyalanır, örneğin:
     \\sunucu\MuayeneKayit\Program\
-        MuayeneKayit.exe            <- muayene programını açar (kullanıcılar bunu açar)
-        MuayeneKayit Admin.exe      <- admin programını açar (yalnızca yöneticiler)
-        surum.txt                   <- hangi sürümün açılacağı (ör. 1.0.0)
-        1.0.0\                      <- sürüm klasörü (Inspector / Admin, x64 / ARM64)
+        MuayeneKayit.exe            <- programı açar (herkes bunu açar)
+        surum.txt                   <- hangi sürümün açılacağı (ör. 1.0.2)
+        1.0.2\                      <- sürüm klasörü (x64 / ARM64)
         MuayeneKayit.settings.json  <- ortak VERİ klasörünün yolu (aşağıda oluşturulur)
 
 1) İLK KURULUM (bir kez, sorumlu kişi)
@@ -18,6 +17,9 @@ Bu paketin tamamı ağdaki bir PROGRAM klasörüne kopyalanır, örneğin:
          { "rootPath": "\\\\sunucu\\MuayeneKayit\\Veri" }
      (JSON'da her ters bölü iki kez yazılır.)
    - Kullanıcıların VERİ klasörüne okuma + yazma izni olmalı. PROGRAM klasörüne yalnızca okuma yeterli.
+   - Admin paneli programın içindedir: sol menünün altındaki "Admin" > PIN. İlk açılışta PIN belirlenir,
+     kusur tipleri ve karar açıklamaları oradan düzenlenir. Kusur tipi ya da veri klasörü değişince
+     programı kapatıp yeniden açın.
 
 2) KULLANICILAR
    - Ağdaki "MuayeneKayit.exe" dosyasına sağ tık > Göster: Diğer seçenekler > Gönder > Masaüstü (kısayol oluştur).
@@ -29,7 +31,9 @@ Bu paketin tamamı ağdaki bir PROGRAM klasörüne kopyalanır, örneğin:
    - Sonra "surum.txt" içindeki sürümü yeni klasörün adıyla değiştirin (ör. 1.0.1).
    - Kullanıcılar programı bir sonraki açışta yeni sürümü açar; açık olanlar eski sürümde çalışmaya devam eder.
    - Eski sürüm klasörünü, herkes programı kapattıktan sonra (ör. ertesi gün) silebilirsiniz.
-   - Başlatıcılar (MuayeneKayit.exe) ve MuayeneKayit.settings.json değişmez; üzerine kopyalamayın.
+   - Başlatıcı (MuayeneKayit.exe) ve MuayeneKayit.settings.json değişmez; üzerine kopyalamayın.
+   - 1.0.1 ve öncesinden geçerken: eski "MuayeneKayit Admin.exe" artık gerekmez, silinebilir
+     (kalırsa o da programı açar; admin paneli sol menüdedir).
    - Sürüm, pencere başlığında görünür (ör. "MuayeneKayit 1.0.1").
 
 NOTLAR

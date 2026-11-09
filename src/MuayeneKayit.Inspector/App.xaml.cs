@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
+using MuayeneKayit.Admin;
 using MuayeneKayit.Core;
 using MuayeneKayit.Presentation;
 
@@ -51,6 +52,25 @@ public partial class App : Application
 
         // Muayeneci Windows oturumundan alınabilir (admin panelinden açılır).
         services.AddSingleton<IWindowsUser, WindowsUserAdapter>();
+
+        // Admin paneli: sol menüdeki "Admin" ile ayrı pencerede, PIN ile açılır. Kendi ortak alan bağlamı vardır
+        // (admin yolu değiştirirse muayene ekranı programı yeniden açınca yeni yolu kullanır).
+        services.AddSingleton<IAdminSettings, AdminSettingsAdapter>();
+        services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton<IShell, ShellService>();
+        services.AddSingleton(new AdminContext(root));
+        services.AddSingleton<WinUiConfirmService>();
+        services.AddSingleton<IConfirmService>(sp => sp.GetRequiredService<WinUiConfirmService>());
+        services.AddSingleton<WinUiFileSaver>();
+        services.AddSingleton<IFileSaver>(sp => sp.GetRequiredService<WinUiFileSaver>());
+        services.AddSingleton<LoginViewModel>();
+        services.AddSingleton<RecordsViewModel>();
+        services.AddSingleton<TypesViewModel>();
+        services.AddSingleton<DecisionTextsViewModel>();
+        services.AddSingleton<MaintenanceViewModel>();
+        services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<AdminShellViewModel>();
+        services.AddTransient<AdminWindow>();
 
         services.AddSingleton<InspectionViewModel>();
         services.AddSingleton<DashboardViewModel>();

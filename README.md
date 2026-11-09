@@ -1,6 +1,6 @@
 # MuayeneKayit
 
-Motor parçası görsel muayene kayıt sistemi: muayene programı (Inspector) ve yönetim programı (Admin).
+Motor parçası görsel muayene kayıt sistemi: tek program; yönetim (Admin) paneli sol menüden PIN ile açılır.
 WinUI 3, .NET 9. Veritabanı ve internet gerekmez; kayıtlar ortak bir ağ klasöründe tutulur.
 
 ## Hızlı başlangıç
@@ -24,7 +24,6 @@ Tasarım ve gereksinimler: [PLAN.md](PLAN.md), [DESIGN.md](DESIGN.md).
 |---|---|
 | `src/MuayeneKayit.Core` | Alan modeli, kayıt (JSON + dosya kilidi), denetim zinciri, rapor |
 | `src/MuayeneKayit.Presentation` | ViewModel'ler (WinUI'den bağımsız, test edilir) |
-| `src/MuayeneKayit.Inspector` | Muayene programı (WinUI 3) |
-| `src/MuayeneKayit.Admin` | Yönetim programı (WinUI 3) |
+| `src/MuayeneKayit.Inspector` | Program (WinUI 3); `Admin\` klasöründe PIN korumalı admin penceresi |
 | `src/MuayeneKayit.Launcher` | Ağ klasöründeki başlatıcı (`MuayeneKayit.exe`) |
 | `tests/MuayeneKayit.Tests` | Testler: `dotnet run --project tests\MuayeneKayit.Tests` |

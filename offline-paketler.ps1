@@ -26,11 +26,11 @@ if ($Hazirla) {
     $temp = Join-Path $env:TEMP ("mk-offline-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force $temp | Out-Null
     try {
-        foreach ($project in "src\MuayeneKayit.Inspector", "src\MuayeneKayit.Admin", "src\MuayeneKayit.Launcher", "tests\MuayeneKayit.Tests") {
+        foreach ($project in "src\MuayeneKayit.Inspector", "src\MuayeneKayit.Launcher", "tests\MuayeneKayit.Tests") {
             Write-Host "Restore: $project" -ForegroundColor Cyan
             dotnet restore $project --packages $temp
             if ($LASTEXITCODE -ne 0) { throw "Restore başarısız: $project" }
-            if ($project -like "src\MuayeneKayit.Inspector" -or $project -like "src\MuayeneKayit.Admin") {
+            if ($project -like "src\MuayeneKayit.Inspector") {
                 foreach ($rid in "win-x64", "win-arm64") {
                     dotnet restore $project --packages $temp -r $rid
                     if ($LASTEXITCODE -ne 0) { throw "Restore başarısız: $project $rid" }
