@@ -158,6 +158,8 @@ public sealed partial class AdminWindow : Window
 
     private async void ResetTypes_Click(object sender, RoutedEventArgs e) => await Shell.Types.ResetAsync();
 
+    private async void DeleteField_Click(object sender, RoutedEventArgs e) => await Shell.Types.DeleteFieldAsync();
+
     private async void ResetTexts_Click(object sender, RoutedEventArgs e) => await Shell.Texts.ResetAllAsync();
 
     private async void RemoveLock_Click(object sender, RoutedEventArgs e) => await Shell.Maintenance.RemoveLockAsync();

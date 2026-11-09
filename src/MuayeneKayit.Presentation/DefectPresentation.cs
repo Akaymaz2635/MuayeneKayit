@@ -104,7 +104,8 @@ public static class DefectPresentation
 
     public static bool HasMeasurement(Defect d) =>
         d.Depth is not null || d.Width is not null || d.Length is not null
-        || d.Radius is not null || d.AngleDeg is not null || !string.IsNullOrWhiteSpace(d.Color);
+        || d.Radius is not null || d.AngleDeg is not null || !string.IsNullOrWhiteSpace(d.Color)
+        || CustomMeasures.Clean(d.Custom).Count > 0;
 
     /// <summary>Kusurun sıradaki adımı: ölçüm, fotoğraf, karar; kapalı / devredilmiş / void için yok (null).</summary>
     public static InspectionStep? CurrentStep(Defect d, DefectState state)
@@ -131,6 +132,7 @@ public static class DefectPresentation
         if (s.Radius is double r) parts.Add($"Ç {Fmt(r, unit)}");
         if (s.AngleDeg is double a) parts.Add($"A {Fmt(a)}°");
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
+        parts.AddRange(CustomMeasures.Clean(s.Custom).Select(m => CustomMeasures.Short(m, unit)));
         if (s.HighMetal) parts.Add("High metal");
         return parts.Count == 0 ? "—" : string.Join(" ", parts);
     }

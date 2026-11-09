@@ -25,6 +25,9 @@ public sealed class Defect
     public double? AngleDeg { get; set; }
     public string? Color { get; set; }
 
+    /// <summary>Admin'de tanımlanan ek ölçümler (ör. Yükseklik). Yalnızca değeri olanlar; eski kayıtlarda yok (null).</summary>
+    public List<CustomMeasure>? Custom { get; set; }
+
     /// <summary>Uzunluk ölçülerinin (derinlik, genişlik, uzunluk, yarıçap) birimi. Alanı olmayan eski kayıtlar mm okunur.</summary>
     public LengthUnit Unit { get; set; } = LengthUnit.Mm;
 
@@ -76,7 +79,17 @@ public sealed record MeasurementSnapshot(
     double? Radius,
     double? AngleDeg,
     string? Color,
-    bool HighMetal = false);
+    bool HighMetal = false,
+    IReadOnlyList<CustomMeasure>? Custom = null)
+{
+    /// <summary>Ek ölçümler değerlerine göre karşılaştırılır (liste referansı ya da ad farkı değişiklik sayılmaz).</summary>
+    public bool Equals(MeasurementSnapshot? other) =>
+        other is not null && Depth == other.Depth && Width == other.Width && Length == other.Length && Radius == other.Radius
+        && AngleDeg == other.AngleDeg && Color == other.Color && HighMetal == other.HighMetal
+        && CustomMeasures.SameValues(Custom, other.Custom);
+
+    public override int GetHashCode() => HashCode.Combine(Depth, Width, Length, Radius, AngleDeg, Color, HighMetal);
+}
 
 /// <summary>Bir kararın kaydı. Yalnızca eklenir, hiçbir zaman silinmez.</summary>
 public sealed class Disposition

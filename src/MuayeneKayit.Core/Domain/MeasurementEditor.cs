@@ -14,7 +14,7 @@ public sealed record MeasurementEdit(
 public static class MeasurementEditor
 {
     public static MeasurementSnapshot Snapshot(Defect d) =>
-        new(d.Depth, d.Width, d.Length, d.Radius, d.AngleDeg, d.Color, d.HighMetal);
+        new(d.Depth, d.Width, d.Length, d.Radius, d.AngleDeg, d.Color, d.HighMetal, d.Custom is { Count: > 0 } c ? c.ToList() : null);
 
     /// <param name="mergeWithin">
     /// Verilirse: aynı kişinin bu süre içindeki son düzeltmesi (arada karar yoksa) yeni satır eklenmeden güncellenir.
@@ -43,6 +43,7 @@ public static class MeasurementEditor
         defect.AngleDeg = values.AngleDeg;
         defect.Color = values.Color;
         defect.HighMetal = values.HighMetal;
+        defect.Custom = CustomMeasures.Clean(values.Custom) is { Count: > 0 } custom ? custom : null;
 
         if (before != values)
             defect.MeasurementEdits.Add(new MeasurementEdit(now, by, before, values));

@@ -71,6 +71,8 @@ public static class DefectSentence
             measurements.Add($"A {Num(angle)}°");
         if (!string.IsNullOrWhiteSpace(defect.Color))
             measurements.Add($"color {defect.Color.Trim()}");
+        // Admin'de tanımlanan ek ölçümler: "H 0.3 mm".
+        measurements.AddRange(CustomMeasures.Clean(defect.Custom).Select(m => CustomMeasures.Short(m, defect.Unit)));
 
         if (measurements.Count > 0)
             sb.Append(": ").Append(string.Join(", ", measurements));

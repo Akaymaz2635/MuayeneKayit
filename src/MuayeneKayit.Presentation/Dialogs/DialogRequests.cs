@@ -36,6 +36,7 @@ public sealed record DecisionInput(string? Target, string? Reference, string? No
 /// <param name="Fields">Ölçüm alanları: şablondakiler ve eski değeri olanlar (renk hariç).</param>
 /// <param name="Unit">Kusurun ölçü birimi; başlıklar ve karşılaştırma bununla yazılır.</param>
 /// <param name="Regions">Aktif bölgeler; yalnızca 2 ya da daha fazlaysa dolu (her biri için ayrı sonuç sorulur).</param>
+/// <param name="CustomFields">Ek ölçüm alanları: şablondakiler ve eski değeri olanlar.</param>
 public sealed record ReinspectRequest(
     int DefectId,
     string DefectType,
@@ -47,7 +48,8 @@ public sealed record ReinspectRequest(
     bool ShowColor,
     IReadOnlyList<string> TypeNames,
     LengthUnit Unit = LengthUnit.Mm,
-    IReadOnlyList<PhotoRegion>? Regions = null);
+    IReadOnlyList<PhotoRegion>? Regions = null,
+    IReadOnlyList<CustomFieldDef>? CustomFields = null);
 
 /// <summary>Rework sonrası muayenenin sonucu.</summary>
 public enum ReinspectOutcome

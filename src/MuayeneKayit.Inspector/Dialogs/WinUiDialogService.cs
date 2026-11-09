@@ -309,6 +309,20 @@ public sealed class WinUiDialogService : IDialogService
             colorBox = new TextBox { Header = "Renk", Width = 140, PlaceholderText = before.Color is null ? "" : $"önce: {before.Color}" };
             measureGrid.Children.Add(colorBox);
         }
+        // Admin'de tanımlanan ek ölçümler (ör. Yükseklik): boş kalan önceki değerinde kalır.
+        var customBoxes = new List<(CustomFieldDef Def, TextBox Box)>();
+        foreach (var def in request.CustomFields ?? Array.Empty<CustomFieldDef>())
+        {
+            var old = CustomMeasures.Find(before.Custom, def.Key);
+            var box = new TextBox
+            {
+                Header = CustomMeasures.Header(def, request.Unit),
+                Width = 120,
+                PlaceholderText = old is null ? "" : $"önce: {CustomMeasures.EditText(old, request.Unit)}",
+            };
+            customBoxes.Add((def, box));
+            measureGrid.Children.Add(box);
+        }
         var delta = new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Style = Res("WarnTextStyle") };
         var samePanel = new StackPanel
         {
@@ -379,7 +393,8 @@ public sealed class WinUiDialogService : IDialogService
                 Try(boxes.GetValueOrDefault(MeasureField.Depth)), Try(boxes.GetValueOrDefault(MeasureField.Width)),
                 Try(boxes.GetValueOrDefault(MeasureField.Length)), Try(boxes.GetValueOrDefault(MeasureField.Radius)),
                 Try(boxes.GetValueOrDefault(MeasureField.Angle)),
-                string.IsNullOrWhiteSpace(colorBox?.Text) ? null : colorBox!.Text.Trim());
+                string.IsNullOrWhiteSpace(colorBox?.Text) ? null : colorBox!.Text.Trim(),
+                Custom: CustomMeasures.Clean(customBoxes.Select(c => CustomMeasures.Of(c.Def, Try(c.Box), c.Box.Text))));
         }
 
         void Refresh()
@@ -423,7 +438,7 @@ public sealed class WinUiDialogService : IDialogService
         }
         if (highMetal is not null)
             highMetal.SelectionChanged += (_, _) => Refresh();
-        foreach (var box in boxes.Values.Append(colorBox).OfType<TextBox>())
+        foreach (var box in boxes.Values.Append(colorBox).Concat(customBoxes.Select(c => c.Box)).OfType<TextBox>())
             box.TextChanged += (_, _) => Refresh();
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)

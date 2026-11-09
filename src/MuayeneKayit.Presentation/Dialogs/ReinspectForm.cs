@@ -12,12 +12,13 @@ public static class ReinspectForm
     public static MeasurementSnapshot Merge(MeasurementSnapshot before, MeasurementSnapshot entered, bool? highMetalStillThere) =>
         new(entered.Depth ?? before.Depth, entered.Width ?? before.Width, entered.Length ?? before.Length,
             entered.Radius ?? before.Radius, entered.AngleDeg ?? before.AngleDeg, entered.Color ?? before.Color,
-            highMetalStillThere ?? before.HighMetal);
+            highMetalStillThere ?? before.HighMetal, CustomMeasures.Merge(before.Custom, entered.Custom) is { Count: > 0 } c ? c : null);
 
     /// <summary>Kutulardan en az birine değer yazıldı mı.</summary>
     public static bool AnyValue(MeasurementSnapshot entered) =>
         entered.Depth is not null || entered.Width is not null || entered.Length is not null
-        || entered.Radius is not null || entered.AngleDeg is not null || entered.Color is not null;
+        || entered.Radius is not null || entered.AngleDeg is not null || entered.Color is not null
+        || CustomMeasures.Clean(entered.Custom).Count > 0;
 
     /// <summary>"Yeni hata" listesi geçerli mi: en az bir satır var ve her satırda tip seçili.</summary>
     public static bool ValidNewTypes(IReadOnlyList<string?>? types) =>
@@ -153,6 +154,7 @@ public static class ReinspectForm
         {
             Depth = merged.Depth, Width = merged.Width, Length = merged.Length, Radius = merged.Radius,
             AngleDeg = merged.AngleDeg, Color = merged.Color, HighMetal = merged.HighMetal,
+            Custom = merged.Custom?.ToList(),
         };
         return string.Join("\n", MeasurementCompare.Lines(before, now, unit));
     }

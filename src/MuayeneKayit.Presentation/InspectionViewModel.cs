@@ -14,6 +14,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     private readonly ISessionStore _store;
     private readonly IAuditTrail _audit;
     private readonly IReadOnlyList<DefectTypeTemplate> _types;
+    private readonly IReadOnlyList<CustomFieldDef> _customFields;
     private readonly IDialogService _dialogs;
     private readonly IFilePicker _filePicker;
     private readonly IWindowService _windows;
@@ -43,8 +44,10 @@ public sealed partial class InspectionViewModel : ObservableObject
     private static readonly TimeSpan MeasurementMergeWindow = TimeSpan.FromMinutes(10);
 
     public InspectionViewModel(ISessionStore store, IAuditTrail audit, IReadOnlyList<DefectTypeTemplate> types, IDialogService dialogs,
-        IFilePicker filePicker, IWindowService windows, IPdfConverter pdf, IUserSettings settings, IWindowsUser? windowsUser = null)
+        IFilePicker filePicker, IWindowService windows, IPdfConverter pdf, IUserSettings settings, IWindowsUser? windowsUser = null,
+        IReadOnlyList<CustomFieldDef>? customFields = null)
     {
+        _customFields = customFields ?? Array.Empty<CustomFieldDef>();
         _windowsUser = windowsUser;
         _store = store;
         _audit = audit;
@@ -173,6 +176,15 @@ public sealed partial class InspectionViewModel : ObservableObject
     [ObservableProperty] private bool _showRadius = true;
     [ObservableProperty] private bool _showAngle = true;
     [ObservableProperty] private bool _showColor = true;
+
+    /// <summary>Admin'de tanımlanan ek ölçüm kutuları (seçili kusurun tipine göre; değeri olan eski alanlar da).</summary>
+    public ObservableCollection<CustomFieldInput> CustomInputs { get; } = new();
+
+    partial void OnIsReadOnlyChanged(bool value)
+    {
+        foreach (var input in CustomInputs)
+            input.IsReadOnly = value;
+    }
 
     [ObservableProperty] private bool _isEditable;
     [ObservableProperty] private bool _isReadOnly = true;
@@ -527,7 +539,7 @@ public sealed partial class InspectionViewModel : ObservableObject
     /// </summary>
     public bool IsSkippingMeasurement =>
         Current is Defect d && IsEditable && !DefectPresentation.HasMeasurement(d)
-        && (ShowDepth || ShowWidth || ShowLength || ShowRadius || ShowAngle || ShowColor);
+        && (ShowDepth || ShowWidth || ShowLength || ShowRadius || ShowAngle || ShowColor || CustomInputs.Count > 0);
 
     /// <summary>
     /// Fotoğraf adımına geçmek istenince çağrılır. Ölçüm girilmemişse uyarı sorulur; kullanıcı kabul ederse
@@ -564,6 +576,44 @@ public sealed partial class InspectionViewModel : ObservableObject
         ShowRadius = Visible(MeasureField.Radius, defect.Radius is not null);
         ShowAngle = Visible(MeasureField.Angle, defect.AngleDeg is not null);
         ShowColor = Visible(MeasureField.Color, !string.IsNullOrWhiteSpace(defect.Color));
+
+        // Ek alan kutuları: alanlar aynıysa kutular yerinde güncellenir (otomatik kayıttan sonra odak kaybolmasın),
+        // değiştiyse yeniden kurulur. Bu sırada otomatik kayıt çalışmaz.
+        _loadingForm = true;
+        try
+        {
+            var defs = CustomFieldsFor(template, defect.Custom);
+            if (!defs.Select(d => d.Key).SequenceEqual(CustomInputs.Select(i => i.Def.Key)))
+            {
+                CustomInputs.Clear();
+                foreach (var def in defs)
+                    CustomInputs.Add(new CustomFieldInput(def, "", "", IsReadOnly));
+            }
+            foreach (var input in CustomInputs)
+            {
+                input.Header = CustomMeasures.Header(input.Def, defect.Unit);
+                input.Text = CustomMeasures.EditText(CustomMeasures.Find(defect.Custom, input.Def.Key), defect.Unit);
+            }
+        }
+        finally
+        {
+            _loadingForm = false;
+        }
+    }
+
+    /// <summary>
+    /// Kusur için gösterilecek ek alanlar: şablonda işaretli olanlar (şablon yoksa tümü), ardından şablon dışı ama kayıtta
+    /// değeri olanlar (alan silinmiş ya da şablondan kaldırılmış olsa da veri gizlenmez).
+    /// </summary>
+    private List<CustomFieldDef> CustomFieldsFor(DefectTypeTemplate? template, IReadOnlyList<CustomMeasure>? values)
+    {
+        var defs = SharedConfig.FieldsOf(template, _customFields).ToList();
+        foreach (var m in CustomMeasures.Clean(values))
+        {
+            if (defs.All(d => d.Key != m.Key))
+                defs.Add(_customFields.FirstOrDefault(d => d.Key == m.Key) ?? CustomMeasures.DefOf(m));
+        }
+        return defs;
     }
 
     /// <summary>Adım sekmeleri: tamamlanan ✓, sıradaki kalın; vurgulu düğme sıradaki adımdaki düğmedir.</summary>
@@ -659,7 +709,8 @@ public sealed partial class InspectionViewModel : ObservableObject
             DefectPresentation.ParseOptional(RadiusText, "Çap"),
             DefectPresentation.ParseOptional(AngleText, "Açı"),
             string.IsNullOrWhiteSpace(ColorText) ? null : ColorText.Trim(),
-            HighMetal),
+            HighMetal,
+            CustomMeasures.Clean(CustomInputs.Select(i => i.Read())) is { Count: > 0 } custom ? custom : null),
         string.IsNullOrWhiteSpace(NotesText) ? null : NotesText.Trim(),
         PartList.Normalize(AffectedPartsText) is { Length: > 0 } normalized ? normalized : null);
 
@@ -676,6 +727,7 @@ public sealed partial class InspectionViewModel : ObservableObject
                 DefectType = d.DefectType,
                 Depth = values.Depth, Width = values.Width, Length = values.Length,
                 Radius = values.Radius, AngleDeg = values.AngleDeg, Color = values.Color,
+                Custom = values.Custom?.ToList(),
             };
 
             // Doğrulama başarısızsa mutate hata fırlatır ve dosya yazılmaz.

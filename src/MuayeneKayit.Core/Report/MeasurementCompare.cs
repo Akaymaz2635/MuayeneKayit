@@ -27,14 +27,37 @@ public static class MeasurementCompare
         if (!string.Equals(before.Color ?? "", after.Color ?? "", StringComparison.Ordinal))
             lines.Add($"Renk: {Text(before.Color)} → {Text(after.Color)}");
 
+        // Ek ölçümler: önceki ya da şimdiki kayıtta değeri olanlar, kayıttaki adıyla.
+        var beforeCustom = CustomMeasures.Clean(before.Custom);
+        var afterCustom = CustomMeasures.Clean(after.Custom);
+        foreach (var key in beforeCustom.Concat(afterCustom).Select(m => m.Key).Distinct())
+        {
+            var b = beforeCustom.FirstOrDefault(m => m.Key == key);
+            var a = afterCustom.FirstOrDefault(m => m.Key == key);
+            var field = a ?? b!;
+            if (field.Kind == CustomFieldKind.Text)
+            {
+                if (!string.Equals(b?.Text, a?.Text, StringComparison.Ordinal))
+                    lines.Add($"{field.Name}: {Text(b?.Text)} → {Text(a?.Text)}");
+            }
+            else
+            {
+                Add(lines, field.Name, b?.Number, a?.Number, field.Kind == CustomFieldKind.Length ? unit : null,
+                    field.Kind == CustomFieldKind.Number ? "" : null);
+            }
+        }
+
         if (before.HighMetal != after.HighMetal)
             lines.Add(before.HighMetal ? "High metal: var → giderildi" : "High metal: yok → var (yeni)");
 
         return lines.Count == 0 ? new[] { "Ölçüm alanı yok." } : lines;
     }
 
-    private static void Add(List<string> lines, string label, double? before, double? after, LengthUnit? unit)
+    /// <param name="suffix">Verilirse birim eki yerine kullanılır (birimsiz sayı için "").</param>
+    private static void Add(List<string> lines, string label, double? before, double? after, LengthUnit? unit, string? suffix = null)
     {
+        string Suffix(LengthUnit? u) => suffix ?? MeasurementCompare.Suffix(u);
+
         if (before is null && after is null)
             return;
 

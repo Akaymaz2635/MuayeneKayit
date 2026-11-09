@@ -34,6 +34,8 @@ public partial class App : Application
 
         // Kusur tipi şablonları admin panelinde tanımlanır (_config); yoksa varsayılanlar.
         services.AddSingleton(SharedConfig.LoadDefectTypes(root));
+        // Admin'de tanımlanan ek ölçüm alanları (ör. Yükseklik); yoksa boş.
+        services.AddSingleton(SharedConfig.LoadCustomFields(root));
 
         // Diyaloglar: akış ViewModel'de, çizim WinUiDialogService'te (pencere ana pencereye bağlanır).
         services.AddSingleton<WinUiDialogService>();

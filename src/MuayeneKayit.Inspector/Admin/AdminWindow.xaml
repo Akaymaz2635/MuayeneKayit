@@ -121,7 +121,9 @@
                             </StackPanel>
                         </Grid>
                     </Border>
-                    <Border Grid.Column="1" Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1" VerticalAlignment="Top">
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Padding="0,0,12,0">
+                    <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1" VerticalAlignment="Top">
                         <StackPanel Spacing="12">
                             <TextBlock Text="Şablon" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
                             <TextBlock Text="Muayene ekranında bu tip için yalnızca işaretli ölçüm alanları gösterilir. Spec adı yeni kusura varsayılan olarak yazılır." TextWrapping="Wrap" Foreground="#666" FontSize="12" />
@@ -136,6 +138,17 @@
                                 <CheckBox x:Name="FieldAngle" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldAngle, Mode=TwoWay}" Content="Açı" />
                                 <CheckBox x:Name="FieldColor" MinWidth="0" Margin="0,0,12,0" IsChecked="{x:Bind Shell.Types.FieldColor, Mode=TwoWay}" Content="Renk" />
                             </StackPanel>
+                            <TextBlock Text="Ek ölçüm alanları" FontWeight="SemiBold" Visibility="{x:Bind Shell.Types.HasCustomFields, Mode=OneWay}" />
+                            <ItemsRepeater x:Name="CustomToggleList" ItemsSource="{x:Bind Shell.Types.CustomToggles}">
+                                <ItemsRepeater.Layout>
+                                    <UniformGridLayout MinItemWidth="170" MinColumnSpacing="12" ItemsStretch="None" />
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="pres:CustomFieldToggle">
+                                        <CheckBox MinWidth="0" Content="{x:Bind Label}" IsChecked="{x:Bind IsChecked, Mode=TwoWay}" AutomationProperties.AutomationId="{x:Bind Key}" />
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button Content="Şablonu uygula" Click="{x:Bind Shell.Types.Apply}" />
                                 <Button Content="Tümünü ortak alana kaydet" Click="{x:Bind Shell.Types.Save}" Style="{StaticResource AccentButtonStyle}" />
@@ -144,6 +157,28 @@
                             <TextBlock x:Name="TypesDirty" Text="{x:Bind Shell.Types.DirtyText, Mode=OneWay}" Foreground="#B45309" FontSize="12" />
                         </StackPanel>
                     </Border>
+
+                    <!-- Ek ölçüm alanları: ad, kısaltma, tür -->
+                    <Border Background="White" CornerRadius="8" Padding="16" BorderBrush="#DDE2EA" BorderThickness="1" VerticalAlignment="Top">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Ölçüm alanı tanımla" FontWeight="SemiBold" Foreground="#1A3A5C" FontSize="16" />
+                            <TextBlock TextWrapping="Wrap" Foreground="#666" FontSize="12"
+                                       Text="Yerleşik alanlar dışında yeni ölçüm ekleyin (ör. Yükseklik, kısaltma H, tür uzunluk). Eklenen alan yukarıdaki şablonda işaretlenince o tipin muayene ekranında kutusu çıkar; rapor cümlesine 'H 0.3 mm' olarak yazılır. Uzunluk türü kusurun birimini (mm / in) kullanır ve pozitif olmalı; sayı türünde eksi değer de girilebilir." />
+                            <ListView x:Name="FieldList" SelectionMode="Single" MaxHeight="200" ItemsSource="{x:Bind Shell.Types.FieldItems, Mode=OneWay}" SelectedIndex="{x:Bind Shell.Types.SelectedFieldIndex, Mode=TwoWay}" />
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBox x:Name="FieldNameBox" Text="{x:Bind Shell.Types.FieldName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Ad" PlaceholderText="Yükseklik" Width="200" MaxLength="30" />
+                                <TextBox x:Name="FieldAbbrevBox" Text="{x:Bind Shell.Types.FieldAbbrev, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="Kısaltma" PlaceholderText="H" Width="100" MaxLength="6" />
+                                <ComboBox x:Name="FieldKindBox" ItemsSource="{x:Bind Shell.Types.FieldKindOptions}" SelectedIndex="{x:Bind Shell.Types.FieldKindIndex, Mode=TwoWay}" Header="Tür" Width="240" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button x:Name="AddFieldButton" Content="Yeni alan ekle" Click="{x:Bind Shell.Types.AddField}" />
+                                <Button Content="Seçili alanı güncelle" Click="{x:Bind Shell.Types.ApplyField}" />
+                                <Button Content="Seçili alanı sil" Click="DeleteField_Click" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    </StackPanel>
+                    </ScrollViewer>
                 </Grid>
 
                 <!-- Karar açıklamaları -->

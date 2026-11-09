@@ -146,7 +146,8 @@ public sealed partial class InspectionViewModel
             template is null || template.Fields.Contains(MeasureField.Color) || before.Color is not null,
             TypeNames,
             defect.Unit,
-            activePhotos.Count >= 2 ? PhotoRegions(defect, activePhotos) : null);
+            activePhotos.Count >= 2 ? PhotoRegions(defect, activePhotos) : null,
+            CustomFieldsFor(template, before.Custom));
 
         var input = await _dialogs.AskReinspectAsync(request);
         if (input is null)
@@ -158,7 +159,7 @@ public sealed partial class InspectionViewModel
 
         if (result.Measurements is MeasurementSnapshot v)
         {
-            var probe = new Defect { DefectType = defect.DefectType, Depth = v.Depth, Width = v.Width, Length = v.Length, Radius = v.Radius, AngleDeg = v.AngleDeg, Color = v.Color };
+            var probe = new Defect { DefectType = defect.DefectType, Depth = v.Depth, Width = v.Width, Length = v.Length, Radius = v.Radius, AngleDeg = v.AngleDeg, Color = v.Color, Custom = v.Custom?.ToList() };
             var errors = DefectValidator.Validate(probe);
             if (errors.Count > 0)
                 throw new InvalidOperationException(string.Join(" ", errors));

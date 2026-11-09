@@ -1,17 +1,36 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MuayeneKayit.Core;
 
 namespace MuayeneKayit.Presentation;
 
+/// <summary>Şablon editöründe bir ek ölçüm alanının onay kutusu ("Yükseklik (H)").</summary>
+public sealed partial class CustomFieldToggle : ObservableObject
+{
+    public CustomFieldToggle(string key, string label, bool isChecked)
+    {
+        Key = key;
+        Label = label;
+        _isChecked = isChecked;
+    }
+
+    public string Key { get; }
+    public string Label { get; }
+
+    [ObservableProperty] private bool _isChecked;
+}
+
 /// <summary>
-/// Admin "Kusur tipleri" sayfası: liste, seçili tipin şablonu (ad, spec adı, 6 ölçüm alanı),
-/// sıralama, ekleme / silme (onaylı), varsayılanlara dönme ve ortak alana kaydetme.
+/// Admin "Kusur tipleri" sayfası: liste, seçili tipin şablonu (ad, spec adı, 6 yerleşik + ek ölçüm alanları),
+/// sıralama, ekleme / silme (onaylı), varsayılanlara dönme ve ortak alana kaydetme. Ek ölçüm alanları (ör. Yükseklik)
+/// aynı sayfada tanımlanır: ad, kısaltma ve tür.
 /// </summary>
 public sealed partial class TypesViewModel : AdminViewModelBase
 {
     private readonly AdminContext _ctx;
     private readonly IConfirmService _confirm;
     private List<DefectTypeTemplate> _types = new();
+    private List<CustomFieldDef> _fields = new();
 
     public TypesViewModel(AdminContext ctx, IConfirmService confirm)
     {
@@ -25,6 +44,10 @@ public sealed partial class TypesViewModel : AdminViewModelBase
     /// <summary>Listedeki tip adları (şu anki, kaydedilmemiş hâliyle).</summary>
     public IReadOnlyList<string> TypeNames => _types.Select(t => t.Name).ToList();
 
+    /// <summary>Ek alan türü seçenekleri (FieldKindIndex bu sırayla).</summary>
+    public IReadOnlyList<string> FieldKindOptions { get; } =
+        Enum.GetValues<CustomFieldKind>().Select(CustomMeasures.KindLabel).ToList();
+
     [ObservableProperty] private IReadOnlyList<string> _items = Array.Empty<string>();
     [ObservableProperty] private int _selectedIndex = -1;
     [ObservableProperty] private string _name = "";
@@ -36,16 +59,30 @@ public sealed partial class TypesViewModel : AdminViewModelBase
     [ObservableProperty] private bool _fieldAngle;
     [ObservableProperty] private bool _fieldColor;
 
+    /// <summary>Seçili tipin ek alan onay kutuları.</summary>
+    public ObservableCollection<CustomFieldToggle> CustomToggles { get; } = new();
+
+    [ObservableProperty] private bool _hasCustomFields;
+
+    // Ek ölçüm alanı editörü
+    [ObservableProperty] private IReadOnlyList<string> _fieldItems = Array.Empty<string>();
+    [ObservableProperty] private int _selectedFieldIndex = -1;
+    [ObservableProperty] private string _fieldName = "";
+    [ObservableProperty] private string _fieldAbbrev = "";
+    [ObservableProperty] private int _fieldKindIndex;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDirty))]
     private string _dirtyText = "";
 
     public bool IsDirty => DirtyText.Length > 0;
 
-    /// <summary>Ortak alandaki tipleri yükler (giriş sonrası).</summary>
+    /// <summary>Ortak alandaki tipleri ve ek alanları yükler (giriş sonrası).</summary>
     public void Load()
     {
         _types = SharedConfig.LoadDefectTypes(_ctx.Root).Select(Clone).ToList();
+        _fields = SharedConfig.LoadCustomFields(_ctx.Root).Select(CloneField).ToList();
+        RefreshFields(null);
         RefreshList(0);
     }
 
@@ -62,6 +99,15 @@ public sealed partial class TypesViewModel : AdminViewModelBase
         FieldRadius = t.Fields.Contains(MeasureField.Radius);
         FieldAngle = t.Fields.Contains(MeasureField.Angle);
         FieldColor = t.Fields.Contains(MeasureField.Color);
+        RefreshToggles(t);
+    }
+
+    private void RefreshToggles(DefectTypeTemplate? t)
+    {
+        CustomToggles.Clear();
+        foreach (var f in _fields)
+            CustomToggles.Add(new CustomFieldToggle(f.Key, $"{f.Name} ({f.Abbrev})", t?.CustomFields.Contains(f.Key) == true));
+        HasCustomFields = _fields.Count > 0;
     }
 
     private void RefreshList(int? select)
@@ -71,10 +117,17 @@ public sealed partial class TypesViewModel : AdminViewModelBase
         Items = _types.Select(t => $"{t.Name}   ({FieldsText(t)})").ToList();
         if (select is int i && i >= 0 && i < _types.Count)
             SelectedIndex = i;
+        else
+            RefreshToggles(null);
     }
 
-    private static string FieldsText(DefectTypeTemplate t) =>
-        t.Fields.Count == 0 ? "ölçüm yok" : string.Join(", ", t.Fields.Select(FieldLabel));
+    private string FieldsText(DefectTypeTemplate t)
+    {
+        var labels = t.Fields.Select(FieldLabel)
+            .Concat(SharedConfig.FieldsOf(t, _fields).Select(f => f.Abbrev))
+            .ToList();
+        return labels.Count == 0 ? "ölçüm yok" : string.Join(", ", labels);
+    }
 
     private static string FieldLabel(MeasureField f) => f switch
     {
@@ -111,6 +164,7 @@ public sealed partial class TypesViewModel : AdminViewModelBase
             Name = Name.Trim(),
             SpecName = string.IsNullOrWhiteSpace(SpecName) ? null : SpecName.Trim(),
             Fields = CheckedFields(),
+            CustomFields = CustomToggles.Where(c => c.IsChecked).Select(c => c.Key).ToList(),
         };
         var trial = _types.ToList();
         trial[i] = candidate;
@@ -166,24 +220,125 @@ public sealed partial class TypesViewModel : AdminViewModelBase
     {
         if (!await _confirm.ConfirmAsync("Varsayılanlara dön",
                 $"Listedeki {_types.Count} kusur tipi ve şablonları silinip varsayılan {SharedConfig.Defaults.Count} tip yüklenecek. " +
-                "Ortak alana kaydedilene kadar kalıcı olmaz.", "Varsayılanlara dön"))
+                "Ek ölçüm alanları silinmez ama varsayılan tiplerde işaretli olmaz. Ortak alana kaydedilene kadar kalıcı olmaz.", "Varsayılanlara dön"))
             return;
         _types = SharedConfig.Defaults.Select(Clone).ToList();
         RefreshList(0);
         MarkDirty();
     }
 
+    // ───── Ek ölçüm alanları ─────
+
+    partial void OnSelectedFieldIndexChanged(int value)
+    {
+        if (value < 0 || value >= _fields.Count)
+            return;
+        var f = _fields[value];
+        FieldName = f.Name;
+        FieldAbbrev = f.Abbrev;
+        FieldKindIndex = (int)f.Kind;
+    }
+
+    private void RefreshFields(int? select)
+    {
+        SelectedFieldIndex = -1;
+        FieldItems = _fields.Select(f => $"{f.Name}   ({f.Abbrev} · {CustomMeasures.KindLabel(f.Kind)})").ToList();
+        if (select is int i && i >= 0 && i < _fields.Count)
+        {
+            SelectedFieldIndex = i;
+        }
+        else
+        {
+            FieldName = "";
+            FieldAbbrev = "";
+            FieldKindIndex = 0;
+        }
+    }
+
+    private CustomFieldDef FieldFromEditor(string key) => new()
+    {
+        Key = key,
+        Name = FieldName.Trim(),
+        Abbrev = FieldAbbrev.Trim(),
+        Kind = FieldKindIndex >= 0 && FieldKindIndex < FieldKindOptions.Count ? (CustomFieldKind)FieldKindIndex : CustomFieldKind.Length,
+    };
+
+    /// <summary>Editördeki ad / kısaltma / türle yeni ek alan ekler (henüz hiçbir tipte işaretli değildir).</summary>
+    public void AddField() => Run(() =>
+    {
+        var field = FieldFromEditor(SharedConfig.NewFieldKey());
+        var trial = _fields.Append(field).ToList();
+        var errors = SharedConfig.ValidateCustomFields(trial);
+        if (errors.Count > 0)
+            throw new ArgumentException(string.Join(" ", errors));
+        _fields = trial;
+        AfterFieldsChanged(_fields.Count - 1);
+        Say($"'{field.Name}' eklendi. Kullanılacağı kusur tiplerinde işaretleyip 'Şablonu uygula' deyin, sonra ortak alana kaydedin.", StatusKind.Info);
+    });
+
+    /// <summary>Seçili ek alanın adını / kısaltmasını / türünü günceller. Kayıtlı kusurlardaki değerler eski adıyla kalır.</summary>
+    public void ApplyField() => Run(() =>
+    {
+        var i = SelectedFieldIndex;
+        if (i < 0)
+            throw new InvalidOperationException("Listeden bir ölçüm alanı seçin.");
+        var trial = _fields.ToList();
+        trial[i] = FieldFromEditor(_fields[i].Key);
+        var errors = SharedConfig.ValidateCustomFields(trial);
+        if (errors.Count > 0)
+            throw new ArgumentException(string.Join(" ", errors));
+        _fields = trial;
+        AfterFieldsChanged(i);
+    });
+
+    public async Task DeleteFieldAsync()
+    {
+        var i = SelectedFieldIndex;
+        if (i < 0 || i >= _fields.Count)
+            return;
+        var f = _fields[i];
+        var users = _types.Where(t => t.CustomFields.Contains(f.Key)).Select(t => t.Name).ToList();
+        if (!await _confirm.ConfirmAsync("Ölçüm alanını sil",
+                $"'{f.Name}' silinecek{(users.Count > 0 ? $" ve şu tiplerden kaldırılacak: {string.Join(", ", users)}" : "")}. " +
+                "Kayıtlı kusurlardaki değerler silinmez; raporda ve geçmişte görünmeye devam eder.", "Sil"))
+            return;
+        _fields.RemoveAt(i);
+        foreach (var t in _types)
+            t.CustomFields.Remove(f.Key);
+        AfterFieldsChanged(Math.Min(i, _fields.Count - 1));
+    }
+
+    private void AfterFieldsChanged(int? selectField)
+    {
+        RefreshFields(selectField);
+        RefreshList(SelectedIndex);
+        MarkDirty();
+    }
+
     public void Save() => Run(() =>
     {
+        var typeErrors = SharedConfig.ValidateTypes(_types);
+        if (typeErrors.Count > 0)
+            throw new ArgumentException(string.Join(" ", typeErrors));
+
+        // Önce alanlar yazılır; şablonlar yalnızca tanımlı alanlara işaret eder.
+        var keys = _fields.Select(f => f.Key).ToHashSet();
+        foreach (var t in _types)
+            t.CustomFields.RemoveAll(k => !keys.Contains(k));
+        SharedConfig.SaveCustomFields(_ctx.Root, _fields);
+        _ctx.Audit.Append("admin", "config.measure_fields", string.Join(", ", _fields.Select(f => $"{f.Name} ({f.Abbrev}, {f.Kind})")));
         SharedConfig.SaveDefectTypes(_ctx.Root, _types);
         _ctx.Audit.Append("admin", "config.defect_types", string.Join(", ", _types.Select(t => t.Name)));
         DirtyText = "";
         Saved?.Invoke(TypeNames);
-        Say("Kusur tipleri kaydedildi. Muayene uygulamaları bir sonraki açılışta yeni listeyi kullanır.", StatusKind.Success);
+        Say("Kusur tipleri ve ölçüm alanları kaydedildi. Muayene uygulamaları bir sonraki açılışta yeni listeyi kullanır.", StatusKind.Success);
     });
 
     private void MarkDirty() => DirtyText = "Kaydedilmemiş değişiklik var. 'Tümünü ortak alana kaydet' ile kaydedin.";
 
     private static DefectTypeTemplate Clone(DefectTypeTemplate t) =>
-        new() { Name = t.Name, SpecName = t.SpecName, Fields = t.Fields.ToList() };
+        new() { Name = t.Name, SpecName = t.SpecName, Fields = t.Fields.ToList(), CustomFields = t.CustomFields.ToList() };
+
+    private static CustomFieldDef CloneField(CustomFieldDef f) =>
+        new() { Key = f.Key, Name = f.Name, Abbrev = f.Abbrev, Kind = f.Kind };
 }

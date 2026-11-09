@@ -150,6 +150,8 @@ public static class ReportBuilder
         sb.Append(MeasCell(ReportText.Diameter, Len(d.Radius, d.Unit)));
         sb.Append(MeasCell(ReportText.Angle, d.AngleDeg is double a ? $"{Num(a)}°" : "—"));
         sb.Append(MeasCell(ReportText.Color, string.IsNullOrWhiteSpace(d.Color) ? "—" : d.Color!));
+        foreach (var m in CustomMeasures.Clean(d.Custom))
+            sb.Append(MeasCell(m.Name, CustomMeasures.ValueText(m, d.Unit)));
         sb.Append("</div>");
 
         if (!string.IsNullOrWhiteSpace(d.AffectedParts))
@@ -306,6 +308,7 @@ public static class ReportBuilder
         if (s.Radius is double r) parts.Add($"Ç {Units.Format(r, unit)}");
         if (s.AngleDeg is double a) parts.Add($"A {Num(a)}°");
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
+        parts.AddRange(CustomMeasures.Clean(s.Custom).Select(m => CustomMeasures.Short(m, unit)));
         if (s.HighMetal) parts.Add("High metal");
         return parts.Count == 0 ? "—" : string.Join(" · ", parts);
     }

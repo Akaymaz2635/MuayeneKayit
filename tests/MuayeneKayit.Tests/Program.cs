@@ -171,6 +171,14 @@ var tests = new List<(string Name, Action Body)>
     ("Rapor 2: kusur sayfası etiketleri Türkçe / English", ReportBilingualTests.DefectPageLabelsAreBilingual),
     ("Rapor 2: durum ve karar adları iki dilli, sistem notu çevrilir", ReportBilingualTests.StateAndDecisionNamesAreBilingual),
     ("Rapor 2: bağlantı cümleleri ve bölge satırları iki dilli", ReportBilingualTests.LinkSentencesAndRegionLinesAreBilingual),
+    ("Ek ölçüm: alan tanımı kaydedilir, geçersiz / yerleşik kısaltma reddedilir", CustomFieldTests.FieldDefinitionsSaveAndValidate),
+    ("Ek ölçüm: cümle, rapor, karşılaştırma ve doğrulama", CustomFieldTests.SentenceReportCompareValidate),
+    ("Ek ölçüm: düzeltme kaydı, ad farkı değişiklik sayılmaz, eski kayıt", CustomFieldTests.EditorEqualityAndOldRecords),
+    ("Ek ölçüm VM: şablondaki kutu çıkar, kaydedilir, cümleye yazılır", ViewModelTests.VmCustomFieldShownSavedAndInSentence),
+    ("Ek ölçüm VM: negatif uzunluk reddedilir, sayı türünde eksi kabul", ViewModelTests.VmCustomFieldValidation),
+    ("Ek ölçüm VM: şablon dışı / silinmiş alandaki değer gizlenmez", ViewModelTests.VmCustomFieldOrphanValueStaysVisible),
+    ("Ek ölçüm VM: rework sonrası boş bırakılan ek ölçüm korunur", ViewModelTests.VmReinspectMergesCustomField),
+    ("Ek ölçüm Admin: alan ekle, tipe işaretle, kaydet, sil", AdminViewModelTests.TypesCustomFieldsAddCheckSaveDelete),
 };
 
 int failed = 0;

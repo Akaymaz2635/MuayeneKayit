@@ -23,6 +23,8 @@ public static class DefectValidator
         if (defect.Color is { Length: > MaxColorLength })
             errors.Add($"Renk en fazla {MaxColorLength} karakter olabilir.");
 
+        CustomMeasures.Validate(defect.Custom, errors);
+
         return errors;
     }
 

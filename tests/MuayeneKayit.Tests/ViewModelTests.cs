@@ -43,7 +43,9 @@ public static partial class ViewModelTests
             throw new Exception(message);
     }
 
-    private static void With(Action<Ctx> body)
+    private static void With(Action<Ctx> body) => With(body, null, null);
+
+    private static void With(Action<Ctx> body, IReadOnlyList<DefectTypeTemplate>? types, IReadOnlyList<CustomFieldDef>? customFields)
     {
         var root = Path.Combine(Path.GetTempPath(), "MuayeneKayit-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -59,7 +61,7 @@ public static partial class ViewModelTests
             var windowsUser = new FakeWindowsUser();
             var ctx = new Ctx
             {
-                Vm = new InspectionViewModel(store, audit, SharedConfig.Defaults, dialogs, picker, windows, pdf, settings, windowsUser),
+                Vm = new InspectionViewModel(store, audit, types ?? SharedConfig.Defaults, dialogs, picker, windows, pdf, settings, windowsUser, customFields),
                 WindowsUser = windowsUser,
                 Store = store,
                 Audit = audit,

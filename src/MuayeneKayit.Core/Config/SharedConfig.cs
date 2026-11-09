@@ -23,6 +23,10 @@ public sealed class DefectTypeTemplate
 {
     public string Name { get; set; } = "";
     public List<MeasureField> Fields { get; set; } = new();
+
+    /// <summary>İşaretli ek ölçüm alanlarının anahtarları (<see cref="CustomFieldDef.Key"/>). Eski dosyalarda yok.</summary>
+    public List<string> CustomFields { get; set; } = new();
+
     public string? SpecName { get; set; }
 }
 
@@ -114,6 +118,86 @@ public static class SharedConfig
         Directory.CreateDirectory(Folder(root));
         AtomicFile.WriteAllText(Path.Combine(Folder(root), TypesFile), JsonSerializer.Serialize(types, SessionStore.JsonOptions));
     }
+
+    // ───── Ek ölçüm alanları ─────
+
+    private const string CustomFieldsFile = "measure_fields.json";
+    public const int MaxCustomFields = 30;
+
+    /// <summary>Yerleşik alanların kısaltmaları; ek alan bunları kullanamaz (cümlede karışmasın).</summary>
+    private static readonly string[] ReservedAbbrevs = { "D", "W", "L", "Ø", "Ç", "A" };
+
+    private static readonly Regex AbbrevPattern = new(@"^[A-Za-z0-9ÇĞİÖŞÜçğıöşüØ°]{1,6}$");
+    private static readonly Regex KeyPattern = new(@"^[a-z0-9]{1,16}$");
+
+    /// <summary>Ek ölçüm alanlarını okur. Dosya yoksa ya da bozuksa boş liste döner; muayene durmaz.</summary>
+    public static IReadOnlyList<CustomFieldDef> LoadCustomFields(string root)
+    {
+        try
+        {
+            var path = Path.Combine(Folder(root), CustomFieldsFile);
+            if (!File.Exists(path))
+                return Array.Empty<CustomFieldDef>();
+
+            var list = SessionStore.ReadJson<List<CustomFieldDef>>(path);
+            return ValidateCustomFields(list).Count == 0 ? list : Array.Empty<CustomFieldDef>();
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return Array.Empty<CustomFieldDef>();
+        }
+    }
+
+    public static IReadOnlyList<string> ValidateCustomFields(IReadOnlyList<CustomFieldDef> fields)
+    {
+        var errors = new List<string>();
+        if (fields.Count > MaxCustomFields)
+            errors.Add($"En fazla {MaxCustomFields} ek ölçüm alanı tanımlanabilir.");
+
+        foreach (var f in fields)
+        {
+            if (!KeyPattern.IsMatch(f.Key ?? ""))
+                errors.Add($"Geçersiz alan anahtarı: \"{f.Key}\".");
+            if (!NamePattern.IsMatch(f.Name ?? "") || f.Name!.Trim().Length > 30)
+                errors.Add($"Geçersiz alan adı: \"{f.Name}\" (1-30 karakter, harf, rakam, boşluk, - _ . / ( )).");
+            if (!AbbrevPattern.IsMatch(f.Abbrev ?? ""))
+                errors.Add($"{f.Name}: kısaltma 1-6 harf ya da rakam olmalı (ör. H).");
+            else if (ReservedAbbrevs.Contains(f.Abbrev, StringComparer.OrdinalIgnoreCase))
+                errors.Add($"{f.Name}: \"{f.Abbrev}\" kısaltması yerleşik bir alana ait (D, W, L, Ø, A); başka bir kısaltma seçin.");
+            if (!Enum.IsDefined(f.Kind))
+                errors.Add($"{f.Name}: geçersiz alan türü.");
+        }
+
+        string? Dup(Func<CustomFieldDef, string?> by) =>
+            fields.GroupBy(f => by(f)?.Trim() ?? "", StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Key.Length > 0 && g.Count() > 1)?.Key;
+        if (Dup(f => f.Key) is string k)
+            errors.Add($"Aynı alan anahtarı iki kez var: {k}");
+        if (Dup(f => f.Name) is string n)
+            errors.Add($"Aynı alan adı iki kez var: {n}");
+        if (Dup(f => f.Abbrev) is string a)
+            errors.Add($"Aynı kısaltma iki kez var: {a}");
+
+        return errors;
+    }
+
+    public static void SaveCustomFields(string root, IReadOnlyList<CustomFieldDef> fields)
+    {
+        var errors = ValidateCustomFields(fields);
+        if (errors.Count > 0)
+            throw new ArgumentException(string.Join(" ", errors));
+
+        Directory.CreateDirectory(Folder(root));
+        AtomicFile.WriteAllText(Path.Combine(Folder(root), CustomFieldsFile), JsonSerializer.Serialize(fields, SessionStore.JsonOptions));
+    }
+
+    /// <summary>Yeni ek alan için benzersiz anahtar.</summary>
+    public static string NewFieldKey() => "f" + Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>Şablonda işaretli ek alanların tanımları (tanımı silinmiş anahtarlar atlanır), şablondaki sırayla.</summary>
+    public static IReadOnlyList<CustomFieldDef> FieldsOf(DefectTypeTemplate? template, IReadOnlyList<CustomFieldDef> defs) =>
+        template is null
+            ? defs
+            : template.CustomFields.Select(k => defs.FirstOrDefault(d => d.Key == k)).OfType<CustomFieldDef>().ToList();
 
     // ───── Karar açıklamaları ─────
 

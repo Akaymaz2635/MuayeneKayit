@@ -3,7 +3,7 @@ using MuayeneKayit.Core;
 using MuayeneKayit.Presentation;
 
 // Admin uygulaması ViewModel testleri (gerçek SessionStore + geçici klasör, sahte portlar).
-public static class AdminViewModelTests
+public static partial class AdminViewModelTests
 {
     private const string Pin = "123456";
 

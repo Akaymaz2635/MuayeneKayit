@@ -255,6 +255,16 @@
                                                         <TextBox x:Name="RadiusBox" Text="{x:Bind Vm.RadiusText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowRadius, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="{x:Bind Vm.RadiusHeader, Mode=OneWay}" Width="130" InputScope="Number" LostFocus="MeasureBox_LostFocus" AutomationProperties.AutomationId="RadiusBox" />
                                                         <TextBox x:Name="AngleBox" Text="{x:Bind Vm.AngleText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowAngle, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Açı (°)" Width="130" InputScope="Number" LostFocus="MeasureBox_LostFocus" AutomationProperties.AutomationId="AngleBox" />
                                                         <TextBox x:Name="ColorBox" Text="{x:Bind Vm.ColorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Visibility="{x:Bind Vm.ShowColor, Mode=OneWay}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Renk" Width="150" LostFocus="MeasureBox_LostFocus" AutomationProperties.AutomationId="ColorBox" />
+                                                        <ItemsRepeater x:Name="CustomMeasureList" ItemsSource="{x:Bind Vm.CustomInputs}">
+                                                            <ItemsRepeater.Layout>
+                                                                <StackLayout Orientation="Horizontal" Spacing="12" />
+                                                            </ItemsRepeater.Layout>
+                                                            <ItemsRepeater.ItemTemplate>
+                                                                <DataTemplate x:DataType="pres:CustomFieldInput">
+                                                                    <TextBox Text="{x:Bind Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Header="{x:Bind Header, Mode=OneWay}" IsReadOnly="{x:Bind IsReadOnly, Mode=OneWay}" Width="130" LostFocus="MeasureBox_LostFocus" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                                                </DataTemplate>
+                                                            </ItemsRepeater.ItemTemplate>
+                                                        </ItemsRepeater>
                                                     </StackPanel>
                                                     <TextBox x:Name="AffectedPartsBox" Text="{x:Bind Vm.AffectedPartsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Etkilenen parçalar (lot; boş = tümü)" PlaceholderText="örn. 1-5, 8" Width="300" HorizontalAlignment="Left" LostFocus="MeasureBox_LostFocus" AutomationProperties.AutomationId="AffectedPartsBox" />
                                                     <TextBox x:Name="NotesBox" Text="{x:Bind Vm.NotesText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{x:Bind Vm.IsReadOnly, Mode=OneWay}" Header="Not" AcceptsReturn="True" Height="72" TextWrapping="Wrap" LostFocus="MeasureBox_LostFocus" AutomationProperties.AutomationId="NotesBox" />
