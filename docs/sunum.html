@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MuayeneKayit Sunumu</title>
+<style>
+:root{--bg:#0F2236;--slide:#FFFFFF;--ink:#14202E;--muted:#556070;--accent:#1A3A5C;--amber:#B45309;--green:#15803D;--stroke:#DDE2EA;--soft:#F3F5F9}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#070D14;--slide:#17212D;--ink:#E6ECF3;--muted:#9AA8B8;--accent:#7FB0E0;--amber:#F0A65A;--green:#5CC98A;--stroke:#2A3646;--soft:#1E2A38}
+}
+:root[data-theme="dark"]{--bg:#070D14;--slide:#17212D;--ink:#E6ECF3;--muted:#9AA8B8;--accent:#7FB0E0;--amber:#F0A65A;--green:#5CC98A;--stroke:#2A3646;--soft:#1E2A38}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;color:var(--ink)}
+.deck{height:100%;display:grid;place-items:center;padding:16px}
+.slide{display:none;width:min(1200px,100%);aspect-ratio:16/9;background:var(--slide);border-radius:12px;padding:clamp(20px,4vw,56px);position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.slide.on{display:flex;flex-direction:column}
+@media (max-width:700px){.slide{aspect-ratio:auto;min-height:calc(100vh - 80px)}}
+h1{font-size:clamp(28px,4.6vw,58px);margin:0 0 12px;color:var(--accent);line-height:1.08}
+h2{font-size:clamp(22px,3vw,38px);margin:0 0 18px;color:var(--accent)}
+p,li{font-size:clamp(15px,1.6vw,21px);line-height:1.5}
+.muted{color:var(--muted)}
+ul{margin:0;padding-left:1.1em}
+li{margin:6px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:clamp(16px,3vw,40px);flex:1;min-height:0;align-items:center}
+@media (max-width:700px){.cols{grid-template-columns:1fr}}
+.cols img,.full img{width:100%;max-height:100%;object-fit:contain;border-radius:8px;border:1px solid var(--stroke)}
+.full{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+.full img{max-height:100%}
+.big{display:flex;gap:clamp(12px,2vw,28px);flex-wrap:wrap;margin-top:18px}
+.stat{background:var(--soft);border-radius:10px;padding:16px 20px;min-width:150px}
+.stat b{display:block;font-size:clamp(26px,3.6vw,44px);color:var(--accent)}
+.stat span{color:var(--muted);font-size:15px}
+.tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:14px;font-weight:600;margin-right:6px}
+.t-open{color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)}
+.t-ok{color:var(--green);background:color-mix(in srgb,var(--green) 14%,transparent)}
+.foot{position:absolute;left:clamp(20px,4vw,56px);right:clamp(20px,4vw,56px);bottom:14px;display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.ctrl{position:fixed;bottom:14px;right:16px;display:flex;gap:8px}
+.ctrl button{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer}
+pre{background:var(--soft);border-radius:8px;padding:14px;font-size:clamp(12px,1.3vw,16px);overflow:auto;margin:0}
+.flow{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.flow div{background:var(--soft);border-radius:8px;padding:12px 14px;font-weight:600;font-size:clamp(14px,1.5vw,19px)}
+.flow div::after{content:" →";color:var(--muted)}
+.flow div:last-child::after{content:""}
+</style>
+</head>
+<body>
+<div class="deck">
+
+<section class="slide on">
+  <div style="margin:auto 0">
+    <h1>MuayeneKayit</h1>
+    <p class="muted" style="font-size:clamp(18px,2.2vw,28px);max-width:820px">Motor parçası görsel muayene kayıt sistemi: kusur, ölçüm, fotoğraf, disposition ve iki dilli PDF rapor, tek programda.</p>
+    <div class="big">
+      <div class="stat"><b>0</b><span>kurulum, veritabanı, internet</span></div>
+      <div class="stat"><b>x64 + ARM64</b><span>Windows 10 / 11, Surface</span></div>
+      <div class="stat"><b>TR / EN</b><span>iki dilli rapor</span></div>
+    </div>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>1</span></div>
+</section>
+
+<section class="slide">
+  <h2>Sorun</h2>
+  <div class="cols">
+    <ul>
+      <li>Kusurlar kağıda, Excel'e ve dağınık fotoğraf klasörlerine yazılıyor.</li>
+      <li>Rework sonrası ölçüm artmış mı azalmış mı, kim ne karar verdi: izlemek zor.</li>
+      <li>Rapor elle hazırlanıyor, formatlar kişiye göre değişiyor.</li>
+      <li>Şirket bilgisayarlarına program kurma ve yönetici yetkisi yok.</li>
+    </ul>
+    <div>
+      <p><b>Hedef:</b> muayeneci veriyi bir kez girsin; ölçüm, fotoğraf, karar ve rapor aynı kayıttan çıksın, geçmiş hiç silinmesin.</p>
+    </div>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>2</span></div>
+</section>
+
+<section class="slide">
+  <h2>Çözüm: tek kayıt, baştan sona</h2>
+  <div class="flow">
+    <div>Muayeneyi aç</div><div>Kusur ekle</div><div>Ölç</div><div>Fotoğrafla ve işaretle</div><div>Karar ver</div><div>Rework sonucu</div><div>PDF rapor</div><div>Tamamla</div>
+  </div>
+  <div class="cols" style="margin-top:18px">
+    <ul>
+      <li>Ekran her an sıradaki adımı vurgular, biten adım ✓ alır.</li>
+      <li>Ölçümler otomatik kaydedilir; her düzeltme önce / sonra değeriyle geçmişe yazılır.</li>
+      <li>Açık kusur kalmadan muayene tamamlanamaz.</li>
+    </ul>
+    <p><span class="tag t-open">Açık</span><span class="tag t-open">Rework bekliyor</span><span class="tag t-ok">Kapandı</span><br><span class="muted">Renk yalnızca dikkat gereken yerde (ISA-101).</span></p>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>3</span></div>
+</section>
+
+<section class="slide">
+  <h2>Muayene ekranı</h2>
+  <div class="full"><img src="img/insp-measure.png" alt="Muayene ekranı"></div>
+  <div class="foot"><span>Solda kusurlar, sağda seçili kusurun ölçüm, fotoğraf, disposition ve geçmiş sekmeleri</span><span>4</span></div>
+</section>
+
+<section class="slide">
+  <h2>Ölçüm: tipe göre alanlar</h2>
+  <div class="cols">
+    <ul>
+      <li>Admin her kusur tipi için hangi ölçümlerin sorulacağını seçer.</li>
+      <li>Yerleşik: Derinlik, Genişlik, Uzunluk, Çap, Açı, Renk.</li>
+      <li><b>Ek alanlar:</b> Admin yenisini tanımlar. Örneğin kabarık kusurlar için <b>Yükseklik (H)</b>.</li>
+      <li>mm ya da inch; inch değerleri <code>.125 in</code> biçiminde.</li>
+      <li>Yan kusur <b>High metal</b> tek onay kutusu.</li>
+    </ul>
+    <pre>There is a Dent with high metal
+on parts 1–5 and 8:
+D 0.5 mm, W 2.4 mm, H 0.2 mm.</pre>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>5</span></div>
+</section>
+
+<section class="slide">
+  <h2>Fotoğraf ve işaretleme</h2>
+  <div class="cols">
+    <img src="img/insp-photos.png" alt="Fotoğraflar sekmesi">
+    <ul>
+      <li>Kamera çerçevesi kaydedilen fotoğrafta "#N" kutusu olur.</li>
+      <li>Kutu, daire, ok; sürükle, boyutlandır, sil.</li>
+      <li>Arka plan kaldırma, "Orijinale dön" ile geri alınır.</li>
+      <li>Her fotoğraf bir bölge (3.1, 3.2): rework sonucu bölge bazında girilir.</li>
+    </ul>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>6</span></div>
+</section>
+
+<section class="slide">
+  <h2>Disposition ve rework döngüsü</h2>
+  <div class="cols">
+    <ul>
+      <li>Accept, Rework, Reinspect, Repair, Submit MRB, Return to vendor, Scrap.</li>
+      <li>Rework sonrası: <b>uygun</b> · <b>aynı kusur devam</b> (yeni ölçüm, artış / azalış) · <b>yeni hata</b> (yeni kusurlar açılır, "continues as Defect 5").</li>
+      <li>MRB reddi otomatik Scrap; Scrap kesin.</li>
+      <li>Son karar gerekçesiyle geri alınabilir; hiçbir kayıt silinmez.</li>
+    </ul>
+    <img src="img/insp-reinspect.png" alt="Rework sonrası muayene">
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>7</span></div>
+</section>
+
+<section class="slide">
+  <h2>Rapor</h2>
+  <div class="cols">
+    <img src="img/report-page.png" alt="Rapor sayfası">
+    <ul>
+      <li>Yatay A4, Türkçe / English.</li>
+      <li>Her fotoğraf ayrı sayfa, işaretler üzerinde.</li>
+      <li>Uygunsuzluk cümlesi, ölçümler, karar geçmişi, ölçüm düzeltmeleri.</li>
+      <li>Sürümlü: v1, v2…; geri alınan kararlar görünmez.</li>
+    </ul>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>8</span></div>
+</section>
+
+<section class="slide">
+  <h2>Admin paneli</h2>
+  <div class="cols">
+    <img src="img/admin-types.png" alt="Admin kusur tipleri">
+    <ul>
+      <li>Programın içinde: sol menü → <b>Admin</b> → PIN.</li>
+      <li>Kusur tipleri, ek ölçüm alanları, karar açıklamaları.</li>
+      <li>Tüm kayıtlar, filtre, CSV dışa aktarma.</li>
+      <li>Kilit bakımı, denetim zinciri kontrolü, veri klasörü.</li>
+      <li>10 dakika işlem yoksa ve pencere kapanınca kilitlenir.</li>
+    </ul>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>9</span></div>
+</section>
+
+<section class="slide">
+  <h2>Mimari</h2>
+  <div class="cols">
+    <ul>
+      <li><b>Core:</b> alan modeli, durum makinesi, JSON depolama + dosya kilidi, denetim zinciri, rapor.</li>
+      <li><b>Presentation:</b> ViewModel'ler (MVVM), arayüzden bağımsız, testli.</li>
+      <li><b>Inspector:</b> WinUI 3 görünümü ve Admin penceresi.</li>
+      <li><b>Launcher:</b> ağdaki <code>MuayeneKayit.exe</code>; sürümü ve mimariyi seçer.</li>
+    </ul>
+<pre>Veri\
+  _config\   defect_types.json, measure_fields.json …
+  _audit.log
+  PD170\OP40\SN001\
+    session.json
+    defects\1.json, 1_photo_01.jpg
+    reports\Rapor_v1.pdf</pre>
+  </div>
+  <div class="foot"><span>MVVM + Ports &amp; Adapters + DI</span><span>10</span></div>
+</section>
+
+<section class="slide">
+  <h2>Kurulum: 4 adım</h2>
+  <ul>
+    <li><b>1.</b> Releases'tan zip'i indir, ağdaki Program klasörüne aç.</li>
+    <li><b>2.</b> <code>MuayeneKayit.settings.json</code> içinde veri klasörünü yaz.</li>
+    <li><b>3.</b> İzinler: Veri okuma + yazma; Program ve Veri\_config yalnızca okuma (muayeneciler için).</li>
+    <li><b>4.</b> Admin'den PIN ve kusur tipleri; kullanıcılara masaüstü kısayolu.</li>
+  </ul>
+  <p class="muted" style="margin-top:18px">Güncelleme: yeni sürüm klasörünü kopyala, <code>surum.txt</code>'yi değiştir. Açık programlar etkilenmez.</p>
+  <div class="foot"><span>Ayrıntı: KURULUM.md</span><span>11</span></div>
+</section>
+
+<section class="slide">
+  <h2>Kalite ve güvenlik</h2>
+  <div class="cols">
+    <ul>
+      <li>Fonksiyonel test planı: her düğme, her karar yolu, uçtan uca senaryolar.</li>
+      <li>Güvenlik test planı: yol doğrulama, rapor içeriği, CSV, PIN, denetim zinciri, kilitler, başlatıcı.</li>
+      <li>Otomatik test koşucusu: <code>dotnet run --project tests\MuayeneKayit.Tests</code></li>
+      <li>Dış bağlantı, telemetri, otomatik güncelleme yok.</li>
+    </ul>
+    <div>
+      <p><b>Raporlar:</b> <code>docs/test/</code></p>
+      <p class="muted">Fonksiyonel ve güvenlik planları, sonuç raporları ve yapılan düzeltmeler.</p>
+    </div>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>12</span></div>
+</section>
+
+<section class="slide">
+  <div style="margin:auto 0">
+    <h1>Teşekkürler</h1>
+    <p class="muted">github.com/Akaymaz2635/MuayeneKayit</p>
+    <p><a href="index.html" style="color:var(--accent)">Tanıtım sayfasına dön</a></p>
+  </div>
+  <div class="foot"><span>MuayeneKayit</span><span>13</span></div>
+</section>
+
+</div>
+<div class="ctrl"><button type="button" id="prev" aria-label="Önceki slayt">←</button><button type="button" id="next" aria-label="Sonraki slayt">→</button></div>
+<script>
+(function(){
+  var s=[].slice.call(document.querySelectorAll(".slide")), i=0;
+  function show(n){ i=Math.max(0,Math.min(s.length-1,n)); s.forEach(function(x,k){x.classList.toggle("on",k===i);}); try{history.replaceState(null,"","#"+(i+1));}catch(e){} }
+  var h=parseInt((location.hash||"").slice(1),10); if(h>0) show(h-1);
+  document.getElementById("prev").onclick=function(){show(i-1);};
+  document.getElementById("next").onclick=function(){show(i+1);};
+  document.addEventListener("keydown",function(e){
+    if(["ArrowRight","PageDown"," "].indexOf(e.key)>=0){e.preventDefault();show(i+1);}
+    if(["ArrowLeft","PageUp"].indexOf(e.key)>=0){e.preventDefault();show(i-1);}
+    if(e.key==="Home") show(0); if(e.key==="End") show(s.length-1);
+  });
+  var x0=null; document.addEventListener("touchstart",function(e){x0=e.touches[0].clientX;},{passive:true});
+  document.addEventListener("touchend",function(e){ if(x0===null) return; var dx=e.changedTouches[0].clientX-x0; if(Math.abs(dx)>50) show(i+(dx<0?1:-1)); x0=null; });
+})();
+</script>
+</body>
+</html>

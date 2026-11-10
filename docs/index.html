@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MuayeneKayit</title>
+<meta name="description" content="Motor parçası görsel muayene kayıt sistemi: kusur, ölçüm, fotoğraf, disposition ve iki dilli PDF rapor. Kurulumsuz, veritabanısız, ağ klasöründen çalışır.">
+<style>
+:root{
+  --bg:#F3F5F9; --card:#FFFFFF; --stroke:#DDE2EA; --ink:#14202E; --muted:#556070;
+  --accent:#1A3A5C; --accent-ink:#FFFFFF; --amber:#B45309; --green:#15803D; --red:#B91C1C; --blue:#1D4ED8;
+  --code:#EEF1F6; --shadow:0 1px 2px rgba(20,32,46,.06),0 8px 24px rgba(20,32,46,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1620; --card:#17212D; --stroke:#2A3646; --ink:#E6ECF3; --muted:#9AA8B8;
+    --accent:#7FB0E0; --accent-ink:#0F1620; --amber:#F0A65A; --green:#5CC98A; --red:#F07B7B; --blue:#8AB4FF;
+    --code:#1E2A38; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1620; --card:#17212D; --stroke:#2A3646; --ink:#E6ECF3; --muted:#9AA8B8;
+  --accent:#7FB0E0; --accent-ink:#0F1620; --amber:#F0A65A; --green:#5CC98A; --red:#F07B7B; --blue:#8AB4FF;
+  --code:#1E2A38; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+header.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--stroke)}
+header.top .wrap{display:flex;align-items:center;gap:16px;height:56px}
+.brand{font-weight:700;color:var(--accent);text-decoration:none;letter-spacing:.2px}
+nav{margin-left:auto;display:flex;gap:18px;flex-wrap:wrap}
+nav a{color:var(--muted);text-decoration:none;font-size:14px}
+nav a:hover{color:var(--ink)}
+@media (max-width:720px){nav{display:none}}
+.hero{padding:64px 0 40px}
+.hero h1{font-size:clamp(32px,5vw,52px);line-height:1.1;margin:0 0 16px;color:var(--accent)}
+.hero p.lead{font-size:clamp(17px,2vw,20px);color:var(--muted);max-width:720px;margin:0 0 28px}
+.btns{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-block;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:600;border:1px solid var(--stroke);color:var(--ink);background:var(--card)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+.chip{font-size:13px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--stroke);color:var(--muted)}
+.shot{margin-top:36px;border-radius:10px;overflow:hidden;border:1px solid var(--stroke);box-shadow:var(--shadow);background:var(--card)}
+.shot img{display:block;width:100%;height:auto}
+section{padding:48px 0;border-top:1px solid var(--stroke)}
+h2{font-size:28px;margin:0 0 8px;color:var(--accent)}
+.sub{color:var(--muted);margin:0 0 28px;max-width:760px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card{background:var(--card);border:1px solid var(--stroke);border-radius:8px;padding:18px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 6px;font-size:17px}
+.card p{margin:0;color:var(--muted);font-size:15px}
+.flow{counter-reset:s;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.flow .card{position:relative;padding-top:42px}
+.flow .card::before{counter-increment:s;content:counter(s);position:absolute;top:12px;left:18px;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:13px;display:grid;place-items:center}
+.gallery{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.gallery figure{margin:0}
+.gallery img{width:100%;border-radius:8px;border:1px solid var(--stroke);display:block;background:var(--card)}
+.gallery figcaption{font-size:14px;color:var(--muted);margin-top:6px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--stroke);border-radius:8px;overflow:hidden;font-size:15px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--stroke);vertical-align:top}
+th{background:color-mix(in srgb,var(--accent) 10%,var(--card));color:var(--ink)}
+.tablewrap{overflow-x:auto}
+pre,code{font-family:"Cascadia Code",Consolas,monospace;font-size:14px}
+pre{background:var(--code);border:1px solid var(--stroke);border-radius:8px;padding:14px;overflow-x:auto;margin:0}
+code{background:var(--code);padding:1px 5px;border-radius:4px}
+pre code{background:none;padding:0}
+.steps{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.state{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px}
+.s-open{color:var(--amber);background:color-mix(in srgb,var(--amber) 14%,transparent)}
+.s-ok{color:var(--green);background:color-mix(in srgb,var(--green) 14%,transparent)}
+.s-void{color:var(--red);background:color-mix(in srgb,var(--red) 14%,transparent)}
+.s-info{color:var(--blue);background:color-mix(in srgb,var(--blue) 14%,transparent)}
+footer{padding:32px 0 48px;color:var(--muted);font-size:14px;border-top:1px solid var(--stroke)}
+.theme{margin-left:12px;background:none;border:1px solid var(--stroke);border-radius:6px;color:var(--muted);padding:4px 8px;cursor:pointer;font:inherit;font-size:13px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#">MuayeneKayit</a>
+    <nav>
+      <a href="#ozellikler">Özellikler</a>
+      <a href="#akis">Akış</a>
+      <a href="#ekranlar">Ekranlar</a>
+      <a href="#kurulum">Kurulum</a>
+      <a href="#guvenlik">Güvenlik</a>
+      <a href="sunum.html">Sunum</a>
+    </nav>
+    <button class="theme" id="theme" type="button" aria-label="Temayı değiştir">Tema</button>
+  </div>
+</header>
+
+<main>
+<div class="wrap hero">
+  <h1>Görsel muayeneyi kağıttan ve Excel'den kurtarın.</h1>
+  <p class="lead">MuayeneKayit, motor parçalarının görsel muayenesinde bulunan kusurları ölçümü, fotoğrafı ve kararıyla birlikte kaydeder,
+    rework döngüsünü izler ve tek tıkla iki dilli (Türkçe / English) PDF rapor üretir. Kurulum, veritabanı ve internet gerekmez:
+    program ve kayıtlar şirket ağındaki bir klasörde durur.</p>
+  <div class="btns">
+    <a class="btn primary" href="https://github.com/Akaymaz2635/MuayeneKayit/releases">Son sürümü indir</a>
+    <a class="btn" href="https://github.com/Akaymaz2635/MuayeneKayit/blob/main/KURULUM.md">Kurulum kılavuzu</a>
+    <a class="btn" href="sunum.html">Sunumu aç</a>
+  </div>
+  <div class="chips">
+    <span class="chip">Windows 10 / 11 · x64 ve ARM64</span>
+    <span class="chip">WinUI 3 · .NET 9</span>
+    <span class="chip">Yönetici yetkisi gerekmez</span>
+    <span class="chip">Veritabanı yok · İnternet yok</span>
+    <span class="chip">Denetim kaydı (SHA-256 zinciri)</span>
+  </div>
+  <div class="shot"><img src="img/insp-measure.png" alt="Muayene ekranı: solda kusur listesi, sağda seçili kusurun ölçümleri ve sekmeler" width="1426" height="746"></div>
+</div>
+
+<section id="ozellikler">
+  <div class="wrap">
+    <h2>Ne yapar?</h2>
+    <p class="sub">Muayeneci için hızlı veri girişi, mühendis için izlenebilir karar geçmişi, kalite için denetlenebilir kayıt.</p>
+    <div class="grid">
+      <div class="card"><h3>Kusur ve ölçüm</h3><p>Admin'in tanımladığı kusur tipleri (Dent, Nick, Scratch…) ve tipe özel ölçüm alanları. Derinlik, genişlik, uzunluk, çap, açı, renk ve Admin'den eklenen ek alanlar (ör. <b>Yükseklik H</b>). mm ya da inch.</p></div>
+      <div class="card"><h3>Fotoğraf ve işaretleme</h3><p>Kamera (C920, Surface arka kamera) ya da dosyadan fotoğraf. Kutu, daire, ok ve "#N" etiketi; isteğe bağlı arka plan kaldırma. Orijinal fotoğraf hiç değişmez.</p></div>
+      <div class="card"><h3>Disposition ve rework</h3><p>Accept, Rework, Reinspect, Repair, MRB, Return to vendor, Scrap. Rework sonrası "uygun / aynı kusur devam / yeni hata" ve bölge bazında sonuç; artış-azalış otomatik gösterilir.</p></div>
+      <div class="card"><h3>High metal</h3><p>Pozitif metal yığılması yan kusur olarak işaretlenir; yalnızca high metal için rework yapılabilir ve kalan ana kusur ayrıca karara gider.</p></div>
+      <div class="card"><h3>İki dilli PDF rapor</h3><p>Yatay A4, her fotoğraf ayrı sayfa, işaretler fotoğraf üzerinde, karar geçmişi ve ölçüm düzeltmeleri tablolarıyla. Rapor sürümlenir (v1, v2…).</p></div>
+      <div class="card"><h3>Admin paneli</h3><p>Programın içinde, PIN korumalı: kusur tipleri, ek ölçüm alanları, karar açıklamaları, tüm kayıtlar ve CSV, kilit bakımı, veri klasörü.</p></div>
+      <div class="card"><h3>Dashboard</h3><p>Parça → operasyon → seri → kusur ağacı; parça, seri, hata tipi ve duruma göre süzme. Açık kusuru olan seriler öne çıkar.</p></div>
+      <div class="card"><h3>Eşzamanlı çalışma</h3><p>Birden çok muayeneci aynı ağ klasörüne yazar; dosya kilitleri ve atomik yazma kayıt bozulmasını önler.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="akis">
+  <div class="wrap">
+    <h2>Bir muayenenin akışı</h2>
+    <p class="sub">Ekran her an sıradaki işi vurgular; tamamlanan adımlar ✓ alır. Renk yalnızca dikkat gereken yerde kullanılır.</p>
+    <div class="flow">
+      <div class="card"><h3>Muayeneyi aç</h3><p>Parça, operasyon, seri no. Önceki kayıtlardan öneri gelir.</p></div>
+      <div class="card"><h3>Kusur ekle</h3><p>Tipi seç; şablondaki ölçüm kutuları açılır.</p></div>
+      <div class="card"><h3>Ölç</h3><p>Değerler otomatik kaydedilir, her düzeltme geçmişe yazılır.</p></div>
+      <div class="card"><h3>Fotoğrafla</h3><p>Kamera çerçevesi kusur kutusu olur; işaretle.</p></div>
+      <div class="card"><h3>Karar ver</h3><p>Disposition; rework ise sonuç sonra girilir.</p></div>
+      <div class="card"><h3>Rapor ve kapanış</h3><p>PDF rapor; açık kusur kalmayınca muayene tamamlanır.</p></div>
+    </div>
+    <div style="margin-top:24px" class="tablewrap">
+      <table>
+        <thead><tr><th>Durum</th><th>Ne demek</th></tr></thead>
+        <tbody>
+          <tr><td><span class="state s-open">Açık</span></td><td>Ölçüm, fotoğraf ya da karar bekliyor.</td></tr>
+          <tr><td><span class="state s-open">Rework sonrası muayene bekliyor</span></td><td>Ölçümler kilitli; parça geldiğinde sonuç girilir.</td></tr>
+          <tr><td><span class="state s-info">MRB bekliyor</span></td><td>Parça akışta ilerleyebilir, muayene MRB kararına kadar kapanmaz.</td></tr>
+          <tr><td><span class="state s-ok">Kapandı</span></td><td>Accept, MRB kabul, rework sonrası uygun ya da Scrap.</td></tr>
+          <tr><td><span class="state s-void">Void</span></td><td>Yanlış giriş; kayıt silinmez, gerekçesiyle geçersiz sayılır.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="ekranlar">
+  <div class="wrap">
+    <h2>Ekranlar</h2>
+    <p class="sub">Görüntüler demo verisiyle alınmıştır.</p>
+    <div class="gallery">
+      <figure><img src="img/insp-start.png" alt="Muayene başlatma ekranı" loading="lazy"><figcaption>Muayene başlatma: parça, operasyon, seri no.</figcaption></figure>
+      <figure><img src="img/insp-photos.png" alt="Fotoğraflar sekmesi" loading="lazy"><figcaption>Fotoğraflar: bölgeler (3.1, 3.2), işaretleme, arka plan kaldırma.</figcaption></figure>
+      <figure><img src="img/insp-reinspect.png" alt="Rework sonrası muayene penceresi" loading="lazy"><figcaption>Rework sonrası muayene: bölge başına sonuç ve yeni ölçümler.</figcaption></figure>
+      <figure><img src="img/report-page.png" alt="İki dilli PDF rapor sayfası" loading="lazy"><figcaption>Rapor: Türkçe / English, işaretli fotoğraf, karar geçmişi.</figcaption></figure>
+      <figure><img src="img/admin-types.png" alt="Admin kusur tipleri sayfası" loading="lazy"><figcaption>Admin: kusur tipi şablonları ve ölçüm alanları.</figcaption></figure>
+      <figure><img src="img/admin-settings.png" alt="Admin ayarlar sayfası" loading="lazy"><figcaption>Admin: ortak veri klasörü ve muayeneci kimliği.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="kurulum">
+  <div class="wrap">
+    <h2>Kurulum</h2>
+    <p class="sub">Program bir ağ klasörüne kopyalanır, kullanıcılar masaüstü kısayoluyla açar. Hiçbir bilgisayara bir şey kurulmaz.</p>
+    <div class="steps">
+      <div class="card">
+        <h3>1. Paketi indir ve kopyala</h3>
+        <p><a href="https://github.com/Akaymaz2635/MuayeneKayit/releases">Releases</a> sayfasından <code>MuayeneKayit-&lt;sürüm&gt;.zip</code>'i indirip ağdaki program klasörüne açın:</p>
+<pre><code>\\sunucu\MuayeneKayit\Program\
+  MuayeneKayit.exe           ← herkes bunu açar
+  surum.txt                  ← açılacak sürüm (ör. 1.0.2)
+  1.0.2\Inspector-x64\
+  1.0.2\Inspector-arm64\
+  MuayeneKayit.settings.json ← veri klasörünün yolu</code></pre>
+      </div>
+      <div class="card">
+        <h3>2. Veri klasörünü göster</h3>
+        <p><code>MuayeneKayit.settings.example.json</code>'ı <code>MuayeneKayit.settings.json</code> olarak kopyalayıp yolu yazın:</p>
+<pre><code>{ "rootPath": "\\\\sunucu\\MuayeneKayit\\Veri" }</code></pre>
+        <p style="margin-top:10px">Muayeneciler <b>Veri</b> klasörüne okuma + yazma, <b>Program</b> ve <b>Veri\_config</b> klasörlerine yalnızca okuma iznine sahip olmalı.</p>
+      </div>
+      <div class="card">
+        <h3>3. Admin'i hazırla</h3>
+        <p>Programı açın, sol menünün altındaki <b>Admin</b>'e tıklayın, ilk açılışta PIN belirleyin. Kusur tiplerini, ek ölçüm alanlarını ve karar açıklamalarını düzenleyip kaydedin.</p>
+      </div>
+      <div class="card">
+        <h3>4. Kullanıcılara kısayol</h3>
+        <p>Ağdaki <code>MuayeneKayit.exe</code> → sağ tık → Gönder → Masaüstü (kısayol oluştur). Surface ARM64 cihazlar ARM64 sürümünü kendiliğinden açar.</p>
+      </div>
+    </div>
+    <h3 style="margin-top:28px">Güncelleme</h3>
+    <p class="sub" style="margin-bottom:0">Yeni sürüm klasörünü (ör. <code>1.0.3</code>) Program klasörüne kopyalayın, sonra <code>surum.txt</code>'yi değiştirin. Açık programlar eski sürümde çalışmaya devam eder, bir sonraki açılışta yeni sürüm gelir.</p>
+
+    <h3 style="margin-top:28px">Kaynaktan derleme</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Gereken</th><th>Not</th></tr></thead>
+        <tbody>
+          <tr><td>Visual Studio 2022 (17.12+)</td><td>İş yükleri: <i>.NET masaüstü geliştirme</i> ve <i>WinUI uygulama geliştirme</i></td></tr>
+          <tr><td>.NET 9 SDK</td><td>Visual Studio ile gelir</td></tr>
+          <tr><td>Windows App SDK 1.8</td><td>NuGet paketi olarak ilk derlemede iner</td></tr>
+        </tbody>
+      </table>
+    </div>
+<pre style="margin-top:12px"><code>git clone https://github.com/Akaymaz2635/MuayeneKayit.git
+cd MuayeneKayit
+dotnet run --project tests\MuayeneKayit.Tests   # testler
+.\build-release.ps1                             # dist\MuayeneKayit-&lt;sürüm&gt;.zip</code></pre>
+  </div>
+</section>
+
+<section id="guvenlik">
+  <div class="wrap">
+    <h2>Güvenlik ve izlenebilirlik</h2>
+    <p class="sub">Program dış bağlantı kurmaz; telemetri ve otomatik güncelleme yoktur. Kayıtlar yalnızca sizin ağ klasörünüzde durur.</p>
+    <div class="grid">
+      <div class="card"><h3>Silinmeyen geçmiş</h3><p>Kararlar yalnızca eklenir; geri alma ve void de birer kayıttır. Ölçüm düzeltmeleri önce / sonra değerleriyle saklanır.</p></div>
+      <div class="card"><h3>Denetim kaydı</h3><p>Her işlem kim, ne zaman, ne yaptı bilgisiyle SHA-256 zincirli bir günlüğe yazılır; bozulma bakım ekranında raporlanır.</p></div>
+      <div class="card"><h3>PIN korumalı admin</h3><p>PIN yalnızca tuzlu PBKDF2-SHA256 özeti olarak saklanır; yanlış denemeler kilitlenir ve kayda geçer.</p></div>
+      <div class="card"><h3>Test edilmiş</h3><p>Fonksiyonel ve güvenlik test planları ile sonuç raporları <a href="https://github.com/Akaymaz2635/MuayeneKayit/tree/main/docs/test">docs/test</a> altındadır.</p></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">MuayeneKayit · WinUI 3 / .NET 9 · <a href="https://github.com/Akaymaz2635/MuayeneKayit">GitHub</a> · <a href="sunum.html">Sunum</a></div>
+</footer>
+<script>
+(function(){
+  var root=document.documentElement, key="mk-theme";
+  try{var t=localStorage.getItem(key); if(t) root.setAttribute("data-theme",t);}catch(e){}
+  document.getElementById("theme").addEventListener("click",function(){
+    var dark = root.getAttribute("data-theme")==="dark" || (!root.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+    var next = dark ? "light" : "dark";
+    root.setAttribute("data-theme",next);
+    try{localStorage.setItem(key,next);}catch(e){}
+  });
+})();
+</script>
+</body>
+</html>

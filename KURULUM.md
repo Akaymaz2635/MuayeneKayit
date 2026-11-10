@@ -39,8 +39,8 @@ klasöründen çalışır. Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğ
 | Dosya / klasör | Ne işe yarar |
 |---|---|
 | `MuayeneKayit.exe` | Başlatıcı (12 MB): `surum.txt`'deki sürümün programını açar. Herkes bunu açar; admin paneli programın sol menüsündedir (**Admin**, PIN ile). |
-| `surum.txt` | Açılacak sürüm (ör. `1.0.2`). |
-| `1.0.2\Inspector-x64`, `Inspector-arm64` | Sürüm klasörü. Surface Pro 9 5G (SQ3) ARM64 sürümünü kendiliğinden açar. |
+| `surum.txt` | Açılacak sürüm (ör. `1.1.0`). |
+| `1.1.0\Inspector-x64`, `Inspector-arm64` | Sürüm klasörü. Surface Pro 9 5G (SQ3) ARM64 sürümünü kendiliğinden açar. |
 | `MuayeneKayit.settings.example.json` | Ortak ayar örneği |
 | `OKU-BENI.txt` | Bu bölümün kısa hâli |
 
@@ -60,8 +60,8 @@ klasöründen çalışır. Paket (`MuayeneKayit-<sürüm>.zip`) içeriği olduğ
    Deneme: `MuayeneKayit.exe` ile bir test muayenesi açın; veri klasöründe `Parça\Operasyon\Seri` klasörü oluşmalı.
    Kurulumun anlatımlı videosu: `docs/kurulum-video` (Remotion; `npm install`, `npm run render`).
 2. **Kullanıcılar:** ağdaki `MuayeneKayit.exe` > sağ tık > *Gönder > Masaüstü (kısayol oluştur)*. Kısayolu BT grup ilkesiyle de dağıtabilir.
-3. **Güncelleme** (program açıkken de yapılabilir): yeni paketteki sürüm klasörünü (ör. `1.0.1`) program klasörüne kopyalayın,
-   sonra `surum.txt`'yi `1.0.1` yapın. Kullanıcılar bir sonraki açışta yeni sürümü açar; açık programlar eski klasörden
+3. **Güncelleme** (program açıkken de yapılabilir): yeni paketteki sürüm klasörünü (ör. `1.1.1`) program klasörüne kopyalayın,
+   sonra `surum.txt`'yi `1.1.1` yapın. Kullanıcılar bir sonraki açışta yeni sürümü açar; açık programlar eski klasörden
    çalışmaya devam eder. Eski sürüm klasörü herkes kapattıktan sonra silinebilir. Başlatıcıya ve
    `MuayeneKayit.settings.json`'a dokunmayın. 1.0.1 ve öncesinden geçerken eski `MuayeneKayit Admin.exe` silinebilir
    (kalırsa o da programı açar).

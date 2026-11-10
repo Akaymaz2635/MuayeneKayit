@@ -837,3 +837,82 @@ Bu bölüm, Bölüm 4'te doğrulanan hataların giderilmesini kaydeder (güvenli
 Mevcut testlerde yeni amaçlanan davranışa göre güncellenenler: F-ADM-LOGIN-014 (tur sayısı 5000 aralık dışı), F-ADM-LOGIN-003 (PIN 8-12 hane), F-ADM-SET-003 (boş / göreli kök mesajı), F-LNC-004 ve F-LNC-006 (sürüm "9.0.0" / "1.2.3"), F-CFG-004 (tek geçersiz tip atlanır), F-EDIT-020 (reddedilen kayıt `InvalidOperationException`), "Birim: alt kusur..." testi (kök artık örtük oluşmaz).
 
 Son koşu: normal liste 432/432 geçti, `--supheli` 0 test (hepsi taşındı), açık güvenlik bulgusu 0; `dotnet build MuayeneKayit.sln -c Release -p:Platform=x64` 0 uyarı / 0 hata.
+
+
+## 8. UI regresyon turu (düzeltmeler sonrası)
+
+- **Kod:** HEAD `92923a4`. `src\` değiştirilmedi, commit / push yok. Inspector Debug x64 derlemesi (0 hata) ve Launcher Debug derlemesi (yalnızca `bin/obj`).
+- **Ortam:** kopya `...\scratchpad\uitest2\app` (kendi `MuayeneKayit.settings.json`, `rootPath` = `...\uitest2\root`, tam yol). UNC denemesinde kök `\\localhost\C$\...\uitest2\rootunc`. Gerçek veri kökü ve `Documents\MuayeneKayit` kullanılmadı. Admin PIN'i rastgele üretilmiş test PIN'idir (sohbete / rapora yazılmadı).
+- **Süreçler:** başlatılan tüm örnekler `uitest2\pids.txt` içinde; iş bitiminde yalnızca onlar kapatıldı, hiçbiri çalışır durumda kalmadı. Bir noktada (uzun bir duraklamadan sonra) izlenen uygulama süreci kendiliğinden yoktu (olay günlüğünde çökme kaydı yok, nedeni bilinmiyor); yeniden başlatıldı.
+- **`%LOCALAPPDATA%\MuayeneKayit`:** `user-settings.json` ve `camera.json` yedekle aynı (hash eşit). **Yeni dosya:** `admin-giris-<hash>.json` (`{"Failed":0,"LockedUntil":...}`): PIN kilidinin diske yazılması (B-16 düzeltmesi), test sırasında oluştu, silinmedi, kullanıcıya bildirilir.
+- **Edge:** PDF'ler kullanıcının var olan Edge sürecinde (PID 62056, Profil 2) yeni sekme olarak açıldı. Bu süreç testten önce de vardı, bu yüzden hiçbir Edge penceresi / sekmesi kapatılmadı. Önceki turdan kalan ayrı bir `Rapor_v1.pdf` penceresi de açık; o pencerede önceki turda dosya seçici olayıyla eklenen kişisel bir görüntü var, kullanıcı kapatmalı (bu turda içeriği ele alınmadı, o pencerenin ekran görüntüsü silindi).
+- **Ortam sınırlaması:** Windows boşta kalınca pencere içeriği çizilmiyor (ekran görüntüsü boş); `hover` / `click` ile uyanıyor. Turun sonunda ön plan penceresi `GameInputSvc` hizmet penceresinde takılı kaldı; `winapp ui` `send-input` / `click` "pencere ön planda değil" diyerek reddetti, `SetForegroundWindow` / `SwitchToThisWindow` işe yaramadı. Klavye / fare gerektiren kalan Admin senaryoları bu yüzden yürütülemedi (ATLANDI).
+
+### 8.1 Öncelik 1-3 sonuçları
+
+Ekran görüntüsü yolları `...\scratchpad\uitest2\shots\` altındadır.
+
+| ID | Sonuç | Gözlem | Kanıt |
+|---|---|---|---|
+| B-24 Fotoğrafı kaldır onayı (F-PHOTO-011) | GEÇTİ | Çöp kutusu → diyalog; `get-focused` = **Vazgeç**. Enter gönderildi: fotoğraf kaldırılmadı (diskte 2 fotoğraf). "Kaldır" ile onaylanınca kaldırma çalışıyor ("1_photo_01.png kaldırıldı", diskte 1). | `06-B24-dialog.png` |
+| B-24 "Rework şimdi mi?" diyaloğu | GEÇTİ | Odak **Sonra** düğmesinde; Enter diyaloğu rework sonrası muayene açmadan kapattı. | `08-rework-now-dlg.png` |
+| B-24 Admin onay diyaloğu (Seçili kilidi sil) | GEÇTİ | Odak **Vazgeç**; Enter: kilit dosyası duruyor; "Kilidi sil": dosya silindi, "Kilit silindi." | `23-lock-delete-confirm.png` |
+| B-06 Rework sonrası muayene, "abc" | GEÇTİ | Derinlik "abc": satır içi "Sayı olmalı: Derinlik (mm). Boş bırakırsanız önceki değer kalır.", **Kaydet pasif**; "0.5" girince Kaydet açıldı, özet "0.13 → 0.5 mm (artış)". | `10-B06-abc.png` |
+| B-04 Tamamlanmış oturuma kusur ekleme | GEÇTİ | Tamamlanmış PD2'de "Kusur ekle": "Bu muayene tamamlandı; yeni kusur, karar, ölçüm ya da fotoğraf eklenemez."; `defects\` içinde yalnızca `1.json`, durum `Completed`. İkinci "Muayeneyi tamamla": "Bu muayene zaten tamamlandı." (B-15 de GEÇTİ). | `11-B04.png` |
+| B-01 0.125 yuvarlanma | GEÇTİ | 0.125 yazıldı, odak değişti: diskte 0.125, kutu 0.13 gösteriyor. Başka kutu (uzunluk) değişince diskte hâlâ 0.125. Uygulama yeniden başlatıldı, kusur açıldı: kutu 0.13, odak kaydırıldı, diskte yine 0.125. | `03-B01.png`, `05-B01-reopen.png` |
+| B-22 Kök yeniden adlandırılınca yeni oturum | GEÇTİ | Kök yeniden adlandırıldı, yeni P/O/S ile oturum: "Ortak alana erişilemiyor: <yol>…"; kök yeniden oluşmadı. | `13-B22-newsession.png` |
+| B-23 Kök kaybında kusur ekle | GEÇTİ | "Ortak alana erişilemiyor: …", kök yeniden oluşmadı. | `12-B23-adddefect.png` |
+| B-23 Kök kaybında rapor | GEÇTİ | Rapor düğmesi aynı hata, kök yeniden oluşmadı; kök geri adlandırılınca uygulama çalışmaya devam etti. | `14-B23-report.png` |
+| Ek ölçüm alanı (Yükseklik, H, uzunluk) | GEÇTİ | Admin → Kusur tipleri: alan eklendi (tür "uzunluk (mm / in)"), Dent'te işaretlendi, "Şablonu uygula" + "Tümünü ortak alana kaydet": `measure_fields.json` ve `defect_types.json` güncel. Uygulama yeniden başlatıldı: Dent'te `Custom_<anahtar>` kutusu ("Yükseklik (mm)") var; 1.75 girildi, cümle "There is a Dent on the part: D 0.3 mm, H 1.75 mm.", diskte `custom` number 1.75. | `31-custom-saved.png`, `32-custom-field.png` |
+| Rapor + 2 fotoğraf, düz klasör | GEÇTİ | `Rapor_v1.pdf` 100 968 bayt, 2 sayfa, **2 `/Subtype /Image`** (640x480; biri DCT, uzunluk 9705 = `p1.jpg` ile aynı; ikincisi Flate). PDF'ten çıkarılan JPEG doğru görüntüyü içeriyor. Rapor HTML'si `reports\` içinde kalmıyor (yerel geçici klasörde üretiliyor); klasörde yalnızca PDF var. | `16-pdf-extracted.jpg` |
+| Rapor + 2 fotoğraf, UNC kök `\\localhost\C$\...` | GEÇTİ | Kimlik bilgisi gerekmeden erişilen yönetici paylaşımı. Oturum, kusur, 2 fotoğraf, rapor UNC kökte: 91 626 bayt, 2 sayfa, 2 Image XObject (uzunluklar 9341 = `p3.jpg`, 3047). Fotoğraflar `--allow-file-access-from-files` olmadan PDF'te var. | `17-unc-session.png` |
+| Admin Bakım: takılma (N-3) | GEÇTİ (tekrarlanmadı) | Sayfa açılışında ve düğmelerde (Index'i yeniden oluştur: "Index yeniden oluşturuldu: 3 kayıt."; Denetim zincirini doğrula: "Denetim zinciri sağlam."; Kilitleri tara: "Eski kilit yok." / "1 eski kilit bulundu."; Seçili kilidi sil) UIA ağacı okundu (`inspect --depth 14`, 76 öğe). `Responding=True`, CPU %1,7-3,8, takılma yok. Denetim günlüğü ~20-40 satırdı (önceki turdakiyle benzer). | `21-admin-bakim.png`, `22-bakim-after-buttons.png` |
+
+### 8.2 Öncelik 4: önceden ATLANDI olan UI durumları
+
+| ID | Sonuç | Gözlem | Kanıt |
+|---|---|---|---|
+| F-EDIT Kutu işareti çizme | GEÇTİ | Sürükleyerek kutu, "#1" etiketiyle çizildi. | `41-editor-marks.png` |
+| F-EDIT Daire | GEÇTİ | Çizildi. | `41-editor-marks.png` |
+| F-EDIT Ok | GEÇTİ | Çizildi, uç tutamaçları görünür. | `41-editor-marks.png` |
+| F-EDIT Taşıma | GEÇTİ | Ok sürüklenerek (-40,-30 px) taşındı. | `42-edit-moved.png` |
+| F-EDIT Yeniden boyutlandırma | GEÇTİ | Ok ucu tutamacı sürüklendi, uç yeni konumda. | `42-edit-moved.png` |
+| F-EDIT Delete ile silme | GEÇTİ | Kutu seçilip Delete: "Kaydet (3 işaret)" → "(2 işaret)". | metin okuması |
+| F-EDIT Son işareti geri al / İşaretleri sil | GEÇTİ | 2 → 1 → 0 ("Kaydet"). | metin okuması |
+| F-EDIT Arka plan kaldır | GEÇTİ | "Parçayı çerçevele" + "Arka planı kaldır": mavi arka plan beyaza döndü, ipucu "Arka plan kaldırıldı…". | `43-bg-removed.png` |
+| F-EDIT Orijinale dön | GEÇTİ | Revert sonrası kaydedilen kayıtta `cleanedFile: null`. | `44-bg-reverted.png` |
+| F-EDIT Kaydet (işaret kalıcılığı) | GEÇTİ | Kutu işareti kaydedildi: kusur JSON'unda `markups` içinde `Box`, normalize koordinatlar, `defectId:1`. | JSON |
+| F-RWK Çok bölgeli rework (2 fotoğraf) | GEÇTİ (kısmen) | Karar diyaloğunda "Bölge 1.1 / 1.2" onay kutuları, rework yeri alanı; reinspect diyaloğunda bölge başına Giderildi / Devam ediyor / Yeni hata. Karma sonucun (biri giderildi, biri devam) kaydedilmesi yürütülmedi. | `07-decision-dlg.png`, `09-reinspect-dlg.png` |
+| F-ADM-FIELD Ek alan tanımla / uygula / kaydet | GEÇTİ | Bkz. 8.1. | `31-custom-saved.png` |
+| F-ADM-SET göreli kök reddi (B-09) | GEÇTİ | "Ortak alan yolu tam yol olmalı …; göreli yol…" mesajı, `settings.json` değişmedi. | metin |
+| F-ADM-SET kök değiştirme (root2) | GEÇTİ | Tam yol `root2` + "Kaydet ve yeniden bağlan": `MuayeneKayit.settings.json` `rootPath` = root2, `root2` içinde `_audit.*` oluştu. Dosya elle ilk köke geri alındı. | `51-root-changed.png` |
+| F-ADM-SET PIN değiştir: yanlış mevcut / uyuşmayan / kısa / başarılı | GEÇTİ | "Mevcut PIN hatalı.", "Yeni PIN'ler aynı değil.", "PIN 8-12 haneli rakam (0-9) olmalı.", "PIN değiştirildi." | metin |
+| F-ADM-SET PIN değişikliğinden sonra yeniden giriş | ATLANDI | "Kilitle" tıklaması pencereyi kilitlemedi (ilk "yeniden giriş" kontrolüm geçersiz, `52-pin-relogin.png` hâlâ "PIN değiştirildi" ekranını gösteriyor); sonraki girişler bilinmeyen bir PIN ile (PasswordBox'a yazılan metnin birikmesi) başarısız oldu. | `52-pin-relogin.png`, `81-login-fail.png` |
+| F-ADM-LOGIN Hatalı PIN kilidi (5 deneme) ve B-16 kalıcılığı | GEÇTİ | 5. hatalı denemede `admin.login.lockout` denetim satırı, "Çok fazla hatalı deneme. 21 sn bekleyin."; kilit uygulama yeniden başlatılınca da sürdü (`admin-giris-*.json`, `LockedUntil`). | `81-login-fail.png` |
+| F-ADM-LOGIN-013 / B-19 `admin.json` yok, ortak alanda kayıt var | GEÇTİ (kısmen) | UYARI metni, "Uyarıyı okudum…" onay kutusu ve "PIN'i sıfırla ve gir" düğmesi görünüyor. Sıfırlamanın tamamlanması ön plan sorunu yüzünden yürütülemedi (`admin.json` yedeği `uitest2\admin.json.bak`). | `82-admin-reset-setup.png`, `83-reset-state.png` |
+| F-ADM-MNT Eski kilit tara / sil | GEÇTİ | 2 saatlik `.lock` dosyası bulundu, seçilip onayla silindi. | `23-lock-delete-confirm.png` |
+| F-ID Windows kimliği seçeneği | GEÇTİ | Admin → Ayarlar "Windows oturumundan al": `inspector_identity.json` `useWindowsUser: true`; yeniden başlatınca `InspectorBox` "Inspector (Windows oturumu)" ve salt okunur (set-value reddedildi); oturum `inspector` = `PC`, denetim `Actor` = `PC`. Değer yalnızca kullanıcı adı (yerel hesapta görünen ad / sicil no yok). | `53-windows-identity.png` |
+| F-LNC Launcher normal | GEÇTİ | Ağ düzeni (`surum.txt` = 1.0.2, `1.0.2\Inspector-x64`): launcher Inspector'ı sürüm klasöründen açıp kapandı. | süreç yolu |
+| F-LNC Eksik sürüm klasörü | GEÇTİ | `surum.txt` = 1.0.3: "1.0.3 sürümünde Inspector bulunamadı: <yol>". | `70-launcher-missing-folder.png` |
+| F-LNC Geçersiz sürüm ("abc") | GEÇTİ | Yeniden derlenmiş Launcher ile: `surum.txt geçersiz: "abc"` (bkz. N-5). | metin |
+| F-LNC `surum.txt` yok | GEÇTİ | "Sürüm dosyası bulunamadı: <yol>". | `70-launcher-no-file.png` |
+| F-CONC İki örnek, aynı oturum, aynı alan | GEÇTİ | B örneği derinliği 0.9 yazdı; A (eski ekran) 0.4 yazınca "#1: başka bir kullanıcı şu alanları siz düzenlerken değiştirdi…"; diskte 0.9 korundu (B-03 düzeltmesi UI'da doğrulandı). | `60-conc-A.png` |
+| F-ADM-TYPE Yeni tip / sil / yukarı-aşağı | ATLANDI | Sayfa okundu (9 yerleşik tip, alanlar, düğmeler); düğmeler denenmedi (ön plan sorunu). | `30-admin-types.png` |
+| F-ADM-TXT Karar açıklamaları düzenle | ATLANDI | Ön plan sorunu nedeniyle açılamadı. | `80-admin-texts.png` (giriş ekranı) |
+| F-ADM-SET `root2`'de ilk kurulum akışı | ATLANDI | Kök değişimi yapıldı; `root2` için PIN ekranı denenmedi. | — |
+| Tamamlanmış oturum + ikinci örnekten kusur ekleme | ATLANDI | B-04 tek örnekle doğrulandı; iki örnekli varyant yürütülmedi. | — |
+| Tema (F-SET-003/004) | ATLANDI | Yürütülmedi. | — |
+
+### 8.3 Sayılar
+
+- Öncelik 1-3: 12 durumun 12'si **GEÇTİ**, HATA yok. Bakım takılması tekrarlanmadı.
+- Öncelik 4: 30 durum, **24 GEÇTİ** (2'si "kısmen": çok bölgeli rework, B-19 sıfırlama ekranı), **0 HATA**, **6 ATLANDI** (PIN sonrası yeniden giriş, Kusur tipleri düğmeleri, Karar açıklamaları, `root2` ilk kurulum, iki örnekli tamamlanmış oturum, tema).
+
+### 8.4 Yeni bulgular
+
+Doğrulanmış yeni HATA yok. Gözlemler:
+
+1. **N-4 (P3, gözlem)** Admin → Bakım "Seçili kilidi sil", listede seçili öğe yokken hiçbir geri bildirim vermiyor. Tekrar: kilit taraması yap, satır seçmeden "Seçili kilidi sil". Beklenen: "Önce bir kilit seçin" gibi bir mesaj. Kod: Admin Bakım ViewModel'indeki kilit silme komutu (kod okunmadı, satır numarası kesinleştirilmedi).
+2. **N-5 (süreç notu)** `src\MuayeneKayit.Launcher\bin\Debug\...` içindeki derleme eskiydi: `surum.txt` = "abc" için "geçersiz" yerine "bulunamadı" diyordu; yeni derlemede doğru. Dağıtımdaki Launcher'ın güncel `ProgramLayout` ile derlendiği doğrulanmalı.
+3. **N-6 (P3, gözlem)** PIN kilidi kalıcı olarak diske yazılıyor (olumlu, B-16). Kullanıcı ayar klasörüne yeni dosya (`admin-giris-*.json`) ekliyor; belgelerde (Plan §0 madde 7 dosya listesi) geçmiyor.
+4. **N-7 (gözlem, doğrulanmadı)** Admin PIN kutularına yazılan metin hatalı denemeden sonra korunuyor gibi görünüyor ve ardışık denemelerde birikme yaşandı; uygulama davranışı mı yoksa test sürücüsünün (ön plan sorunu, Ctrl+A) etkisi mi olduğu ayrılamadı.

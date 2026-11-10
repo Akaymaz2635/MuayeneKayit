@@ -6,8 +6,8 @@ Kurulum yoktur, yönetici yetkisi gerekmez. Program ağ klasöründen çalışı
 Bu paketin tamamı ağdaki bir PROGRAM klasörüne kopyalanır, örneğin:
     \\sunucu\MuayeneKayit\Program\
         MuayeneKayit.exe            <- programı açar (herkes bunu açar)
-        surum.txt                   <- hangi sürümün açılacağı (ör. 1.0.2)
-        1.0.2\                      <- sürüm klasörü (x64 / ARM64)
+        surum.txt                   <- hangi sürümün açılacağı (ör. 1.1.0)
+        1.1.0\                      <- sürüm klasörü (x64 / ARM64)
         MuayeneKayit.settings.json  <- ortak VERİ klasörünün yolu (aşağıda oluşturulur)
 
 1) İLK KURULUM (bir kez, sorumlu kişi)
@@ -32,14 +32,14 @@ Bu paketin tamamı ağdaki bir PROGRAM klasörüne kopyalanır, örneğin:
    - Surface (ARM64) bilgisayarlar ARM64 sürümünü kendiliğinden açar.
 
 3) GÜNCELLEME (program açıkken de yapılabilir)
-   - Yeni paketteki sürüm klasörünü (ör. "1.0.1") ağdaki Program klasörüne kopyalayın.
-   - Sonra "surum.txt" içindeki sürümü yeni klasörün adıyla değiştirin (ör. 1.0.1).
+   - Yeni paketteki sürüm klasörünü (ör. "1.1.1") ağdaki Program klasörüne kopyalayın.
+   - Sonra "surum.txt" içindeki sürümü yeni klasörün adıyla değiştirin (ör. 1.1.1).
    - Kullanıcılar programı bir sonraki açışta yeni sürümü açar; açık olanlar eski sürümde çalışmaya devam eder.
    - Eski sürüm klasörünü, herkes programı kapattıktan sonra (ör. ertesi gün) silebilirsiniz.
    - Başlatıcı (MuayeneKayit.exe) ve MuayeneKayit.settings.json değişmez; üzerine kopyalamayın.
    - 1.0.1 ve öncesinden geçerken: eski "MuayeneKayit Admin.exe" artık gerekmez, silinebilir
      (kalırsa o da programı açar; admin paneli sol menüdedir).
-   - Sürüm, pencere başlığında görünür (ör. "MuayeneKayit 1.0.1").
+   - Sürüm, pencere başlığında görünür (ör. "MuayeneKayit 1.1.0").
 
 NOTLAR
    - Kişisel ayarlar (ölçü birimi, tema, son kamera) her kullanıcının kendi Windows profilinde saklanır.
