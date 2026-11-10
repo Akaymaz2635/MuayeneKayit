@@ -50,8 +50,29 @@ public static class MeasurementCompare
         if (before.HighMetal != after.HighMetal)
             lines.Add(before.HighMetal ? "High metal: var → giderildi" : "High metal: yok → var (yeni)");
 
+        // Etkilenen parçalar: iki taraf da biliniyorsa (eski kayıtta null) ve değiştiyse.
+        if (before.Parts is not null && MeasurementEditor.Snapshot(after).Parts is { } afterParts && before.Parts != afterParts)
+        {
+            var cleared = PartList.Removed(before.Parts, afterParts);
+            lines.Add($"Etkilenen parçalar: {PartsText(before.Parts)} → {PartsText(afterParts)}"
+                      + (cleared.Count == 0 ? "" : $" (giderildi: {PartList.Join(cleared)})"));
+        }
+
         return lines.Count == 0 ? new[] { "Ölçüm alanı yok." } : lines;
     }
+
+    /// <summary>Rework öncesi ile sonrası arasında giderilen parçalar (iki taraf da biliniyorsa); yoksa boş.</summary>
+    public static IReadOnlyList<int> ClearedParts(MeasurementSnapshot? before, MeasurementSnapshot? after) =>
+        before?.Parts is { } b && after?.Parts is { } a ? PartList.Removed(b, a) : Array.Empty<int>();
+
+    /// <summary>
+    /// Bir "rework sonrası" kararın karşılaştırılacağı rework kararının görüntüsü: karardan önceki son rework.
+    /// <paramref name="effective"/> geri alınmamış kararlar listesidir (<see cref="DefectStateMachine.Effective"/>).
+    /// </summary>
+    public static MeasurementSnapshot? ReworkBefore(IReadOnlyList<Disposition> effective, Disposition afterRework) =>
+        effective.TakeWhile(x => !ReferenceEquals(x, afterRework)).LastOrDefault(x => x.Decision == Decision.Rework)?.Snapshot;
+
+    private static string PartsText(string parts) => parts.Length == 0 ? "tümü" : parts;
 
     /// <param name="suffix">Verilirse birim eki yerine kullanılır (birimsiz sayı için "").</param>
     private static void Add(List<string> lines, string label, double? before, double? after, LengthUnit? unit, string? suffix = null)

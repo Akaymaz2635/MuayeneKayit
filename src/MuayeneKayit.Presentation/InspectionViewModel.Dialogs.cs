@@ -147,7 +147,8 @@ public sealed partial class InspectionViewModel
             TypeNames,
             defect.Unit,
             activePhotos.Count >= 2 ? PhotoRegions(defect, activePhotos) : null,
-            CustomFieldsFor(template, before.Custom));
+            CustomFieldsFor(template, before.Custom),
+            defect.AffectedParts ?? "");
 
         var input = await _dialogs.AskReinspectAsync(request);
         if (input is null)

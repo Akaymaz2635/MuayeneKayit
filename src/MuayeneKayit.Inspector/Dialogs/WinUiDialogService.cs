@@ -391,6 +391,19 @@ public sealed class WinUiDialogService : IDialogService
         var entryError = new TextBlock { TextWrapping = TextWrapping.Wrap, Style = Res("WarnTextStyle"), Visibility = Visibility.Collapsed };
         samePanel.Children.Add(entryError);
 
+        // Kusur devam ediyorsa hangi parçalarda devam ettiği sorulur; kutu mevcut parçalarla dolu gelir (boş = tümü).
+        var currentParts = request.AffectedParts ?? "";
+        var partsBox = new TextBox
+        {
+            Header = "Kusurun devam ettiği parçalar (lot)",
+            Text = currentParts,
+            PlaceholderText = "örn. 1, 3, 5 (boş = tümü)",
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(partsBox, "ContinuingPartsBox");
+        var partsHint = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+        samePanel.Children.Add(partsBox);
+        samePanel.Children.Add(partsHint);
+
         List<string> InvalidEntries()
         {
             var bad = new List<string>();
@@ -415,13 +428,21 @@ public sealed class WinUiDialogService : IDialogService
                 Custom: CustomMeasures.Clean(customBoxes.Select(c => CustomMeasures.Of(c.Def, Try(c.Box), c.Box.Text))));
         }
 
+        // Devam eden bölge ya da "aynı kusur" yoksa parça sorulmaz (null = parçalar değişmez).
+        string? ContinuingPartsFor(IReadOnlyList<RegionChoice> choices) => ReinspectForm.AnyContinues(choices) ? partsBox.Text : null;
+
         void Refresh()
         {
             var invalid = InvalidEntries();
+            var (partsValid, partsText) = ReinspectForm.PartsFeedback(currentParts, partsBox.Text);
+            partsHint.Text = partsText;
+            partsHint.Style = Res(partsValid ? "SecondaryTextStyle" : "WarnTextStyle");
+            partsHint.Visibility = Vis(partsText.Length > 0);
             entryError.Text = invalid.Count == 0 ? "" : "Sayı olmalı: " + string.Join(", ", invalid) + ". Boş bırakırsanız önceki değer kalır.";
             entryError.Visibility = Vis(invalid.Count > 0);
             var entered = ReadValues();
-            var anyValue = ReinspectForm.AnyValue(entered);
+            // Ölçümler aynı kalıp yalnızca parça listesi daraltıldıysa da kaydedilebilir.
+            var anyValue = ReinspectForm.AnyValue(entered) || (partsValid && ReinspectForm.PartsChanged(currentParts, partsBox.Text));
             bool showMeasure;
 
             if (multi)
@@ -431,14 +452,14 @@ public sealed class WinUiDialogService : IDialogService
                     news.Visibility = Vis((choice.SelectedItem as RadioButton)?.Tag as PhotoOutcome? == PhotoOutcome.NewDefect);
                 showMeasure = ReinspectForm.AnyContinues(choices);
                 summary.Text = ReinspectForm.Summary(request.DefectId, choices);
-                dialog.IsPrimaryButtonEnabled = invalid.Count == 0 && ReinspectForm.CanSaveRegions(choices, hadHighMetal, HighMetalAnswer(), anyValue);
+                dialog.IsPrimaryButtonEnabled = invalid.Count == 0 && (partsValid || !showMeasure) && ReinspectForm.CanSaveRegions(choices, hadHighMetal, HighMetalAnswer(), anyValue);
             }
             else
             {
                 var tag = Selected();
                 newPanel.Visibility = Vis(tag == ReinspectOutcome.New);
                 showMeasure = tag == ReinspectOutcome.Same;
-                dialog.IsPrimaryButtonEnabled = invalid.Count == 0 && ReinspectForm.CanSave(tag, hadHighMetal, HighMetalAnswer(), anyValue, singleNews!.Types);
+                dialog.IsPrimaryButtonEnabled = invalid.Count == 0 && (partsValid || tag != ReinspectOutcome.Same) && ReinspectForm.CanSave(tag, hadHighMetal, HighMetalAnswer(), anyValue, singleNews!.Types);
             }
 
             samePanel.Visibility = Vis(showMeasure);
@@ -459,6 +480,7 @@ public sealed class WinUiDialogService : IDialogService
         }
         if (highMetal is not null)
             highMetal.SelectionChanged += (_, _) => Refresh();
+        partsBox.TextChanged += (_, _) => Refresh();
         foreach (var box in boxes.Values.Append(colorBox).Concat(customBoxes.Select(c => c.Box)).OfType<TextBox>())
             box.TextChanged += (_, _) => Refresh();
 
@@ -468,11 +490,12 @@ public sealed class WinUiDialogService : IDialogService
         if (multi)
         {
             var choices = Choices();
-            return new ReinspectInput(ReinspectForm.OutcomeFor(choices), ReadValues(), HighMetalAnswer(), null, note.Text, choices);
+            return new ReinspectInput(ReinspectForm.OutcomeFor(choices), ReadValues(), HighMetalAnswer(), null, note.Text, choices, ContinuingPartsFor(choices));
         }
 
         var result = Selected() ?? throw new InvalidOperationException("Muayene sonucunu seçin.");
-        return new ReinspectInput(result, ReadValues(), HighMetalAnswer(), singleNews!.Types, note.Text);
+        return new ReinspectInput(result, ReadValues(), HighMetalAnswer(), singleNews!.Types, note.Text,
+            ContinuingParts: result == ReinspectOutcome.Same ? partsBox.Text : null);
     }
 
     // ───────────────────────── Geri al, void, fotoğraf ─────────────────────────

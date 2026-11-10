@@ -158,6 +158,7 @@ public static class DefectPresentation
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
         parts.AddRange(CustomMeasures.Clean(s.Custom).Select(m => CustomMeasures.Short(m, unit)));
         if (s.HighMetal) parts.Add("High metal");
+        if (!string.IsNullOrEmpty(s.Parts)) parts.Add($"Parçalar: {s.Parts}");
         return parts.Count == 0 ? "—" : string.Join(" ", parts);
     }
 
@@ -197,6 +198,9 @@ public static class DefectPresentation
             if (!string.IsNullOrWhiteSpace(x.Note)) parts.Add($"not: {x.Note}");
             if (!string.IsNullOrWhiteSpace(x.Reference)) parts.Add($"ref: {x.Reference}");
             if (x.Snapshot is MeasurementSnapshot snap) parts.Add($"ölçüm: {SnapshotText(snap, defect.Unit)}");
+            if (x.Decision == Decision.AfterReworkSameDefect
+                && MeasurementCompare.ClearedParts(MeasurementCompare.ReworkBefore(DefectStateMachine.Effective(defect), x), x.Snapshot) is { Count: > 0 } cleared)
+                parts.Add($"giderilen parçalar: {PartList.Join(cleared)}");
             if (RegionOutcomeText(defect, x, all) is { Length: > 0 } regions) parts.Add($"bölgeler: {regions}");
             if (DefectRegions.ChildIdsOf(defect, x).Where(id => DefectRegions.ActiveChildIds(defect, all).Contains(id)).ToList() is { Count: > 0 } opened)
                 parts.Add($"açılan kusurlar: {IdList(opened)}");

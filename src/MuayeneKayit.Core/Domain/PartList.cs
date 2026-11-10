@@ -98,6 +98,44 @@ public static partial class PartList
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Rework sonrası devam eden parçaların doğrulaması. <paramref name="before"/> doluysa <paramref name="after"/> boş olamaz ve
+    /// <paramref name="before"/>'un alt kümesi olmalı. <paramref name="before"/> boşsa (tüm parçalar) geçerli her liste (boş dahil) olur.
+    /// Hata varsa Türkçe mesaj, yoksa null.
+    /// </summary>
+    public static string? ValidateContinuing(string? before, string? after)
+    {
+        IReadOnlyList<int> now;
+        try { now = Parse(after); }
+        catch (ArgumentException ex) { return ex.Message; }
+
+        var was = TryParse(before);
+        if (was.Count == 0)
+            return null;
+        if (now.Count == 0)
+            return "Devam eden en az bir parça yazın; kusur hiçbir parçada kalmadıysa 'Uygun' seçin.";
+
+        var outside = now.Where(n => !was.Contains(n)).ToList();
+        return outside.Count == 0
+            ? null
+            : $"Rework sonrası devam eden parçalar, rework öncesindeki parçaların içinden seçilmeli: {string.Join(", ", outside)} listede yok.";
+    }
+
+    /// <summary><paramref name="before"/> içinde olup <paramref name="after"/> içinde olmayan parçalar (giderilenler). <paramref name="before"/> ya da <paramref name="after"/> boşsa (tümü) boş.</summary>
+    public static IReadOnlyList<int> Removed(string? before, string? after)
+    {
+        var was = TryParse(before);
+        if (was.Count == 0)
+            return Array.Empty<int>();
+        var now = TryParse(after);
+        if (now.Count == 0)
+            return Array.Empty<int>(); // boş = tüm parçalar: hiçbiri giderilmiş sayılmaz
+        return was.Where(n => !now.Contains(n)).ToList();
+    }
+
+    /// <summary>Parça listesini saklama biçiminde yazar ("2, 4", ardışıksa "2-4").</summary>
+    public static string Join(IReadOnlyList<int> parts) => Normalize(string.Join(",", parts));
+
     private static int Number(string text, string token)
     {
         if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n))

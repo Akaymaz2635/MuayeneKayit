@@ -77,7 +77,11 @@ public sealed class Defect
     public List<MeasurementEdit> MeasurementEdits { get => _measurementEdits; set => _measurementEdits = value ?? new(); }
 }
 
-/// <summary>Bir kararın anındaki ölçümlerin görüntüsü. Rework öncesi / sonrası karşılaştırması için.</summary>
+/// <summary>
+/// Bir kararın anındaki ölçümlerin görüntüsü. Rework öncesi / sonrası karşılaştırması için.
+/// <paramref name="Parts"/>: etkilenen parçalar. null = belirtilmedi / bilinmiyor (eski kayıtlar; fark sayılmaz), "" = tüm parçalar,
+/// aksi hâlde <see cref="PartList.Normalize"/> biçimi ("1-5, 8").
+/// </summary>
 public sealed record MeasurementSnapshot(
     double? Depth,
     double? Width,
@@ -86,13 +90,15 @@ public sealed record MeasurementSnapshot(
     double? AngleDeg,
     string? Color,
     bool HighMetal = false,
-    IReadOnlyList<CustomMeasure>? Custom = null)
+    IReadOnlyList<CustomMeasure>? Custom = null,
+    string? Parts = null)
 {
     /// <summary>Ek ölçümler değerlerine göre karşılaştırılır (liste referansı ya da ad farkı değişiklik sayılmaz).</summary>
     public bool Equals(MeasurementSnapshot? other) =>
         other is not null && Depth == other.Depth && Width == other.Width && Length == other.Length && Radius == other.Radius
         && AngleDeg == other.AngleDeg && Color == other.Color && HighMetal == other.HighMetal
-        && CustomMeasures.SameValues(Custom, other.Custom);
+        && CustomMeasures.SameValues(Custom, other.Custom)
+        && (Parts is null || other.Parts is null || Parts == other.Parts);
 
     public override int GetHashCode() => HashCode.Combine(Depth, Width, Length, Radius, AngleDeg, Color, HighMetal);
 }

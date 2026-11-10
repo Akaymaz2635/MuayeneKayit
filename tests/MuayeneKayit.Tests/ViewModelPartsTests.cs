@@ -11,12 +11,12 @@ public static partial class ViewModelTests
         c.Vm.AddDefect("Dent");
         Check(c.Vm.AffectedPartsText == "", "Yeni kusurda kutu boş");
 
-        // Kutudan çıkılınca normalize edilip kaydedilir, kutuya geri yazılır; ölçüm geçmişine girmez.
+        // Kutudan çıkılınca normalize edilip kaydedilir, kutuya geri yazılır; ölçüm düzeltme geçmişine yazılır.
         c.Vm.AffectedPartsText = "1,2,3,4,5 8";
         c.Vm.AutoSave();
         Check(Load(c, 1).AffectedParts == "1-5, 8", $"Kayıt: {Load(c, 1).AffectedParts}");
         Check(c.Vm.AffectedPartsText == "1-5, 8", $"Kutu normalize yazılmalı: {c.Vm.AffectedPartsText}");
-        Check(Load(c, 1).MeasurementEdits.Count == 0, "Parça listesi ölçüm düzeltme geçmişine yazılmamalı");
+        Check(Load(c, 1).MeasurementEdits is [{ Before.Parts: "", After.Parts: "1-5, 8" }], "Parça listesi ölçüm düzeltme geçmişine yazılmalı");
         Check(c.Vm.Sentence.Contains("on parts 1–5 and 8"), c.Vm.Sentence);
 
         // Geçersiz girdi kaydedilmez, hata bildirilir.

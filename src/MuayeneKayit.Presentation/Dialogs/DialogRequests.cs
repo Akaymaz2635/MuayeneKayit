@@ -37,6 +37,7 @@ public sealed record DecisionInput(string? Target, string? Reference, string? No
 /// <param name="Unit">Kusurun ölçü birimi; başlıklar ve karşılaştırma bununla yazılır.</param>
 /// <param name="Regions">Aktif bölgeler; yalnızca 2 ya da daha fazlaysa dolu (her biri için ayrı sonuç sorulur).</param>
 /// <param name="CustomFields">Ek ölçüm alanları: şablondakiler ve eski değeri olanlar.</param>
+/// <param name="AffectedParts">Kusurun şu anki etkilenen parçaları (boş = tümü); devam eden parçalar kutusunun ilk değeri.</param>
 public sealed record ReinspectRequest(
     int DefectId,
     string DefectType,
@@ -49,7 +50,8 @@ public sealed record ReinspectRequest(
     IReadOnlyList<string> TypeNames,
     LengthUnit Unit = LengthUnit.Mm,
     IReadOnlyList<PhotoRegion>? Regions = null,
-    IReadOnlyList<CustomFieldDef>? CustomFields = null);
+    IReadOnlyList<CustomFieldDef>? CustomFields = null,
+    string? AffectedParts = null);
 
 /// <summary>Rework sonrası muayenenin sonucu.</summary>
 public enum ReinspectOutcome
@@ -69,6 +71,7 @@ public sealed record RegionChoice(string Photo, PhotoOutcome? Outcome, IReadOnly
 /// Rework sonrası pencerenin sonucu. Entered: kutulara yazılan ham değerler, boşlar null.
 /// Aktif bölge 0 ya da 1 ise Outcome ve (Yeni hata için) NewTypes geçerlidir; 2+ ise Regions geçerlidir
 /// (Outcome o zaman bölge seçimlerinden türetilmiş değerdir, kullanılmaz).
+/// ContinuingParts: kusur devam ediyorsa kutudaki parçalar (boş = tümü); null = sorulmadı, parçalar değişmez.
 /// </summary>
 public sealed record ReinspectInput(
     ReinspectOutcome Outcome,
@@ -76,7 +79,8 @@ public sealed record ReinspectInput(
     bool? HighMetalStillThere,
     IReadOnlyList<string?>? NewTypes,
     string? Note,
-    IReadOnlyList<RegionChoice>? Regions = null);
+    IReadOnlyList<RegionChoice>? Regions = null,
+    string? ContinuingParts = null);
 
 /// <summary>Son kararı geri alma penceresi isteği. ChildrenToVoid: kararla açılan, geri alınınca void edilecek yeni kusurlar.</summary>
 public sealed record UndoRequest(

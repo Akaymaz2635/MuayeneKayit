@@ -431,7 +431,12 @@ public sealed class SessionStore : ISessionStore
 
         // Yeni ölçümler ve karar aynı kilit altında: karar anı görüntüsü yeni değerleri taşır.
         if (result.ParentContinues && result.Measurements is MeasurementSnapshot values)
+        {
+            // Devam eden parçalar, kilit altındaki güncel parçaların içinden olmalı (arayüz dışı yoldan da korunur).
+            if (values.Parts is not null && PartList.ValidateContinuing(parent.AffectedParts, values.Parts) is { } partsError)
+                throw new InvalidOperationException(partsError);
             MeasurementEditor.Apply(parent, values, decidedBy);
+        }
 
         DefectStateMachine.Apply(parent, result.Decision, source, decidedBy, result.Note, reference,
             photoOutcomes: result.PhotoOutcomes, newDefectIds: children.Select(c => c.Id).ToList());

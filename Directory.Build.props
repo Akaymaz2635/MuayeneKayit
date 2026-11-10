@@ -2,7 +2,7 @@
 
   <!-- Tüm projeler için ortak ayarlar. Sürüm numarası yalnızca buradan değiştirilir. -->
   <PropertyGroup>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Product>MuayeneKayit</Product>
     <!-- Sürüm metnine commit kimliği eklenmesin ("1.0.0+abc123" yerine "1.0.0"). -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

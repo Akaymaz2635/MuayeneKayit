@@ -40,6 +40,8 @@ Kurulum, veritabanı ve internet gerekmez: program ve kayıtlar şirket ağında
 - **Disposition:** Accept, Rework / Reinspect, Reinspect, Repair, Submit MRB, MRB kabul / red, Return to vendor, Scrap, Reopen, Void, geri alma.
 - **Rework döngüsü:** rework sonrası *uygun*, *aynı kusur devam* (yeni ölçüm, artış / azalış otomatik) ya da *yeni hata*
   (yeni kusurlar açılır: "Defect 1 continues as Defect 5"). Çok bölgeli kusurda her bölge için ayrı sonuç.
+  Kusur lotun yalnızca bir kısmında sürüyorsa *Kusurun devam ettiği parçalar* kutusuna kalan parçalar yazılır (ör. 1-5 → 1, 3, 5);
+  giderilenler geçmişe ve rapora "giderildi: 2, 4" olarak girer. Ana ekrandaki *Etkilenen parçalar* değişikliği de düzeltme geçmişine yazılır.
 - **Rapor:** yatay A4 PDF, Türkçe / English, her fotoğraf ayrı sayfa, karar geçmişi ve ölçüm düzeltmeleri. Sürümlü (v1, v2…).
 - **Dashboard:** parça → operasyon → seri → kusur ağacı, süzme.
 - **Denetim kaydı:** her işlem kim / ne zaman / ne bilgisiyle SHA-256 zincirli günlüğe yazılır; kayıtların özeti de zincire bağlanır.

@@ -771,6 +771,10 @@ public sealed partial class InspectionViewModel : ObservableObject
             stored is not null && text.Trim() == (old ?? "").Trim() ? old
             : string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
+        var parts = stored is not null && AffectedPartsText.Trim() == (l?.Parts ?? "").Trim()
+            ? l?.Parts
+            : PartList.Normalize(AffectedPartsText) is { Length: > 0 } normalized ? normalized : null;
+
         return (
             new MeasurementSnapshot(
                 Box(DepthText, "Derinlik", stored?.Depth, true),
@@ -780,11 +784,10 @@ public sealed partial class InspectionViewModel : ObservableObject
                 Box(AngleText, "Açı", stored?.AngleDeg, false),
                 Text(ColorText, stored?.Color),
                 HighMetal,
-                CustomMeasures.Clean(custom) is { Count: > 0 } c ? c : null),
+                CustomMeasures.Clean(custom) is { Count: > 0 } c ? c : null,
+                parts ?? ""),
             Text(NotesText, l?.Notes),
-            stored is not null && AffectedPartsText.Trim() == (l?.Parts ?? "").Trim()
-                ? l?.Parts
-                : PartList.Normalize(AffectedPartsText) is { Length: > 0 } normalized ? normalized : null);
+            parts);
     }
 
     private sealed record StoreResult(bool Changed, IReadOnlyList<string> Conflicts);
@@ -811,7 +814,7 @@ public sealed partial class InspectionViewModel : ObservableObject
             // Ekranın yüklendiği değerler yoksa diskteki mevcut kayıt temel alınır (tüm form yazılır).
             var rebased = baseline is not null
                 ? MeasurementEditor.Rebase(baseline.Values, baseline.Notes, baseline.Parts, values, notes, parts, d)
-                : new RebasedForm(values, notes, parts, Array.Empty<string>());
+                : new RebasedForm(values, notes, Array.Empty<string>());
             conflicts = rebased.Conflicts;
 
             var probe = new Defect
@@ -829,8 +832,7 @@ public sealed partial class InspectionViewModel : ObservableObject
 
             changed = MeasurementEditor.Apply(d, rebased.Values, by, mergeWithin: MeasurementMergeWindow);
             d.Notes = rebased.Notes;
-            // Not gibi: ölçüm düzeltme geçmişine yazılmaz.
-            d.AffectedParts = rebased.Parts;
+            // Not gibi: ölçüm düzeltme geçmişine yazılmaz. Etkilenen parçalar ise ölçümle birlikte Apply'dan (rebased.Values.Parts) geçer.
         });
 
         _audit.Append(by, "defect.measure", $"#{id}");

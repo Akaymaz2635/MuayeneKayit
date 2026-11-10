@@ -167,12 +167,39 @@ public static class ReinspectForm
 
         var measurements = continues ? Merge(before, input.Entered, input.HighMetalStillThere) : null;
 
+        // Devam eden parçalar (kutu önceden mevcut değerle dolu olduğundan içeriği cevaptır). null = pencere sormadı, parçalar değişmez.
+        if (measurements is not null && input.ContinuingParts is not null)
+        {
+            if (PartList.ValidateContinuing(defect.AffectedParts, input.ContinuingParts) is { } partsError)
+                throw new InvalidOperationException(partsError);
+            measurements = measurements with { Parts = PartList.Normalize(input.ContinuingParts) };
+        }
+
         // High metal giderildiyse ve not yazılmadıysa otomatik not: kalan ana kusurun kararı buna göre verilir.
         var note = noteText ?? (continues && before.HighMetal && measurements is { HighMetal: false }
             ? "High metal giderildi; ana kusur devam ediyor."
             : null);
 
         return new ReinspectResult(continues, measurements, outcomes, news, note);
+    }
+
+    /// <summary>Kutudaki parça listesi mevcut listeden farklı mı (geçersiz girdi değişiklik sayılmaz). Ölçüm girilmeden kaydetmeye izin verir.</summary>
+    public static bool PartsChanged(string? current, string? entered)
+    {
+        try { return PartList.Normalize(entered) != PartList.Normalize(current); }
+        catch (ArgumentException) { return false; }
+    }
+
+    /// <summary>
+    /// "Kusurun devam ettiği parçalar" kutusunun canlı satırı (pencere ve test aynı kuralı kullanır).
+    /// Geçersizse hata mesajı (Valid=false; Kaydet kapalı kalır), geçerli ve parça giderildiyse "Giderildi: 2, 4", aksi hâlde boş.
+    /// </summary>
+    public static (bool Valid, string Text) PartsFeedback(string? current, string? entered)
+    {
+        if (PartList.ValidateContinuing(current, entered) is { } error)
+            return (false, error);
+        var removed = PartList.Removed(current, entered);
+        return (true, removed.Count == 0 ? "" : $"Giderildi: {PartList.Join(removed)}");
     }
 
     /// <summary>Canlı değişim satırı (artış / azalış). Ölçüm ya da high metal cevabı yoksa yönlendirir.</summary>
@@ -186,6 +213,7 @@ public static class ReinspectForm
             Depth = merged.Depth, Width = merged.Width, Length = merged.Length, Radius = merged.Radius,
             AngleDeg = merged.AngleDeg, Color = merged.Color, HighMetal = merged.HighMetal,
             Custom = merged.Custom?.ToList(),
+            AffectedParts = merged.Parts ?? before.Parts,
         };
         return string.Join("\n", MeasurementCompare.Lines(before, now, unit));
     }

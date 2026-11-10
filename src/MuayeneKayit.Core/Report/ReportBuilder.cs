@@ -217,7 +217,7 @@ public static class ReportBuilder
                   .Append($"<td>{E(ReportText.DecisionName(x))}</td>")
                   .Append($"<td>{E(ReportText.SystemNote(x.Note))}</td>")
                   .Append($"<td>{E(x.Reference)}</td>")
-                  .Append($"<td>{E(SnapshotText(x.Snapshot, d.Unit))}</td>")
+                  .Append($"<td>{E(SnapshotText(x.Snapshot, d.Unit) + ClearedText(history, x))}</td>")
                   .Append("</tr>");
             }
             sb.Append("</tbody></table>");
@@ -323,6 +323,13 @@ public static class ReportBuilder
         return sb.ToString();
     }
 
+    /// <summary>Rework sonrası "aynı kusur" kararında giderilen parçalar: " (giderildi / cleared: 2, 4)". Yoksa boş.</summary>
+    private static string ClearedText(IReadOnlyList<Disposition> history, Disposition x) =>
+        x.Decision == Decision.AfterReworkSameDefect
+        && MeasurementCompare.ClearedParts(MeasurementCompare.ReworkBefore(history, x), x.Snapshot) is { Count: > 0 } cleared
+            ? $" ({ReportText.Cleared}: {PartList.Join(cleared)})"
+            : "";
+
     private static string MeasCell(string label, string value) =>
         $"<div class=\"mc\"><div class=\"ml\">{E(label)}</div><div class=\"mv\">{E(value)}</div></div>";
 
@@ -340,6 +347,7 @@ public static class ReportBuilder
         if (!string.IsNullOrWhiteSpace(s.Color)) parts.Add(s.Color!);
         parts.AddRange(CustomMeasures.Clean(s.Custom).Select(m => CustomMeasures.Short(m, unit)));
         if (s.HighMetal) parts.Add("High metal");
+        if (!string.IsNullOrEmpty(s.Parts)) parts.Add($"{ReportText.PartsShort}: {s.Parts}");
         return parts.Count == 0 ? "—" : string.Join(" · ", parts);
     }
 

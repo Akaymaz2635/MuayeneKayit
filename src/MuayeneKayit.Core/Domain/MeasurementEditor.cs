@@ -12,7 +12,8 @@ public sealed record MeasurementEdit(
 /// Değer değişmediyse hiçbir şey yazılmaz.
 /// </summary>
 /// <summary>Ölçüm formunun diskteki güncel kayıtla birleştirilmiş hâli (bkz. <see cref="MeasurementEditor.Rebase"/>).</summary>
-public sealed record RebasedForm(MeasurementSnapshot Values, string? Notes, string? Parts, IReadOnlyList<string> Conflicts);
+/// Etkilenen parçalar <see cref="MeasurementSnapshot.Parts"/> içinde taşınır (ölçüm gibi düzeltme geçmişine yazılır).
+public sealed record RebasedForm(MeasurementSnapshot Values, string? Notes, IReadOnlyList<string> Conflicts);
 
 public static class MeasurementEditor
 {
@@ -77,14 +78,24 @@ public static class MeasurementEditor
             Pick(loaded.AngleDeg, form.AngleDeg, current.AngleDeg, "Açı"),
             Pick(loaded.Color, form.Color, current.Color, "Renk"),
             Pick(loaded.HighMetal, form.HighMetal, current.HighMetal, "High metal"),
-            custom.Count > 0 ? custom : null);
+            custom.Count > 0 ? custom : null,
+            Pick(loadedParts, formParts, disk.AffectedParts, "Etkilenen parçalar") ?? "");
         var notes = Pick(loadedNotes, formNotes, disk.Notes, "Not");
-        var parts = Pick(loadedParts, formParts, disk.AffectedParts, "Etkilenen parçalar");
-        return new RebasedForm(values, notes, parts, conflicts);
+        return new RebasedForm(values, notes, conflicts);
     }
 
     public static MeasurementSnapshot Snapshot(Defect d) =>
-        new(d.Depth, d.Width, d.Length, d.Radius, d.AngleDeg, d.Color, d.HighMetal, d.Custom is { Count: > 0 } c ? c.ToList() : null);
+        new(d.Depth, d.Width, d.Length, d.Radius, d.AngleDeg, d.Color, d.HighMetal, d.Custom is { Count: > 0 } c ? c.ToList() : null,
+            PartsOf(d.AffectedParts));
+
+    /// <summary>Kayıtlı parça metni anlık görüntü biçimine: boş → "", geçerli → normalize, bozuk kayıt → olduğu gibi (kırpılmış).</summary>
+    private static string PartsOf(string? stored)
+    {
+        if (string.IsNullOrWhiteSpace(stored))
+            return "";
+        try { return PartList.Normalize(stored); }
+        catch (ArgumentException) { return stored.Trim(); }
+    }
 
     /// <param name="mergeWithin">
     /// Verilirse: aynı kişinin bu süre içindeki son düzeltmesi (arada karar yoksa) yeni satır eklenmeden güncellenir.
@@ -94,6 +105,9 @@ public static class MeasurementEditor
     public static bool Apply(Defect defect, MeasurementSnapshot values, string by, DateTime? at = null, TimeSpan? mergeWithin = null)
     {
         var before = Snapshot(defect);
+        // Parça belirtilmediyse (null) mevcut parçalar korunur; geçmiş kaydında da mevcut değerle yazılır.
+        var partsGiven = values.Parts is not null;
+        values = values with { Parts = values.Parts is null ? before.Parts : PartList.Normalize(values.Parts) };
         if (before == values)
             return false;
 
@@ -114,6 +128,8 @@ public static class MeasurementEditor
         defect.Color = values.Color;
         defect.HighMetal = values.HighMetal;
         defect.Custom = CustomMeasures.Clean(values.Custom) is { Count: > 0 } custom ? custom : null;
+        if (partsGiven)
+            defect.AffectedParts = values.Parts!.Length == 0 ? null : values.Parts;
 
         if (before != values)
             defect.MeasurementEdits.Add(new MeasurementEdit(now, by, before, values));
